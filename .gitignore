@@ -1,0 +1,46 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+eggs/
+*.whl
+
+# === Virtual Environment ===
+venv/
+.venv/
+ENV/
+
+# === Environment Variables (NEVER commit secrets) ===
+.env
+.env.local
+.env.production
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Testing / Coverage ===
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+.tox/
+
+# === Build / Deploy ===
+*.log
+*.pid
+
+# === Generated Files ===
+generated_pdfs/

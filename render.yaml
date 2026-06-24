@@ -1,0 +1,41 @@
+# Render Blueprint — Wickham Roofing AI Orchestrator
+# https://render.com/docs/blueprint-spec
+
+services:
+  # === Web Service (FastAPI + ARQ Worker) ===
+  - type: web
+    name: wickham-ai-controller
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: JOBNIMBUS_API_KEY
+        sync: false
+      - key: JOBNIMBUS_BASE_URL
+        value: https://app.jobnimbus.com/api1
+      - key: JOBNIMBUS_ACTOR_EMAIL
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: wickham-redis
+          type: kvs
+          property: connectionString
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: QUARANTINE_STATUS
+        value: API TEST LAB
+      - key: DRY_RUN
+        value: "true"
+
+  # === Internal Redis (Key-Value Store) ===
+  - type: kvs
+    name: wickham-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # Only internal access
