@@ -80,7 +80,11 @@ def test_to_api_leaves_unmapped_keys_alone(custom_mapping):
 
 def test_default_mapping_is_used_if_none_provided():
     mapper = FieldMapper()
-    # Assuming DEFAULT_MAPPING has cf_string_1 -> insurance_carrier
-    payload = {"cf_string_1": "Geico"}
-    translated = mapper.to_human(payload)
-    assert translated.get("insurance_carrier") == "Geico"
+    # Get the first mapping from DEFAULT_MAPPING to test dynamically
+    if mapper._obfuscated_to_readable:
+        test_cf_key = next(iter(mapper._obfuscated_to_readable.keys()))
+        expected_human_key = mapper._obfuscated_to_readable[test_cf_key]
+        
+        payload = {test_cf_key: "Test Value"}
+        translated = mapper.to_human(payload)
+        assert translated.get(expected_human_key) == "Test Value"

@@ -12,14 +12,10 @@ import tempfile
 import asyncio
 import structlog
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    ListFlowable,
-    ListItem,
-)
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
+from reportlab.platypus.flowables import HRFlowable
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 logger = structlog.get_logger("app.services.pdf_generator")
 
@@ -54,36 +50,57 @@ class PDFGenerator:
         def build_pdf():
             doc = SimpleDocTemplate(filepath, pagesize=letter)
             story = []
-
-            # Header
+            
+            # Styles
             header_style = self.styles["Heading1"]
-            story.append(Paragraph("Wickham Roofing Estimate", header_style))
-            story.append(Spacer(1, 12))
-
-            # Metadata
             normal_style = self.styles["Normal"]
+            
+            # Custom Legal Style
+            legal_style = ParagraphStyle(
+                name="LegalDisclaimer",
+                parent=self.styles["Normal"],
+                fontSize=8,
+                leading=10,
+                textColor=colors.dimgrey,
+            )
+            
+            # --- 1. Company Header Block ---
+            story.append(Paragraph("<b>Wickham Roofing LLC</b>", header_style))
+            story.append(Paragraph("3074 Ellen St., Ochlocknee, GA, 31773", normal_style))
+            story.append(Spacer(1, 6))
+            story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceBefore=0, spaceAfter=12))
+            
+            # --- 2. Metadata ---
+            story.append(Paragraph("<b>Roofing Estimate</b>", self.styles["Heading2"]))
             story.append(Paragraph(f"<b>Job ID:</b> {jnid}", normal_style))
             story.append(Spacer(1, 12))
-
-            # Materials
-            story.append(Paragraph("<b>Materials:</b>", normal_style))
+            
+            # --- 3. Materials ---
+            story.append(Paragraph("<b>Scope of Work / Materials:</b>", normal_style))
             materials = data.get("materials", [])
             if materials:
-                # Create a bulleted list of materials
-                bullet_items = [
-                    ListItem(Paragraph(str(m), normal_style)) for m in materials
-                ]
-                story.append(ListFlowable(bullet_items, bulletType="bullet"))
+                bullet_items = [ListItem(Paragraph(str(m), normal_style)) for m in materials]
+                story.append(ListFlowable(bullet_items, bulletType='bullet'))
             else:
                 story.append(Paragraph("No materials specified.", normal_style))
             story.append(Spacer(1, 12))
-
-            # Total Cost
+            
+            # --- 4. Total Cost ---
             total_cost = data.get("total_cost", 0.0)
-            story.append(
-                Paragraph(f"<b>Total Cost:</b> ${total_cost:,.2f}", normal_style)
+            story.append(Paragraph(f"<b>Total Cost:</b> ${total_cost:,.2f}", normal_style))
+            story.append(Spacer(1, 40))
+            
+            # --- 5. Legal Terms & Disclaimers Boilerplate ---
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey, spaceBefore=0, spaceAfter=12))
+            legal_text = (
+                "<b>Scope of Work:</b> This estimate covers explicitly listed materials and applications. "
+                "Any hidden structural rot, decking damage, or code upgrades discovered during tear-off "
+                "will be handled via a supplemental change order.<br/><br/>"
+                "<b>Payment Terms:</b> All balances are due upon job completion. Unpaid invoices past 30 days "
+                "are subject to standard financing interest rates as specified by corporate policy."
             )
-
+            story.append(Paragraph(legal_text, legal_style))
+            
             doc.build(story)
 
         try:

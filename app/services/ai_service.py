@@ -43,10 +43,10 @@ class AIService:
         )
 
         self.model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-2.5-flash",
             generation_config=generation_config,
         )
-        logger.info("ai_service_initialized", model="gemini-1.5-flash")
+        logger.info("ai_service_initialized", model="gemini-2.5-flash")
 
     async def analyze_job_data(self, payload: dict) -> dict:
         """
