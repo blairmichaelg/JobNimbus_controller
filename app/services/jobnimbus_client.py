@@ -95,6 +95,43 @@ def retry_on_rate_limit(func):
     return wrapper
 
 
+def retry_on_transient_network_errors(func):
+    """
+    Decorator: retry an async method on httpx.RequestError (e.g. network glitches, DNS issues)
+    with a small retry budget (max 2 retries, 0.5s base delay).
+    """
+    MAX_TRANSIENT_RETRIES = 3
+    BASE_TRANSIENT_DELAY = 0.5
+
+    async def wrapper(*args, **kwargs):
+        last_exception = None
+        for attempt in range(MAX_TRANSIENT_RETRIES):
+            try:
+                return await func(*args, **kwargs)
+            except httpx.RequestError as exc:
+                last_exception = exc
+                delay = BASE_TRANSIENT_DELAY * math.pow(2, attempt)
+                logger.warning(
+                    "transient_network_error_retrying",
+                    attempt=attempt + 1,
+                    max_retries=MAX_TRANSIENT_RETRIES,
+                    delay_seconds=delay,
+                    url=str(exc.request.url) if hasattr(exc, "request") else "unknown",
+                    error=str(exc),
+                )
+                await asyncio.sleep(delay)
+
+        # All retries exhausted
+        logger.error(
+            "transient_network_retries_exhausted",
+            max_retries=MAX_TRANSIENT_RETRIES,
+            url=str(last_exception.request.url) if hasattr(last_exception, "request") else "unknown",
+        )
+        raise last_exception  # type: ignore[misc]
+
+    return wrapper
+
+
 # ---------------------------------------------------------------------------
 # JobNimbus API Client
 # ---------------------------------------------------------------------------
@@ -169,6 +206,7 @@ class JobNimbusClient:
 
     # --- Read Operations ---
 
+    @retry_on_transient_network_errors
     @retry_on_rate_limit
     async def get_job(self, jnid: str) -> dict:
         """
@@ -187,6 +225,7 @@ class JobNimbusClient:
         logger.info("get_job_complete", jnid=jnid, status=response.status_code)
         return data
 
+    @retry_on_transient_network_errors
     @retry_on_rate_limit
     async def get_contact(self, jnid: str) -> dict:
         """
@@ -332,7 +371,7 @@ class JobNimbusClient:
 
         # Use a fresh httpx client for the S3 PUT (different auth, different base URL)
         async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as s3_client:
-            file_data = filepath.read_bytes()
+            file_data = await asyncio.to_thread(filepath.read_bytes)
             s3_response = await s3_client.put(
                 presigned_url,
                 content=file_data,

@@ -306,6 +306,27 @@ class TestWebhookEnqueue:
             },
         )
 
+    def test_enqueue_failure_returns_503(self):
+        """If Redis enqueue fails, the endpoint should return 503 Service Unavailable."""
+        app, mock_pool = _make_test_app()
+        client = TestClient(app)
+
+        # Force enqueue to fail
+        mock_pool.enqueue_job.side_effect = Exception("Redis connection failed")
+
+        response = client.post(
+            "/webhooks/jobnimbus",
+            json={
+                "jnid": "job_503",
+                "status_name": "API TEST LAB",
+                "record_type_name": "job",
+            },
+            headers={"x-api-key": VALID_API_KEY},
+        )
+
+        assert response.status_code == 503
+        assert "Service Unavailable" in response.json()["detail"]
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

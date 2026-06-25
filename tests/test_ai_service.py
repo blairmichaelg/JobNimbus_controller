@@ -55,17 +55,25 @@ def test_analyze_job_data_success(
 @patch("app.services.ai_service.get_settings")
 @patch("app.services.ai_service.genai.GenerativeModel")
 @patch("app.services.ai_service.genai.configure")
-def test_analyze_job_data_invalid_json(
+def test_analyze_job_data_schema_validation_error(
     mock_configure, mock_model_class, mock_get_settings, mock_settings
 ):
-    """Test handling of invalid JSON returned by the model."""
+    """Test handling of invalid schema returned by the model."""
     mock_get_settings.return_value = mock_settings
 
     mock_model_instance = MagicMock()
     mock_response = MagicMock()
 
-    # Simulate a model returning invalid JSON (e.g., Markdown blocks)
-    mock_response.text = "```json\n{'invalid': true\n```"
+    # Simulate a model returning JSON that fails Pydantic validation
+    # "unknown_action" is not in the Literal, and total_cost is a string
+    mock_response.text = json.dumps({
+        "action": "unknown_action",
+        "reasoning": "I made this up",
+        "document_data": {
+            "materials": ["Nails"],
+            "total_cost": "A lot"
+        }
+    })
     mock_model_instance.generate_content.return_value = mock_response
     mock_model_class.return_value = mock_model_instance
 
@@ -76,4 +84,4 @@ def test_analyze_job_data_invalid_json(
 
     # Should gracefully fail and return an error action
     assert result["action"] == "error"
-    assert "Failed to parse" in result["reasoning"]
+    assert "validation" in result["reasoning"].lower() or "1 validation error" in result["reasoning"] or "validation" in result.get("reasoning", "")

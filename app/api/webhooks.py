@@ -140,11 +140,21 @@ async def receive_jobnimbus_webhook(
     # --- Step 4: Enqueue for async processing ---
     redis_pool = request.app.state.redis_pool
 
-    await redis_pool.enqueue_job(
-        "process_jobnimbus_event",
-        jnid=entity_id,
-        payload=payload.model_dump(),
-    )
+    try:
+        await redis_pool.enqueue_job(
+            "process_jobnimbus_event",
+            jnid=entity_id,
+            payload=payload.model_dump(),
+        )
+    except Exception as e:
+        logger.error(
+            "webhook_enqueue_failed",
+            jnid=entity_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=503, detail="Service Unavailable - Queue full or offline"
+        )
 
     logger.info(
         "webhook_enqueued",

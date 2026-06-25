@@ -15,10 +15,24 @@ import asyncio
 import structlog
 import google.generativeai as genai
 from google.api_core.exceptions import GoogleAPIError
+from pydantic import BaseModel, ValidationError
+from typing import Literal
 
 from app.config import get_settings
 
 logger = structlog.get_logger("app.services.ai_service")
+
+logger = structlog.get_logger("app.services.ai_service")
+
+
+class DocumentData(BaseModel):
+    materials: list[str] = []
+    total_cost: float = 0.0
+
+class Decision(BaseModel):
+    action: Literal["generate_document", "update_status", "ignore", "error"]
+    reasoning: str
+    document_data: DocumentData
 
 
 class AIService:
@@ -83,7 +97,8 @@ Rules:
             response = await asyncio.to_thread(self.model.generate_content, prompt)
 
             result_text = response.text
-            decision = json.loads(result_text)
+            decision_obj = Decision.model_validate_json(result_text)
+            decision = decision_obj.model_dump()
 
             log.info(
                 "ai_analysis_complete",
@@ -92,15 +107,15 @@ Rules:
             )
             return decision
 
-        except json.JSONDecodeError as exc:
+        except ValidationError as exc:
             log.error(
-                "ai_json_parse_error",
+                "ai_schema_validation_error",
                 error=str(exc),
                 response_text=response.text if "response" in locals() else None,
             )
             return {
                 "action": "error",
-                "reasoning": "Failed to parse AI response as JSON",
+                "reasoning": f"Schema Validation Error: {str(exc)}",
                 "document_data": {},
             }
         except GoogleAPIError as exc:

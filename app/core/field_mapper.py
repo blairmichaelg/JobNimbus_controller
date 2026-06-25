@@ -10,35 +10,26 @@ This translation layer is critical because:
 - The mapping must be maintained as custom fields are added/renamed
 """
 
+import json
+from pathlib import Path
 import structlog
 
 logger = structlog.get_logger("app.core.field_mapper")
 
 
-# Hardcoded mapping for Phase 4 (can be moved to a config file or DB later)
-DEFAULT_MAPPING = {
-    "cf_string_1": "insurance_company",
-    "cf_string_2": "claim_number",
-    "cf_date_1": "date_of_loss",
-    "cf_number_1": "deductible_amount",
-    "cf_number_2": "rcv",
-    "cf_number_3": "acv",
-    "cf_string_3": "adjuster_name_phone",
-    "cf_boolean_1": "contract_signed",
-    "cf_string_4": "decking_condition",
-    "cf_string_5": "shingle_manufacturer",
-    "cf_string_6": "roof_age",
-    "cf_string_7": "shingle_color",
-    "cf_string_8": "roof_type",
-    "cf_boolean_2": "inspection_completed",
-    "cf_string_9": "gate_code",
-    "cf_string_10": "damage_type",
-    "cf_boolean_3": "gated_community",
-    "cf_number_4": "total_squares",
-    "cf_string_11": "roof_pitch",
-    "cf_string_12": "eagleview_hover_order_id",
-    "cf_string_13": "restoration_ai_link"
-}
+def load_default_mapping() -> dict[str, str]:
+    """Load the field mapping configuration from field_mapping.json."""
+    try:
+        # Assuming field_mapping.json is in the root directory
+        config_path = Path(__file__).parent.parent.parent / "field_mapping.json"
+        if config_path.exists():
+            return json.loads(config_path.read_text())
+        else:
+            logger.warning("field_mapping_file_not_found", path=str(config_path))
+            return {}
+    except Exception as exc:
+        logger.error("field_mapping_load_error", error=str(exc))
+        return {}
 
 
 class FieldMapper:
@@ -54,7 +45,7 @@ class FieldMapper:
             mapping: A dict mapping obfuscated keys to human-readable keys.
                      If None, uses DEFAULT_MAPPING.
         """
-        self._obfuscated_to_readable = mapping or DEFAULT_MAPPING
+        self._obfuscated_to_readable = mapping if mapping is not None else load_default_mapping()
         self._readable_to_obfuscated = {
             v: k for k, v in self._obfuscated_to_readable.items()
         }

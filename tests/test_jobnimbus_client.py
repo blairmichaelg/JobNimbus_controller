@@ -111,6 +111,52 @@ class TestRetryOnRateLimit:
 
 
 # ---------------------------------------------------------------------------
+# Test: Transient Network Error Decorator
+# ---------------------------------------------------------------------------
+class TestRetryOnTransientNetwork:
+    """Tests the exponential backoff decorator for transient network errors."""
+
+    def test_transient_network_error_retried(self):
+        """Should retry up to 2 times on httpx.RequestError."""
+        from app.services.jobnimbus_client import retry_on_transient_network_errors, MAX_RETRIES
+
+        call_count = 0
+
+        @retry_on_transient_network_errors
+        async def mock_request():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                request = httpx.Request("GET", "https://example.com/test")
+                raise httpx.RequestError("Connection timeout", request=request)
+            return {"status": "recovered"}
+
+        with patch("app.services.jobnimbus_client.asyncio.sleep", new_callable=AsyncMock):
+            result = asyncio.run(mock_request())
+
+        assert result == {"status": "recovered"}
+        assert call_count == 3
+
+    def test_max_transient_retries_exhausted(self):
+        """Should raise after max transient retries (2)."""
+        from app.services.jobnimbus_client import retry_on_transient_network_errors
+
+        call_count = 0
+
+        @retry_on_transient_network_errors
+        async def mock_request():
+            nonlocal call_count
+            call_count += 1
+            request = httpx.Request("GET", "https://example.com/test")
+            raise httpx.RequestError("Connection timeout", request=request)
+
+        with patch("app.services.jobnimbus_client.asyncio.sleep", new_callable=AsyncMock):
+            with pytest.raises(httpx.RequestError):
+                asyncio.run(mock_request())
+
+        assert call_count == 3  # Max transient retries is 3
+
+# ---------------------------------------------------------------------------
 # Test: Query Parameter Construction
 # ---------------------------------------------------------------------------
 class TestQueryParamBuilders:
