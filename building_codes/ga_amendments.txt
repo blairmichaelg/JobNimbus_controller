@@ -1,0 +1,5 @@
+<GEORGIA_AMENDMENTS>
+  <GA_R905_2_8_5>
+    [Georgia Amendment to IRC R905.2.8.5] Drip Edge. Revise Section R905.2.8.5 to read as follows: A drip edge shall be provided at eaves and gables of shingle roofs. Drip edge shall be securely fastened to the roof deck at a maximum of 12 inches on center.
+  </GA_R905_2_8_5>
+</GEORGIA_AMENDMENTS>

@@ -16,6 +16,9 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowabl
 from reportlab.platypus.flowables import HRFlowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from reportlab.platypus import Table, TableStyle
+
+from app.core.supplement_models import DiscrepancyReport
 
 logger = structlog.get_logger("app.services.pdf_generator")
 
@@ -110,4 +113,107 @@ class PDFGenerator:
             return filepath
         except Exception as exc:
             log.error("pdf_generation_failed", error=str(exc))
+            raise
+
+    async def generate_supplement_pdf(self, report: DiscrepancyReport, narrative: str, jnid: str) -> str:
+        """
+        Generate a Supplement Request PDF including the discrepancy summary and AI narrative.
+        Returns the absolute filepath to the temporary PDF.
+        """
+        log = logger.bind(jnid=jnid)
+        log.info("supplement_pdf_generation_started")
+
+        temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+        filepath = temp_file.name
+        temp_file.close()
+
+        def build_pdf():
+            doc = SimpleDocTemplate(filepath, pagesize=letter)
+            story = []
+            
+            # Styles
+            header_style = self.styles["Heading1"]
+            normal_style = self.styles["Normal"]
+            narrative_style = ParagraphStyle(
+                name="Narrative",
+                parent=normal_style,
+                spaceBefore=6,
+                spaceAfter=6,
+            )
+            legal_style = ParagraphStyle(
+                name="LegalDisclaimer",
+                parent=normal_style,
+                fontSize=8,
+                leading=10,
+                textColor=colors.dimgrey,
+            )
+            
+            # --- 1. Company Header Block ---
+            story.append(Paragraph("<b>Wickham Roofing LLC</b>", header_style))
+            story.append(Paragraph("3074 Ellen St., Ochlocknee, GA, 31773", normal_style))
+            story.append(Spacer(1, 6))
+            story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceBefore=0, spaceAfter=12))
+            
+            # --- 2. Title ---
+            story.append(Paragraph("<b>SUPPLEMENT REQUEST</b>", self.styles["Heading2"]))
+            story.append(Paragraph(f"<b>Job ID:</b> {jnid}", normal_style))
+            story.append(Spacer(1, 12))
+            
+            # --- 3. Discrepancy Table ---
+            story.append(Paragraph("<b>Summary of Mathematical Variances:</b>", normal_style))
+            story.append(Spacer(1, 6))
+            
+            table_data = [["Category", "EV Value", "SoL Value", "Variance"]]
+            for d in report.discrepancies:
+                table_data.append([
+                    d.category,
+                    str(d.ev_value) if d.ev_value is not None else "N/A",
+                    str(d.sol_value) if d.sol_value is not None else "N/A",
+                    str(d.variance) if d.variance is not None else "N/A",
+                ])
+                
+            if len(table_data) > 1:
+                t = Table(table_data, colWidths=[150, 100, 100, 100])
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                    ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('BOTTOMPADDING', (0,0), (-1,0), 12),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.beige),
+                    ('GRID', (0,0), (-1,-1), 1, colors.black),
+                ]))
+                story.append(t)
+            else:
+                story.append(Paragraph("No discrepancies found.", normal_style))
+            story.append(Spacer(1, 18))
+            
+            # --- 4. Narrative ---
+            story.append(Paragraph("<b>Contractor Notes & Code Requirements:</b>", normal_style))
+            story.append(Spacer(1, 6))
+            # Split narrative by newlines into separate paragraphs
+            for p in narrative.split("\n"):
+                if p.strip():
+                    story.append(Paragraph(p.strip(), narrative_style))
+            story.append(Spacer(1, 24))
+            
+            # --- 5. Legal Terms & Disclaimers Boilerplate ---
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey, spaceBefore=0, spaceAfter=12))
+            legal_text = (
+                "<b>Scope of Work:</b> This estimate covers explicitly listed materials and applications. "
+                "Any hidden structural rot, decking damage, or code upgrades discovered during tear-off "
+                "will be handled via a supplemental change order.<br/><br/>"
+                "<b>Payment Terms:</b> All balances are due upon job completion. Unpaid invoices past 30 days "
+                "are subject to standard financing interest rates as specified by corporate policy."
+            )
+            story.append(Paragraph(legal_text, legal_style))
+            
+            doc.build(story)
+
+        try:
+            await asyncio.to_thread(build_pdf)
+            log.info("supplement_pdf_generation_complete", filepath=filepath)
+            return filepath
+        except Exception as exc:
+            log.error("supplement_pdf_generation_failed", error=str(exc))
             raise

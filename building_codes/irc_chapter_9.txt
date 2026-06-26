@@ -1,0 +1,11 @@
+<IRC_CHAPTER_9>
+  <SECTION_R905_2_2>
+    [IRC R905.2.2] Slope. Asphalt shingles shall be used only on roof slopes of two units vertical in 12 units horizontal (17-percent slope) or greater. For roof slopes from two units vertical in 12 units horizontal (17-percent slope) up to four units vertical in 12 units horizontal (33-percent slope), double underlayment application is required.
+  </SECTION_R905_2_2>
+  <SECTION_R905_2_8_2>
+    [IRC R905.2.8.2] Valleys. Valley linings shall be installed in accordance with the manufacturer's instructions before applying shingles. Valley linings of the following types shall be permitted: 1. For open valleys lined with metal, the valley lining shall be not less than 24 inches wide. 2. For closed valleys, valley lining of one ply of smooth roll roofing complying with ASTM D224 or ASTM D3909 and not less than 36 inches wide or valley lining as described in Item 1 or 3 shall be permitted. 3. An approved self-adhering polymer modified bitumen underlayment complying with ASTM D1970 shall be permitted in lieu of the lining material.
+  </SECTION_R905_2_8_2>
+  <SECTION_R905_2_8_5>
+    [IRC R905.2.8.5] Drip edge. A drip edge shall be provided at eaves and gables of shingle roofs. Adjacent segments of drip edge shall be overlapped not less than 2 inches. Drip edges shall extend not less than 0.25 inch below the roof sheathing and extend up back onto the roof deck not less than 2 inches.
+  </SECTION_R905_2_8_5>
+</IRC_CHAPTER_9>

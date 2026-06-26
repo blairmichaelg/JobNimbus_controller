@@ -1,26 +1,26 @@
 """
 Google Gemini AI service wrapper.
 
-Wraps the google-generativeai SDK to:
+Wraps the google-genai SDK to:
 - Accept translated (human-readable) job data as context
 - Apply strict prompt templates for specific cognitive tasks
 - Return structured JSON decisions
 - Handle API errors and rate limits gracefully
 
-Implementation: Phase 5
+SDK Migration: Moved from deprecated google-generativeai to google-genai.
+The new SDK uses a Client() pattern with client.models.generate_content().
 """
 
 import json
 import asyncio
 import structlog
-import google.generativeai as genai
-from google.api_core.exceptions import GoogleAPIError
+from google import genai
+from google.genai import types as genai_types
 from pydantic import BaseModel, ValidationError
 from typing import Literal
 
 from app.config import get_settings
-
-logger = structlog.get_logger("app.services.ai_service")
+from app.core.supplement_models import StatementOfLoss, DiscrepancyReport
 
 logger = structlog.get_logger("app.services.ai_service")
 
@@ -28,6 +28,7 @@ logger = structlog.get_logger("app.services.ai_service")
 class DocumentData(BaseModel):
     materials: list[str] = []
     total_cost: float = 0.0
+
 
 class Decision(BaseModel):
     action: Literal["generate_document", "update_status", "ignore", "error"]
@@ -39,28 +40,17 @@ class AIService:
     """
     Gemini AI integration for cognitive processing of CRM data.
 
-    Phase 5 implementation will provide:
-    - extract_materials(job_data) -> dict: Parse material lists from job notes
-    - draft_customer_message(job_data, template) -> str: Draft SMS/email content
-    - determine_pipeline_stage(job_data) -> str: AI-driven workflow routing
-    - _build_prompt(task, context) -> str: Template-based prompt construction
+    Uses the google-genai unified SDK with:
+    - Strict JSON output via response_mime_type
+    - Low temperature for deterministic responses
+    - Pydantic schema enforcement on AI output
     """
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        genai.configure(api_key=self.settings.gemini_api_key)
-
-        # Configure model to strictly return JSON
-        generation_config = genai.types.GenerationConfig(
-            response_mime_type="application/json",
-            temperature=0.2,  # Low temperature for more deterministic output
-        )
-
-        self.model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash",
-            generation_config=generation_config,
-        )
-        logger.info("ai_service_initialized", model="gemini-2.5-flash")
+        self.client = genai.Client(api_key=self.settings.gemini_api_key)
+        self.model_name = "gemini-2.5-flash"
+        logger.info("ai_service_initialized", model=self.model_name)
 
     async def analyze_job_data(self, payload: dict) -> dict:
         """
@@ -94,7 +84,15 @@ Rules:
 
         try:
             # Run the synchronous API call in an executor to avoid blocking the event loop
-            response = await asyncio.to_thread(self.model.generate_content, prompt)
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
+                model=self.model_name,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2,
+                ),
+            )
 
             result_text = response.text
             decision_obj = Decision.model_validate_json(result_text)
@@ -118,13 +116,6 @@ Rules:
                 "reasoning": f"Schema Validation Error: {str(exc)}",
                 "document_data": {},
             }
-        except GoogleAPIError as exc:
-            log.error("ai_api_error", error=str(exc))
-            return {
-                "action": "error",
-                "reasoning": f"Google API Error: {str(exc)}",
-                "document_data": {},
-            }
         except Exception as exc:
             log.error("ai_unexpected_error", error=str(exc))
             return {
@@ -132,3 +123,102 @@ Rules:
                 "reasoning": f"Unexpected error: {str(exc)}",
                 "document_data": {},
             }
+
+    async def extract_sol_from_pdf(self, pdf_path: str) -> StatementOfLoss:
+        """
+        Multimodal extraction of a Statement of Loss PDF using Gemini File API.
+        Enforces structured extraction using the StatementOfLoss Pydantic schema.
+        """
+        log = logger.bind(pdf_path=str(pdf_path))
+        log.info("sol_extraction_started")
+
+        prompt = """
+        You are an expert Xactimate estimator. Analyze this Statement of Loss (SoL) document.
+        Extract ONLY the line items located under the "Roof" grouping (ignore any other rooms, general demolition, or recap tables).
+        Pay special attention to descriptions that wrap across multiple lines (e.g., "Remove 3 tab 25 yr. composition shingle roofing - incl. felt").
+        If a quantity, unit of measure, or price is blank or missing, you MUST return null, not guess or hallucinate.
+        DO NOT infer or calculate quantities. Extract the exact numerical value printed in the quantity column.
+        If Overhead and Profit (O&P) is not explicitly listed in the summaries, set overhead_and_profit_included to false.
+        """
+
+        def _extract():
+            import time
+            # 1. Upload file
+            uploaded_file = self.client.files.upload(file=pdf_path)
+            
+            # 2. Wait for processing
+            file_info = self.client.files.get(name=uploaded_file.name)
+            while file_info.state.name == "PROCESSING":
+                time.sleep(2)
+                file_info = self.client.files.get(name=uploaded_file.name)
+            
+            if file_info.state.name == "FAILED":
+                raise RuntimeError("File processing failed on Gemini servers.")
+
+            # 3. Generate content with structured output
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[file_info, prompt],
+                config=genai_types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=StatementOfLoss,
+                    temperature=0.1,
+                    max_output_tokens=8192,
+                ),
+            )
+            
+            # Clean up the file (best effort)
+            try:
+                self.client.files.delete(name=uploaded_file.name)
+            except Exception:
+                pass
+                
+            return response.parsed
+
+        try:
+            result = await asyncio.to_thread(_extract)
+            log.info("sol_extraction_complete")
+            return result
+        except Exception as exc:
+            log.error("sol_extraction_failed", error=str(exc))
+            raise
+
+    async def generate_supplement_narrative(self, report: DiscrepancyReport, codes: str) -> str:
+        """
+        Generate a professional, assertive supplement request narrative.
+        Uses the deterministic discrepancies and raw XML building codes as context.
+        """
+        log = logger.bind(job_id=report.job_id)
+        log.info("supplement_narrative_started")
+
+        prompt = f"""
+        You are an expert, assertive roofing contractor writing a supplement justification letter to an insurance desk adjuster.
+        
+        You have analyzed the EagleView measurement report and the Carrier's Statement of Loss and found the following numerical shortages.
+        You MUST explicitly state the mathematical shortages found in the report below.
+        If a building code applies to a shortage (e.g., Drip Edge, Ice & Water), you MUST quote the exact code section provided in the Building Codes context.
+        
+        --- DISCREPANCY REPORT ---
+        {report.model_dump_json(indent=2)}
+        
+        --- BUILDING CODES ---
+        {codes}
+        
+        Write the letter now. Do not use placeholders for the company name, just use "Wickham Roofing LLC". Do not include a date or address block at the top, just jump straight into "Dear Adjuster," and the body of the letter.
+        """
+
+        try:
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
+                model=self.model_name,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    temperature=0.3,
+                ),
+            )
+            
+            log.info("supplement_narrative_complete")
+            return response.text
+        except Exception as exc:
+            log.error("supplement_narrative_failed", error=str(exc))
+            raise

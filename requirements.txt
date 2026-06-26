@@ -12,10 +12,13 @@ arq>=0.26.0
 redis>=5.0.0
 
 # === AI Provider ===
-google-generativeai>=0.8.0
+google-genai>=1.0.0
 
 # === PDF Generation ===
 reportlab>=4.0
+
+# === PDF Parsing (EagleView table extraction) ===
+pdfplumber>=0.11.0
 
 # === Configuration & Validation ===
 python-dotenv>=1.0.0

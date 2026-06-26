@@ -1,5 +1,8 @@
 """
 Unit tests for the AI Service.
+
+Tests cover the google-genai SDK integration, Pydantic schema validation,
+and error handling for the Gemini AI cognitive engine.
 """
 
 import json
@@ -18,16 +21,15 @@ def mock_settings():
 
 
 @patch("app.services.ai_service.get_settings")
-@patch("app.services.ai_service.genai.GenerativeModel")
-@patch("app.services.ai_service.genai.configure")
+@patch("app.services.ai_service.genai.Client")
 def test_analyze_job_data_success(
-    mock_configure, mock_model_class, mock_get_settings, mock_settings
+    mock_client_class, mock_get_settings, mock_settings
 ):
     """Test successful JSON parsing from Gemini API."""
     mock_get_settings.return_value = mock_settings
 
-    # Mock the Gemini response
-    mock_model_instance = MagicMock()
+    # Mock the Gemini client and response
+    mock_client_instance = MagicMock()
     mock_response = MagicMock()
 
     expected_decision = {
@@ -39,8 +41,8 @@ def test_analyze_job_data_success(
         },
     }
     mock_response.text = json.dumps(expected_decision)
-    mock_model_instance.generate_content.return_value = mock_response
-    mock_model_class.return_value = mock_model_instance
+    mock_client_instance.models.generate_content.return_value = mock_response
+    mock_client_class.return_value = mock_client_instance
 
     service = AIService()
     payload = {"id": "123", "notes": "Need roof replacement"}
@@ -49,19 +51,18 @@ def test_analyze_job_data_success(
 
     assert result["action"] == "generate_document"
     assert "materials" in result["document_data"]
-    assert mock_model_instance.generate_content.called
+    assert mock_client_instance.models.generate_content.called
 
 
 @patch("app.services.ai_service.get_settings")
-@patch("app.services.ai_service.genai.GenerativeModel")
-@patch("app.services.ai_service.genai.configure")
+@patch("app.services.ai_service.genai.Client")
 def test_analyze_job_data_schema_validation_error(
-    mock_configure, mock_model_class, mock_get_settings, mock_settings
+    mock_client_class, mock_get_settings, mock_settings
 ):
     """Test handling of invalid schema returned by the model."""
     mock_get_settings.return_value = mock_settings
 
-    mock_model_instance = MagicMock()
+    mock_client_instance = MagicMock()
     mock_response = MagicMock()
 
     # Simulate a model returning JSON that fails Pydantic validation
@@ -74,8 +75,8 @@ def test_analyze_job_data_schema_validation_error(
             "total_cost": "A lot"
         }
     })
-    mock_model_instance.generate_content.return_value = mock_response
-    mock_model_class.return_value = mock_model_instance
+    mock_client_instance.models.generate_content.return_value = mock_response
+    mock_client_class.return_value = mock_client_instance
 
     service = AIService()
     payload = {"id": "123"}
@@ -84,4 +85,76 @@ def test_analyze_job_data_schema_validation_error(
 
     # Should gracefully fail and return an error action
     assert result["action"] == "error"
-    assert "validation" in result["reasoning"].lower() or "1 validation error" in result["reasoning"] or "validation" in result.get("reasoning", "")
+    assert "validation" in result["reasoning"].lower() or "Validation" in result["reasoning"]
+
+
+@patch("app.services.ai_service.get_settings")
+@patch("app.services.ai_service.genai.Client")
+def test_extract_sol_from_pdf_success(
+    mock_client_class, mock_get_settings, mock_settings
+):
+    """Test successful multimodal extraction of SoL PDF."""
+    mock_get_settings.return_value = mock_settings
+
+    mock_client_instance = MagicMock()
+    
+    # Mock upload
+    mock_file = MagicMock()
+    mock_file.name = "files/12345"
+    mock_client_instance.files.upload.return_value = mock_file
+    
+    # Mock file state (ACTIVE immediately)
+    mock_file_info = MagicMock()
+    mock_file_info.state.name = "ACTIVE"
+    mock_client_instance.files.get.return_value = mock_file_info
+    
+    # Mock generation response
+    mock_response = MagicMock()
+    from app.core.supplement_models import StatementOfLoss, LineItem
+    mock_response.parsed = StatementOfLoss(
+        carrier_name="State Farm",
+        claim_number="1234",
+        line_items=[
+            LineItem(trade="Roof", code="RFG", description="Shingles", quantity=20.0, unit_of_measure="SQ", unit_price=100.0)
+        ],
+        overhead_and_profit_included=True
+    )
+    mock_client_instance.models.generate_content.return_value = mock_response
+    mock_client_class.return_value = mock_client_instance
+
+    service = AIService()
+    result = asyncio.run(service.extract_sol_from_pdf("fake.pdf"))
+
+    assert result.carrier_name == "State Farm"
+    assert result.claim_number == "1234"
+    assert len(result.line_items) == 1
+    assert result.line_items[0].quantity == 20.0
+    
+    # Verify cleanup was called
+    mock_client_instance.files.delete.assert_called_once_with(name="files/12345")
+
+
+@patch("app.services.ai_service.get_settings")
+@patch("app.services.ai_service.genai.Client")
+def test_extract_sol_from_pdf_processing_failure(
+    mock_client_class, mock_get_settings, mock_settings
+):
+    """Test handling of file processing failure on Gemini servers."""
+    mock_get_settings.return_value = mock_settings
+
+    mock_client_instance = MagicMock()
+    
+    mock_file = MagicMock()
+    mock_file.name = "files/badfile"
+    mock_client_instance.files.upload.return_value = mock_file
+    
+    # Mock file state returning FAILED
+    mock_file_info = MagicMock()
+    mock_file_info.state.name = "FAILED"
+    mock_client_instance.files.get.return_value = mock_file_info
+    
+    mock_client_class.return_value = mock_client_instance
+
+    service = AIService()
+    with pytest.raises(RuntimeError, match="File processing failed"):
+        asyncio.run(service.extract_sol_from_pdf("fake.pdf"))
