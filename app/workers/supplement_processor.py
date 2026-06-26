@@ -16,22 +16,10 @@ import structlog
 from app.services.pdf_extractor import extract_eagleview_data
 from app.services.ai_service import AIService
 from app.core.reconciliation import reconcile
+from app.core.code_router import parse_code_files, get_relevant_codes
 from app.services.pdf_generator import PDFGenerator
 
 logger = structlog.get_logger("app.workers.supplement_processor")
-
-
-def _load_building_codes() -> str:
-    """Read building code texts from the building_codes directory."""
-    codes_dir = Path("building_codes")
-    codes_text = ""
-    if codes_dir.exists():
-        for txt_file in codes_dir.glob("*.txt"):
-            try:
-                codes_text += txt_file.read_text(encoding="utf-8") + "\n\n"
-            except Exception as e:
-                logger.warning("building_code_read_failed", file=txt_file.name, error=str(e))
-    return codes_text
 
 
 async def process_supplement_event(ctx: dict, jnid: str, ev_pdf_path: str, sol_pdf_path: str) -> dict:
@@ -53,8 +41,9 @@ async def process_supplement_event(ctx: dict, jnid: str, ev_pdf_path: str, sol_p
         # 3. Reconcile
         report = reconcile(ev_data, sol_data, job_id=jnid)
 
-        # 4. Load Building Codes
-        codes = _load_building_codes()
+        # 4. Load Target Building Codes (Zero-Cost RAG)
+        code_index = parse_code_files()
+        codes = get_relevant_codes(report, code_index)
 
         # 5. Generate Narrative
         narrative = await ai_service.generate_supplement_narrative(report, codes)

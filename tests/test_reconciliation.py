@@ -10,9 +10,11 @@ def test_reconcile_square_variance():
     ev = EagleViewData(
         total_area_sf=6788.0, rake_lf=0, valley_lf=0, ridge_lf=0, hip_lf=0,
         eaves_lf=0, drip_edge_lf=0, flashing_lf=0, step_flashing_lf=0,
-        total_facets=1, predominant_pitch="10/12", waste_factor=0.15
+        total_facets=1, predominant_pitch="10/12"
     )
-    # EV normalized squares = 78.06
+    # Complexity: facets(1 * 0.2) + pitch(3 * 0.5) = 1.7
+    # Waste: 0.10 + 0.017 = 0.117 (rounded to 0.12)
+    # Normalized SQ: (6788 / 100) * 1.12 = 76.03
     
     sol = StatementOfLoss(
         line_items=[
@@ -26,11 +28,12 @@ def test_reconcile_square_variance():
     report = reconcile(ev, sol, "job_1")
     
     assert report.sol_total_rfg_squares == 25.0
-    assert report.square_variance == 53.06
+    assert report.square_variance == 51.03
+    assert report.ev_normalized_squares == 76.03
     
     area_disc = next((d for d in report.discrepancies if d.category == "Area Shortage"), None)
     assert area_disc is not None
-    assert area_disc.variance == 53.06
+    assert area_disc.variance == 51.03
 
 
 def test_reconcile_missing_ice_and_water():
@@ -112,3 +115,28 @@ def test_reconcile_missing_op():
     
     op_disc = next((d for d in report.discrepancies if d.category == "Missing O&P"), None)
     assert op_disc is not None
+
+
+def test_reconcile_bom_calculation():
+    ev = EagleViewData(
+        total_area_sf=6788.0, rake_lf=114.0, valley_lf=288.0, ridge_lf=120.0, hip_lf=315.0,
+        eaves_lf=276.0, drip_edge_lf=390.0, flashing_lf=3.0, step_flashing_lf=16.0,
+        total_facets=26, predominant_pitch="10/12"
+    )
+    sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
+    report = reconcile(ev, sol, "job_1")
+    
+    # 26 facets * 0.2 = 5.2
+    # 10/12 pitch = 1.5
+    # 288 valley / 50 = 5.76 * 0.5 = 2.88
+    # Total score = 5.2 + 1.5 + 2.88 = 9.58
+    # Waste = 0.10 + 0.0958 = 0.1958 -> clamp/round to 0.20
+    # SQ = 67.88 * 1.20 = 81.46
+    
+    bom = report.material_bom
+    assert bom.field_shingle_bundles == 245  # ceil(81.46 * 3)
+    assert bom.starter_bundles == 4          # ceil((276 + 114) / 100) -> 390 / 100 = 3.9 -> 4
+    assert bom.ridge_cap_bundles == 14       # ceil((120 + 315) / 33) -> 435 / 33 = 13.18 -> 14
+    assert bom.ice_water_rolls == 5          # ceil((288 * 3) / 200) -> 864 / 200 = 4.32 -> 5
+    assert bom.underlayment_rolls == 9       # ceil(81.46 / 10) -> 8.146 -> 9
+

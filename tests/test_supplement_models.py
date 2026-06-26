@@ -12,14 +12,15 @@ from app.core.supplement_models import (
     StatementOfLoss,
     Discrepancy,
     DiscrepancyReport,
+    MaterialBOM,
 )
 
 
 class TestEagleViewData:
     """Tests for the EagleViewData model and its computed fields."""
 
-    def test_normalized_squares_default_waste(self):
-        """2500 SF at 15% waste should produce 28.75 SQ."""
+    def test_eagleview_data_creation(self):
+        """Test basic creation without waste_factor."""
         data = EagleViewData(
             total_area_sf=2500.0,
             rake_lf=50.0,
@@ -33,60 +34,20 @@ class TestEagleViewData:
             total_facets=8,
             predominant_pitch="6/12",
         )
-        assert data.normalized_squares == 28.75
+        assert data.total_area_sf == 2500.0
 
-    def test_normalized_squares_custom_waste(self):
-        """6788 SF at 15% waste should produce 78.06 SQ (matches real EagleView report)."""
-        data = EagleViewData(
-            total_area_sf=6788.0,
-            rake_lf=114.0,
-            valley_lf=288.0,
-            ridge_lf=120.0,
-            hip_lf=315.0,
-            eaves_lf=276.0,
-            drip_edge_lf=390.0,
-            flashing_lf=3.0,
-            step_flashing_lf=16.0,
-            total_facets=26,
-            predominant_pitch="10/12",
-            waste_factor=0.15,
-        )
-        assert data.normalized_squares == 78.06
+class TestMaterialBOM:
+    """Tests for the MaterialBOM model."""
 
-    def test_normalized_squares_zero_waste(self):
-        """With 0% waste, squares should just be area / 100."""
-        data = EagleViewData(
-            total_area_sf=10000.0,
-            rake_lf=0.0,
-            valley_lf=0.0,
-            ridge_lf=0.0,
-            hip_lf=0.0,
-            eaves_lf=0.0,
-            drip_edge_lf=0.0,
-            flashing_lf=0.0,
-            step_flashing_lf=0.0,
-            total_facets=1,
-            predominant_pitch="4/12",
-            waste_factor=0.0,
+    def test_bom_creation(self):
+        bom = MaterialBOM(
+            field_shingle_bundles=100,
+            starter_bundles=4,
+            ridge_cap_bundles=3,
+            ice_water_rolls=2,
+            underlayment_rolls=4,
         )
-        assert data.normalized_squares == 100.0
-
-    def test_default_waste_factor_is_fifteen_percent(self):
-        """Default waste factor should be 0.15 (15%)."""
-        data = EagleViewData(
-            total_area_sf=1000.0,
-            rake_lf=0.0,
-            valley_lf=0.0,
-            ridge_lf=0.0,
-            hip_lf=0.0,
-            eaves_lf=0.0,
-            drip_edge_lf=0.0,
-            flashing_lf=0.0,
-            step_flashing_lf=0.0,
-            total_facets=1,
-            predominant_pitch="4/12",
-        )
-        assert data.waste_factor == 0.15
+        assert bom.field_shingle_bundles == 100
 
 
 class TestLineItem:
@@ -147,6 +108,8 @@ class TestDiscrepancyReport:
             ev_normalized_squares=78.06,
             sol_total_rfg_squares=78.0,
             square_variance=0.06,
+            waste_explanation="15%",
+            material_bom=MaterialBOM(field_shingle_bundles=10, starter_bundles=1, ridge_cap_bundles=1, ice_water_rolls=1, underlayment_rolls=1)
         )
         assert report.discrepancies == []
         assert report.square_variance == 0.06
@@ -157,6 +120,8 @@ class TestDiscrepancyReport:
             ev_normalized_squares=78.06,
             sol_total_rfg_squares=65.0,
             square_variance=13.06,
+            waste_explanation="15%",
+            material_bom=MaterialBOM(field_shingle_bundles=10, starter_bundles=1, ridge_cap_bundles=1, ice_water_rolls=1, underlayment_rolls=1),
             discrepancies=[
                 Discrepancy(
                     category="Area Shortage",

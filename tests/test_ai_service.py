@@ -108,6 +108,11 @@ def test_extract_sol_from_pdf_success(
     mock_file_info.state.name = "ACTIVE"
     mock_client_instance.files.get.return_value = mock_file_info
     
+    # Mock generation response (for classify_carrier AND extract_sol)
+    # The first call will be to classify_carrier, which returns a string response.
+    # The second call will be to extract_sol, which returns the parsed StatementOfLoss.
+    # Wait, classify_carrier is a method on AIService, we can just mock it directly!
+    
     # Mock generation response
     mock_response = MagicMock()
     from app.core.supplement_models import StatementOfLoss, LineItem
@@ -123,9 +128,11 @@ def test_extract_sol_from_pdf_success(
     mock_client_class.return_value = mock_client_instance
 
     service = AIService()
-    result = asyncio.run(service.extract_sol_from_pdf("fake.pdf"))
+    with patch.object(service, "classify_carrier", return_value="xactimate") as mock_classify:
+        result = asyncio.run(service.extract_sol_from_pdf("fake.pdf"))
 
     assert result.carrier_name == "State Farm"
+    assert result.source_system == "xactimate"
     assert result.claim_number == "1234"
     assert len(result.line_items) == 1
     assert result.line_items[0].quantity == 20.0
@@ -158,3 +165,51 @@ def test_extract_sol_from_pdf_processing_failure(
     service = AIService()
     with pytest.raises(RuntimeError, match="File processing failed"):
         asyncio.run(service.extract_sol_from_pdf("fake.pdf"))
+
+@patch("app.services.ai_service.get_settings")
+@patch("app.services.ai_service.genai.Client")
+def test_extract_sol_symbility_routing(
+    mock_client_class, mock_get_settings, mock_settings
+):
+    """Test successful multimodal extraction of SoL PDF when routed to Symbility."""
+    mock_get_settings.return_value = mock_settings
+
+    mock_client_instance = MagicMock()
+    
+    # Mock upload
+    mock_file = MagicMock()
+    mock_file.name = "files/12345"
+    mock_client_instance.files.upload.return_value = mock_file
+    
+    # Mock file state (ACTIVE immediately)
+    mock_file_info = MagicMock()
+    mock_file_info.state.name = "ACTIVE"
+    mock_client_instance.files.get.return_value = mock_file_info
+    
+    # Mock generation response
+    mock_response = MagicMock()
+    from app.core.supplement_models import StatementOfLoss, LineItem
+    mock_response.parsed = StatementOfLoss(
+        carrier_name="Allstate",
+        claim_number="5678",
+        line_items=[
+            LineItem(trade="Roof", code="RFG", description="Shingles", quantity=20.0, unit_of_measure="SQ", unit_price=100.0, waste_percent_included=0.10)
+        ],
+        overhead_and_profit_included=True
+    )
+    mock_client_instance.models.generate_content.return_value = mock_response
+    mock_client_class.return_value = mock_client_instance
+
+    service = AIService()
+    with patch.object(service, "classify_carrier", return_value="symbility") as mock_classify:
+        result = asyncio.run(service.extract_sol_from_pdf("fake.pdf"))
+
+    assert result.carrier_name == "Allstate"
+    assert result.source_system == "symbility"
+    assert result.line_items[0].waste_percent_included == 0.10
+    
+    # Ensure classify was called
+    mock_classify.assert_called_once()
+    
+    # Verify cleanup was called
+    mock_client_instance.files.delete.assert_called_once_with(name="files/12345")

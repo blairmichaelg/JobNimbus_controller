@@ -108,13 +108,12 @@ class TestExtractFromPage:
             ]
         ]
 
-        result = _extract_from_page(mock_page, waste_factor=0.15)
+        result = _extract_from_page(mock_page)
 
         assert result.total_area_sf == 3000.0
         assert result.ridge_lf == 50.0
         assert result.valley_lf == 75.0
         assert result.predominant_pitch == "8/12"
-        assert result.normalized_squares == 34.5  # 3000/100 * 1.15
 
 
 # ---------------------------------------------------------------------------
@@ -172,5 +171,3 @@ class TestRealPDFExtraction:
         assert result.step_flashing_lf == 16.0
         assert result.total_facets == 26
         assert result.predominant_pitch == "10/12"
-        assert result.waste_factor == 0.15
-        assert result.normalized_squares == 78.06

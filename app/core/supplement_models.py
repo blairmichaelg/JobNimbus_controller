@@ -11,7 +11,19 @@ Key design decisions:
 - DiscrepancyReport is the pure-Python math engine's output contract
 """
 
-from pydantic import BaseModel, computed_field
+from typing import Literal
+from pydantic import BaseModel
+
+class MaterialBOM(BaseModel):
+    """
+    Deterministic Material Bill of Materials.
+    Calculated purely from mathematical coverage constants and EagleView metrics.
+    """
+    field_shingle_bundles: int
+    starter_bundles: int
+    ridge_cap_bundles: int
+    ice_water_rolls: int
+    underlayment_rolls: int
 
 
 class EagleViewData(BaseModel):
@@ -34,13 +46,6 @@ class EagleViewData(BaseModel):
     step_flashing_lf: float
     total_facets: int
     predominant_pitch: str
-    waste_factor: float = 0.15
-
-    @computed_field
-    @property
-    def normalized_squares(self) -> float:
-        """Total area in Squares (SQ) with waste factor applied."""
-        return round((self.total_area_sf / 100) * (1 + self.waste_factor), 2)
 
 
 class LineItem(BaseModel):
@@ -58,6 +63,7 @@ class LineItem(BaseModel):
     quantity: float | None = None
     unit_of_measure: str | None = None
     unit_price: float | None = None
+    waste_percent_included: float | None = None
 
 
 class StatementOfLoss(BaseModel):
@@ -66,6 +72,7 @@ class StatementOfLoss(BaseModel):
     extracted via Gemini Multimodal File API.
     """
 
+    source_system: Literal["xactimate", "symbility", "unknown"] = "unknown"
     carrier_name: str | None = None
     claim_number: str | None = None
     line_items: list[LineItem] = []
@@ -96,4 +103,6 @@ class DiscrepancyReport(BaseModel):
     ev_normalized_squares: float
     sol_total_rfg_squares: float
     square_variance: float
+    waste_explanation: str
+    material_bom: MaterialBOM
     discrepancies: list[Discrepancy] = []

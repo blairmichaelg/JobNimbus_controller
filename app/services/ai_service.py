@@ -124,6 +124,27 @@ Rules:
                 "document_data": {},
             }
 
+    def classify_carrier(self, file_info) -> str:
+        """
+        Classify the carrier estimating software from the PDF.
+        """
+        prompt = (
+            "Analyze the first page or headers of this PDF and identify the estimating software used. "
+            "Return ONLY a single string: 'xactimate', 'symbility', or 'unknown'."
+        )
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=[file_info, prompt],
+            config=genai_types.GenerateContentConfig(
+                response_mime_type="text/plain",
+                temperature=0.0,
+            ),
+        )
+        result = response.text.strip().lower()
+        if result in ("xactimate", "symbility"):
+            return result
+        return "unknown"
+
     async def extract_sol_from_pdf(self, pdf_path: str) -> StatementOfLoss:
         """
         Multimodal extraction of a Statement of Loss PDF using Gemini File API.
@@ -131,15 +152,6 @@ Rules:
         """
         log = logger.bind(pdf_path=str(pdf_path))
         log.info("sol_extraction_started")
-
-        prompt = """
-        You are an expert Xactimate estimator. Analyze this Statement of Loss (SoL) document.
-        Extract ONLY the line items located under the "Roof" grouping (ignore any other rooms, general demolition, or recap tables).
-        Pay special attention to descriptions that wrap across multiple lines (e.g., "Remove 3 tab 25 yr. composition shingle roofing - incl. felt").
-        If a quantity, unit of measure, or price is blank or missing, you MUST return null, not guess or hallucinate.
-        DO NOT infer or calculate quantities. Extract the exact numerical value printed in the quantity column.
-        If Overhead and Profit (O&P) is not explicitly listed in the summaries, set overhead_and_profit_included to false.
-        """
 
         def _extract():
             import time
@@ -155,7 +167,38 @@ Rules:
             if file_info.state.name == "FAILED":
                 raise RuntimeError("File processing failed on Gemini servers.")
 
-            # 3. Generate content with structured output
+            # 3. Classify the Carrier
+            source_system = self.classify_carrier(file_info)
+            
+            # 4. Set targeted prompt
+            if source_system == "xactimate":
+                prompt = """
+                You are an expert Xactimate estimator. Analyze this Statement of Loss (SoL) document.
+                Extract ONLY the line items located under the "Roof" grouping (ignore any other rooms, general demolition, or recap tables).
+                Pay special attention to descriptions that wrap across multiple lines (e.g., "Remove 3 tab 25 yr. composition shingle roofing - incl. felt").
+                If a quantity, unit of measure, or price is blank or missing, you MUST return null, not guess or hallucinate.
+                DO NOT infer or calculate quantities. Extract the exact numerical value printed in the quantity column.
+                If Overhead and Profit (O&P) is not explicitly listed in the summaries, set overhead_and_profit_included to false.
+                """
+            elif source_system == "symbility":
+                prompt = """
+                You are an expert Symbility estimator. Analyze this Statement of Loss (SoL) document.
+                Extract ONLY the line items located under the "Roof" grouping.
+                Symbility formats line items differently. Explicitly look for phrases like "Includes 10% waste on quantity" in the item notes.
+                If you find a waste percentage in the notes, map that float (e.g., 0.10) to the waste_percent_included field.
+                DO NOT infer or calculate quantities. Extract the exact numerical value printed in the quantity column.
+                If a quantity, unit of measure, or price is blank or missing, you MUST return null.
+                """
+            else:
+                logger.warning("WARNING: Unknown Carrier Format Detected")
+                prompt = """
+                Analyze this roofing Statement of Loss document.
+                Extract ONLY the line items related to roof replacement.
+                DO NOT infer or calculate quantities. Extract the exact numerical value printed in the quantity column.
+                If a quantity, unit of measure, or price is blank or missing, you MUST return null.
+                """
+
+            # 5. Generate content with structured output
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=[file_info, prompt],
@@ -167,13 +210,15 @@ Rules:
                 ),
             )
             
-            # Clean up the file (best effort)
+            # 6. Clean up the file (best effort)
             try:
                 self.client.files.delete(name=uploaded_file.name)
             except Exception:
                 pass
                 
-            return response.parsed
+            parsed = response.parsed
+            parsed.source_system = source_system
+            return parsed
 
         try:
             result = await asyncio.to_thread(_extract)
@@ -196,6 +241,7 @@ Rules:
         
         You have analyzed the EagleView measurement report and the Carrier's Statement of Loss and found the following numerical shortages.
         You MUST explicitly state the mathematical shortages found in the report below.
+        Only cite the building codes provided below if they directly relate to the identified discrepancies.
         If a building code applies to a shortage (e.g., Drip Edge, Ice & Water), you MUST quote the exact code section provided in the Building Codes context.
         
         --- DISCREPANCY REPORT ---

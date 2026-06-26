@@ -88,7 +88,7 @@ def _find_report_summary_page(pdf) -> pdfplumber.page.Page | None:
     return None
 
 
-def _extract_from_page(page: pdfplumber.page.Page, waste_factor: float = 0.15) -> EagleViewData:
+def _extract_from_page(page: pdfplumber.page.Page) -> EagleViewData:
     """
     Extract all EagleView measurement data from the Report Summary page.
 
@@ -150,23 +150,20 @@ def _extract_from_page(page: pdfplumber.page.Page, waste_factor: float = 0.15) -
         step_flashing_lf=step_flashing_lf,
         total_facets=total_facets,
         predominant_pitch=predominant_pitch,
-        waste_factor=waste_factor,
     )
 
 
 async def extract_eagleview_data(
     pdf_path: str | Path,
-    waste_factor: float = 0.15,
 ) -> EagleViewData:
     """
     Extract structured measurement data from an EagleView Premium Roof Report PDF.
 
     Args:
         pdf_path: Path to the EagleView PDF file.
-        waste_factor: Waste factor to apply (default 15%).
 
     Returns:
-        EagleViewData with all measurements and computed normalized_squares.
+        EagleViewData with all measurements.
 
     Raises:
         FileNotFoundError: If the PDF file does not exist.
@@ -190,7 +187,7 @@ async def extract_eagleview_data(
                     "The document may be incomplete or in an unexpected format."
                 )
 
-            data = _extract_from_page(summary_page, waste_factor=waste_factor)
+            data = _extract_from_page(summary_page)
 
             # Validate we got meaningful data
             if data.total_area_sf == 0.0:
@@ -207,7 +204,6 @@ async def extract_eagleview_data(
     log.info(
         "eagleview_extraction_complete",
         total_area_sf=result.total_area_sf,
-        normalized_squares=result.normalized_squares,
         predominant_pitch=result.predominant_pitch,
     )
 

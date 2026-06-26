@@ -6,12 +6,21 @@ against extracted Carrier Statement of Loss line items to generate
 a DiscrepancyReport. This isolates all math from the LLM.
 """
 
+import math
+
 from app.core.supplement_models import (
     EagleViewData,
     StatementOfLoss,
     Discrepancy,
     DiscrepancyReport,
+    MaterialBOM
 )
+from app.core.complexity import (
+    compute_complexity_score,
+    calculate_dynamic_waste,
+    build_waste_explanation
+)
+import app.core.coverage_constants as constants
 
 
 def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str) -> DiscrepancyReport:
@@ -20,27 +29,12 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str) -> Discrepan
     """
     discrepancies = []
 
-    # 1. Square Variance Calculation
-    # Sum SoL quantity for items where unit is "SQ" or "SQ." and it's a shingle replacement item.
-    # Note: Xactimate often has "Remove" and "Replace" items. We need to be careful not to double count
-    # if both are in SQ, or we just sum all SQ that aren't "Remove". 
-    # Usually, we look for the main roofing item. The simplest robust logic per the spec:
-    # "Sum the quantity of all SoL items where unit_of_measure is exactly 'SQ' (or 'SQ.')"
-    # Actually, if we just sum all SQ, we might double count (remove + replace). 
-    # A better heuristic for total squares from SoL: find the max SQ value among items, OR
-    # just find the replacement shingle quantity. But per spec:
-    # "Calculate sol_total_rfg_squares by summing the quantity of all SoL items where unit_of_measure is exactly "SQ" (or "SQ.")."
-    # Let's refine this slightly based on typical Xactimate: "Remove" vs "Replace".
-    # Wait, the spec says exactly: "Calculate sol_total_rfg_squares by summing the quantity of all SoL items where unit_of_measure is exactly "SQ" (or "SQ.")."
-    # Actually, in Xactimate, "Remove" and "Replace" might both be listed. If I sum both, I get 2x squares.
-    # Let's filter out descriptions starting with "Remove" if we are calculating total roof squares, or
-    # maybe just take the max SQ quantity seen?
-    # Let's check the SoL from Phase 2:
-    # 1. [Roof] null | Qty: 21.35 SQ | Price: 64.18 | Remove 3 tab...
-    # 8. [Roof] null | Qty: 23.67 SQ | Price: 251.08 | 3 tab... w/out felt
-    # Summing these would be 45 SQ! Let's take the max SQ value of any single line item, or only sum positive replacement items.
-    # To be safe and follow the exact spec while remaining accurate, I will extract all "SQ" items.
-    # The max SQ among all roofing line items is typically the actual roof area the carrier allowed.
+    # 1. Dynamic Waste & Area Computation
+    score = compute_complexity_score(ev)
+    waste_pct = calculate_dynamic_waste(score)
+    waste_explanation = build_waste_explanation(ev, waste_pct)
+    
+    ev_normalized_squares = round((ev.total_area_sf / 100.0) * (1.0 + waste_pct), 2)
     
     sol_total_rfg_squares = 0.0
     sq_items = [
@@ -50,17 +44,16 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str) -> Discrepan
         and item.unit_of_measure.upper().strip() in ("SQ", "SQ.")
     ]
     if sq_items:
-        # Taking max prevents double-counting Remove+Replace.
         sol_total_rfg_squares = max(sq_items)
 
-    square_variance = round(ev.normalized_squares - sol_total_rfg_squares, 2)
+    square_variance = round(ev_normalized_squares - sol_total_rfg_squares, 2)
 
-    if square_variance > 0.01: # allow floating point tiny diff
+    if square_variance > 0.01:
         discrepancies.append(
             Discrepancy(
                 category="Area Shortage",
-                description=f"Carrier allowed {sol_total_rfg_squares} SQ. EagleView normalized is {ev.normalized_squares} SQ.",
-                ev_value=ev.normalized_squares,
+                description=f"Carrier allowed {sol_total_rfg_squares} SQ. EagleView normalized is {ev_normalized_squares} SQ.",
+                ev_value=ev_normalized_squares,
                 sol_value=sol_total_rfg_squares,
                 variance=square_variance,
             )
@@ -124,10 +117,21 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str) -> Discrepan
             )
         )
 
+    # 5. Deterministic Material BOM
+    bom = MaterialBOM(
+        field_shingle_bundles=math.ceil(ev_normalized_squares * constants.SHINGLE_BUNDLES_PER_SQUARE),
+        starter_bundles=math.ceil((ev.eaves_lf + ev.rake_lf) / constants.STARTER_LF_PER_BUNDLE),
+        ridge_cap_bundles=math.ceil(total_ridge_hip_lf / constants.HIP_RIDGE_LF_PER_BUNDLE),
+        ice_water_rolls=math.ceil((ev.valley_lf * 3.0) / constants.ICE_WATER_SF_PER_ROLL),
+        underlayment_rolls=math.ceil(ev_normalized_squares / constants.UNDERLAYMENT_SQUARES_PER_ROLL),
+    )
+
     return DiscrepancyReport(
         job_id=job_id,
-        ev_normalized_squares=ev.normalized_squares,
+        ev_normalized_squares=ev_normalized_squares,
         sol_total_rfg_squares=sol_total_rfg_squares,
         square_variance=square_variance,
+        waste_explanation=waste_explanation,
+        material_bom=bom,
         discrepancies=discrepancies,
     )
