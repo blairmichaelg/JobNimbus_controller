@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wickham Roofing - Office Control Center</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-indigo-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-tight">Wickham Roofing <span class="font-light opacity-80 text-sm ml-2">V4 Office Control Center</span></h1>
+            <button onclick="fetchJobs()" class="text-sm bg-indigo-500 hover:bg-indigo-400 px-3 py-1.5 rounded transition-colors font-medium">
+                Refresh Data
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-200">
+                <h2 class="text-lg font-semibold text-slate-800">Active Jobs Pipeline</h2>
+                <p class="text-sm text-slate-500 mt-1">Manage field intake, upload EagleView measurements, and export accounting artifacts.</p>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Job ID / Date</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Homeowner</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Address</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobs-table-body" class="bg-white divide-y divide-slate-200">
+                        <!-- Loading State -->
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-slate-500">
+                                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>
+                                <p>Loading pipeline data...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Hidden File Input for EagleView Uploads -->
+    <input type="file" id="ev-file-input" accept=".pdf" class="hidden">
+
+    <script>
+        let currentUploadJobId = null;
+        const fileInput = document.getElementById('ev-file-input');
+
+        // Status Badge Styling map
+        const statusColors = {
+            'LEAD_CAPTURED': 'bg-slate-100 text-slate-700 border-slate-200',
+            'PHOTOS_UPLOADED': 'bg-blue-50 text-blue-700 border-blue-200',
+            'INVOICED': 'bg-green-50 text-green-700 border-green-200',
+        };
+
+        function getStatusBadge(status) {
+            const colorClass = statusColors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+            const readable = status.replace(/_/g, ' ');
+            return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${colorClass}">${readable}</span>`;
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            const date = new Date(dateString + 'Z');
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+
+        async function fetchJobs() {
+            try {
+                const response = await fetch('/api/office/jobs');
+                if (!response.ok) throw new Error('Failed to fetch jobs');
+                const jobs = await response.json();
+                renderJobs(jobs);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('jobs-table-body').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-red-500">
+                            Error loading jobs: ${err.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function renderJobs(jobs) {
+            const tbody = document.getElementById('jobs-table-body');
+            
+            if (jobs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">No jobs found in the CRM.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = jobs.map(job => {
+                const shortId = job.id.split('-')[0].toUpperCase();
+                
+                // Determine available actions based on status
+                const canUploadEV = true; // Always allow uploading EV for now
+                const hasPhotos = job.status !== 'LEAD_CAPTURED'; // Simplistic heuristic based on prompt
+                const isInvoiced = job.status === 'INVOICED';
+
+                return `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-slate-900">${shortId}</div>
+                            <div class="text-xs text-slate-500">${formatDate(job.created_at)}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-semibold text-slate-800">${job.homeowner_name}</div>
+                            <div class="text-xs text-slate-500">${job.phone}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-slate-700">${job.address_line1}</div>
+                            <div class="text-xs text-slate-500">${job.city}, ${job.state}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            ${getStatusBadge(job.status)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div class="flex flex-col items-end gap-2">
+                                <button onclick="triggerUpload('${job.id}')" 
+                                    class="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded text-xs transition-colors flex items-center justify-center min-w-[140px]" id="btn-upload-${job.id}">
+                                    <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                    Upload EagleView
+                                </button>
+                                
+                                ${hasPhotos ? `
+                                <a href="/api/office/jobs/${job.id}/evidence_grid" target="_blank"
+                                    class="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-3 py-1 rounded text-xs transition-colors flex items-center justify-center min-w-[140px]">
+                                    <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    Evidence Grid
+                                </a>` : ''}
+
+                                ${isInvoiced ? `
+                                <a href="/api/office/jobs/${job.id}/qbo_export" target="_blank"
+                                    class="text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1 rounded text-xs transition-colors flex items-center justify-center min-w-[140px]">
+                                    <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    QBO Export
+                                </a>` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Handle File Selection
+        function triggerUpload(jobId) {
+            currentUploadJobId = jobId;
+            fileInput.value = ''; // Reset input
+            fileInput.click();
+        }
+
+        fileInput.addEventListener('change', async (e) => {
+            if (!e.target.files.length || !currentUploadJobId) return;
+            
+            const file = e.target.files[0];
+            const btn = document.getElementById(`btn-upload-${currentUploadJobId}`);
+            
+            // UI Loading state
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = `<div class="spinner mr-2"></div> Processing...`;
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`/api/office/jobs/${currentUploadJobId}/eagleview`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.detail || 'Upload failed');
+                }
+
+                alert('Success: ' + result.message);
+                fetchJobs(); // Reload table
+                
+            } catch (err) {
+                alert('Error: ' + err.message);
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+            }
+        });
+
+        // Init
+        document.addEventListener('DOMContentLoaded', fetchJobs);
+    </script>
+</body>
+</html>

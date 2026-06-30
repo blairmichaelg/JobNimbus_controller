@@ -21,6 +21,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.webhooks import router as webhook_router
 from app.api.field_routes import router as field_router
+from app.api.office_routes import router as office_router
 from app.config import get_settings
 from app.core.cache import init_db as init_cache_db
 from app.core.database import init_db as init_crm_db
@@ -155,6 +156,7 @@ templates = Jinja2Templates(directory="app/templates")
 # --- Mount Routers ---
 app.include_router(webhook_router)
 app.include_router(field_router)
+app.include_router(office_router)
 
 
 # --- Health Check ---
@@ -179,3 +181,8 @@ async def health_check():
 async def serve_frontend(request: Request):
     """Serve the Truck Server mobile web interface."""
     return templates.TemplateResponse("field_app.html", {"request": request})
+
+@app.get("/office", tags=["frontend"])
+async def serve_office_dashboard(request: Request):
+    """Serve the Office Control Center desktop dashboard."""
+    return templates.TemplateResponse("dashboard.html", {"request": request})
