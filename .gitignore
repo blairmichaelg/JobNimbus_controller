@@ -52,6 +52,7 @@ generated_exports/
 
 # === Cache / Temp ===
 cache.db
+truck_server.db
 
 # === Google Drive Sync (local photos) ===
 drive_photos/
