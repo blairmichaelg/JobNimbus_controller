@@ -3,8 +3,18 @@
  * Vanilla JS implementation to avoid React/Webpack overhead on field devices.
  */
 
+// --- State ---
+let currentJobId = null;
+
 // --- UI Elements ---
-const jobIdInput = document.getElementById('job-id');
+const intakeFormContainer = document.getElementById('intake-form-container');
+const intakeForm = document.getElementById('intake-form');
+const intakeSubmitBtn = document.getElementById('intake-submit-btn');
+
+const jobActionsContainer = document.getElementById('job-actions-container');
+const activeHomeownerName = document.getElementById('active-homeowner-name');
+const activeJobIdDisplay = document.getElementById('active-job-id');
+
 const cameraInput = document.getElementById('camera-input');
 const cameraBtn = document.getElementById('camera-btn');
 const queueCountEl = document.getElementById('queue-count');
@@ -28,13 +38,62 @@ function showToast(msg, isError = false) {
 }
 
 function getJobId() {
-    const val = jobIdInput.value.trim().toUpperCase();
-    if (!val) {
-        showToast("Please enter a Job ID first", true);
+    if (!currentJobId) {
+        showToast("Please complete intake first", true);
         return null;
     }
-    return val;
+    return currentJobId;
 }
+
+// --- Intake Logic (Directive 3) ---
+intakeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    intakeSubmitBtn.disabled = true;
+    
+    const originalText = intakeSubmitBtn.innerHTML;
+    intakeSubmitBtn.innerHTML = `<span class="animate-pulse">Creating Lead...</span>`;
+
+    const payload = {
+        homeowner_name: document.getElementById('intake-name').value.trim(),
+        address_line1: document.getElementById('intake-address').value.trim(),
+        city: document.getElementById('intake-city').value.trim(),
+        state: document.getElementById('intake-state').value.trim(),
+        postal_code: document.getElementById('intake-zip').value.trim(),
+        phone: document.getElementById('intake-phone').value.trim(),
+        email: document.getElementById('intake-email').value.trim() || null,
+        insurer_name: document.getElementById('intake-insurer').value.trim() || null,
+        claim_number: document.getElementById('intake-claim').value.trim() || null
+    };
+
+    try {
+        const res = await fetch('/api/field/jobs', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': '1'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        currentJobId = data.job_id;
+        
+        // SPA Swap
+        intakeFormContainer.classList.add('hidden');
+        activeHomeownerName.textContent = payload.homeowner_name;
+        activeJobIdDisplay.textContent = currentJobId;
+        jobActionsContainer.classList.remove('hidden');
+
+        showToast(`Lead Captured: ${currentJobId}`);
+    } catch (err) {
+        console.error(err);
+        showToast("Failed to create lead", true);
+        intakeSubmitBtn.disabled = false;
+        intakeSubmitBtn.innerHTML = originalText;
+    }
+});
 
 // --- Upload Queue (Directive 3) ---
 class UploadQueue {

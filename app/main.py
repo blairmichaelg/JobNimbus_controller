@@ -22,7 +22,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.webhooks import router as webhook_router
 from app.api.field_routes import router as field_router
 from app.config import get_settings
-from app.core.cache import init_db
+from app.core.cache import init_db as init_cache_db
+from app.core.database import init_db as init_crm_db
 from app.services.jobnimbus_client import JobNimbusClient
 import os
 
@@ -92,8 +93,11 @@ async def lifespan(app: FastAPI):
     logger.info("jobnimbus_client_attached_to_app_state")
 
     # Initialize V3 Cache and Directories (Epic 1 & 2)
-    init_db()
+    init_cache_db()
+    # Initialize V4 CRM DB
+    init_crm_db()
     os.makedirs("field_photos", exist_ok=True)
+    os.makedirs("field_docs", exist_ok=True)
     os.makedirs("signed_agreements", exist_ok=True)
     logger.info("v3_infrastructure_initialized")
 

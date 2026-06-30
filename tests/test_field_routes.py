@@ -19,20 +19,60 @@ client = TestClient(app)
 def setup_dirs(tmp_path, monkeypatch):
     """Point directories to a temp path during tests to avoid littering the repo."""
     test_field_photos = tmp_path / "field_photos"
+    test_field_docs = tmp_path / "field_docs"
     test_signed = tmp_path / "signed_agreements"
     
     test_field_photos.mkdir()
+    test_field_docs.mkdir()
     test_signed.mkdir()
     
     monkeypatch.setattr("app.api.field_routes.FIELD_PHOTOS_DIR", test_field_photos)
+    monkeypatch.setattr("app.api.field_routes.FIELD_DOCS_DIR", test_field_docs)
     monkeypatch.setattr("app.api.field_routes.SIGNED_AGREEMENTS_DIR", test_signed)
     
-    # Ensure cache DB exists for the test
+    # Ensure cache and CRM DB exists for the test
     init_db()
+    from app.core.database import init_db as init_crm_db
+    init_crm_db()
     
     yield
     
     # Cleanup handled by tmp_path
+
+def test_create_new_job_lead_intake():
+    """POST /api/field/jobs should insert a DB row and create directories."""
+    payload = {
+        "homeowner_name": "Alice Smith",
+        "address_line1": "123 Test Ave",
+        "city": "Atlanta",
+        "state": "GA",
+        "postal_code": "30301",
+        "phone": "555-0100"
+    }
+    response = client.post("/api/field/jobs", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "job_id" in data
+    
+    job_id = data["job_id"]
+    
+    # Verify directories were created
+    import app.api.field_routes as fr
+    assert (fr.FIELD_PHOTOS_DIR / job_id).exists()
+    assert (fr.FIELD_DOCS_DIR / job_id).exists()
+    
+    # Verify SQLite DB
+    from app.core.database import get_connection
+    conn = get_connection()
+    cursor = conn.execute("SELECT homeowner_name, status, status_history FROM jobs WHERE id = ?", (job_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    assert row is not None
+    assert row["homeowner_name"] == "Alice Smith"
+    assert row["status"] == "LEAD_CAPTURED"
+    assert "Initial canvasser intake via Truck Server" in row["status_history"]
 
 
 def test_upload_field_photo():
