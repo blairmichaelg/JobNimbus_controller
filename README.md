@@ -1,96 +1,69 @@
-# Wickham Roofing AI Controller
+# Wickham Roofing AI Pipeline (V4 "Truck Server")
 
-A proprietary, zero-cost, multi-agent AI pipeline for insurance roofing operations. Built on **Python 3.11+**, **Gemini 2.5 Flash**, **ReportLab**, and **Pydantic V2**, this system automates the full lifecycle from initial roof inspection through supplement filing — bypassing expensive CRM subscriptions entirely.
+A proprietary, zero-cost, multi-agent AI pipeline and local CRM for insurance roofing operations. Built on **Python 3.11+**, **Gemini 2.5 Flash**, **FastAPI**, **ReportLab**, and **SQLite WAL**, this system completely bypasses expensive SaaS subscriptions (like JobNimbus) by running fully locally on a field office laptop.
 
-## Architecture
+## Architecture & Operational Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    WICKHAM ROOFING AI PIPELINE                      │
+│                    WICKHAM ROOFING "TRUCK SERVER"                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│  V2 SUPPLEMENT ENGINE (Complete)                                    │
+│  FIELD OPERATIONS (Mobile SPA via Ngrok)                            │
+│  ┌──────────┐  ┌──────────┐  ┌───────────┐                          │
+│  │ Intake   │─▶│ Local    │─▶│ Photo     │                          │
+│  │ Form     │  │ Storage  │  │ Uploads   │                          │
+│  └──────────┘  └──────────┘  └───────────┘                          │
+│                                                                     │
+│  OFFICE DASHBOARD (Local Desktop Interface)                         │
 │  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌──────────────────┐  │
-│  │ EagleView│─▶│ Carrier  │─▶│ Reconcile │─▶│ Supplement PDF   │  │
-│  │ Extractor│  │ SoL (LLM)│  │ (Pure Py) │  │ + AI Narrative   │  │
+│  │ AI/Math  │─▶│ EagleView│─▶│ Financials│─▶│ Material Order   │  │
+│  │ Engine   │  │ Parsing  │  │ & Margins │  │ & PO Generation  │  │
 │  └──────────┘  └──────────┘  └───────────┘  └──────────────────┘  │
 │                                                                     │
-│  V3 INSPECTION ENGINE (Complete)                                    │
+│  AUTOMATED PAPERWORK MATRIX (ReportLab)                             │
 │  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌──────────────────┐  │
-│  │ Local/LAN│─▶│ Gemini   │─▶│ Forensic  │─▶│ Evidence Grid    │  │
-│  │ iPad API │  │ Vision   │  │ Analysis  │  │ PDF              │  │
+│  │ Evidence │  │ Supplier │  │ GA Notice │  │ Certificate of   │  │
+│  │ Grid PDF │  │ PO PDF   │  │ of Cancel │  │ Completion     │  │
 │  └──────────┘  └──────────┘  └───────────┘  └──────────────────┘  │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-## Engine Versions
+## Engine Versions & Evolution
 
-### V2 — Zero-Cost Supplement Engine ✅
-Deterministic insurance supplement generation. Extracts EagleView measurements via `pdfplumber`, extracts Carrier Statements of Loss via Gemini multimodal File API, reconciles discrepancies with pure-Python math, and generates professional supplement request PDFs with AI-written narratives citing Georgia building codes.
+### V4 — Local CRM Pivot ("Truck Server") ✅
+The final evolution of the pipeline, transitioning the entire operational lifecycle to a standalone, zero-cloud architecture.
+- **SQLite WAL State Machine**: Replaced JobNimbus with an indestructible, locally hosted SQLite database utilizing Write-Ahead Logging (WAL) and hot `VACUUM INTO` backups.
+- **Unified Office Dashboard**: A composite Tailwind dashboard displaying real-time metadata, production schedules, margin thresholds, and dynamic paperwork downloads.
+- **Paperwork Matrix**: Generates strict Georgia Statutory Compliance documents (Notice of Cancellation, Certificate of Completion) and Supplier Purchase Orders directly from deterministic `MaterialBOM` calculations.
+- **Frontend Resilience**: A lightweight Vanilla JS SPA with `localStorage` injection enforcing 2-hour cache TTLs to protect canvassers from cellular drops.
 
-- **Complexity Engine**: Dynamic waste factor (10–22%) based on facets, pitch, and valley footage
-- **Material BOM**: Deterministic bill of materials using industry-standard coverage constants
-- **Carrier Router**: Zero-temp Gemini classifier identifies Xactimate vs Symbility formats
-- **Smart Code Router**: Zero-cost RAG mapping discrepancy categories to IRC/Georgia building codes
-
-### V3 — Inspection Vision Engine ✅
-Multimodal roof damage detection pipeline using Gemini 2.5 Flash's vision capabilities.
-
-- **Inspection Models**: Flat Pydantic schemas for Gemini structured output (hail hits, crease marks, granule loss, exposed fiberglass)
-- **Drive Sync Guard**: 10-second mtime staleness check + SHA256 deduplication for Google Drive folders
-- **Sequential Processor**: Rate-limit-safe batch processing with exponential backoff + jitter
-- **Image Resizer**: Pillow-based downsampler (800px max) preventing OOM in ReportLab
-- **Performance Cache**: SQLite thread-safe DB preventing redundant API token burn
-- **LAN Field UX**: FastAPI endpoints for direct iPad photo uploads and signature capture
-- **PDF Evidence Grid**: ReportLab photo grid with per-image forensic annotations and signatures
-- **CPA QuickBooks Bridge**: CSV exporter matching Intuit's bulk import standards
-
+### V2 & V3 — AI Supplement & Vision Engines ✅
+The core artificial intelligence layers powering the system's logic.
+- **V2 Supplement Engine**: Deterministic insurance supplement generation. Extracts EagleView measurements via `pdfplumber`, reconciles discrepancies with pure-Python math, and generates professional supplement request PDFs with AI-written narratives.
+- **V3 Vision Engine**: Multimodal roof damage detection pipeline using Gemini 2.5 Flash's vision capabilities. Generates ReportLab evidence grids with forensic annotations.
 
 ## Tech Stack
 
-| Component | Technology | Cost |
+| Component | Technology | Monthly Cost |
 |---|---|---|
 | Language | Python 3.11+ | $0 |
 | AI Provider | Google Gemini 2.5 Flash (free tier) | $0 |
+| Local CRM | SQLite (WAL mode) | $0 |
+| Web Server | FastAPI + Uvicorn | $0 |
+| Local Tunneling | Ngrok | $0 |
 | PDF Generation | ReportLab | $0 |
 | PDF Parsing | pdfplumber | $0 |
-| Data Contracts | Pydantic V2 | $0 |
-| Image Processing | Pillow | $0 |
-| Web Framework | FastAPI + Uvicorn | $0 |
-| Task Queue | ARQ (async Redis) | $0 |
-| Logging | structlog | $0 |
+| Frontend | Vanilla JS + Tailwind CSS | $0 |
+| Testing | Pytest (133 green tests) | $0 |
 
-## Project Structure
+## Pre-Flight Operational Safeguards
 
-```
-app/
-├── api/              # FastAPI webhook & field routes
-├── core/             # Business logic & data models
-│   ├── supplement_models.py    # V2 Pydantic schemas
-│   ├── inspection_models.py    # V3 Pydantic schemas + Drive sync guard
-│   ├── reconciliation.py       # Deterministic math engine
-│   ├── complexity.py           # Dynamic waste factor calculator
-│   ├── coverage_constants.py   # Industry material coverage rates
-│   ├── code_router.py          # Zero-cost building code RAG
-│   ├── field_mapper.py         # CRM field translation layer
-│   └── temp_manager.py         # atexit temp file cleanup
-├── services/         # External integrations
-│   ├── ai_service.py           # Gemini SDK wrapper (V2 + V3)
-│   ├── pdf_generator.py        # ReportLab document renderer
-│   ├── pdf_extractor.py        # pdfplumber EagleView parser
-│   ├── qbo_export.py           # QuickBooks Online CSV exporter
-│   └── jobnimbus_client.py     # CRM HTTP client
-├── workers/          # Async task processors
-│   ├── supplement_processor.py # V2 supplement pipeline orchestrator
-│   └── inspection_processor.py # V3 vision engine orchestrator
-├── static/           # Truck Server Frontend (app.js, tailwind)
-├── templates/        # Truck Server Jinja2 Views (field_app.html)
-└── config.py         # Pydantic Settings (env validation)
-
-building_codes/       # IRC & Georgia amendment XML files
-tests/                # pytest suite (133 tests)
-```
+To ensure system stability on a local field laptop, the following structural constraints are enforced:
+1. **Storage Bloat Prevention**: The SQLite backup engine enforces a strict 10-file maximum retention limit. Older backups are automatically unlinked.
+2. **Stale Data Protection**: The mobile canvasser form uses a 2-hour TTL cache limit. If the form hasn't been submitted in two hours, the `localStorage` payload is forcefully destroyed to prevent cross-customer data corruption.
+3. **Perimeter Lockdown**: The FastAPI `CORSMiddleware` strictly rejects wildcard origins, only permitting local development ports and secure `ngrok-free.app` regex matches.
 
 ## Quick Start
 
@@ -107,26 +80,29 @@ pip install -r requirements.txt
 
 # Configure
 cp .env.example .env
-# Edit .env with your GEMINI_API_KEY and other credentials
+# Edit .env with your GEMINI_API_KEY
 
-# Test
+# Test Baseline Validation
 python -m pytest tests/ -v
 
-# Run supplement engine (standalone)
-python run_phase4.py
+# Start the Truck Server (Local Field Mode)
+uvicorn app.main:app --reload
 ```
 
 ## Testing
 
+The system maintains a strict 100% green test baseline to prevent financial calculation errors.
+
 ```bash
-# Full suite
+# Execute the full 133-test suite
 python -m pytest tests/ -v
 
-# Specific modules
-python -m pytest tests/test_inspection_models.py -v    # V3 schemas
-python -m pytest tests/test_inspection_engine.py -v    # V3 engine
-python -m pytest tests/test_reconciliation.py -v       # V2 math
-python -m pytest tests/test_ai_service.py -v           # AI integration
+# Isolate financial math validation
+python -m pytest tests/test_job_costing.py -v
+python -m pytest tests/test_reconciliation.py -v
+
+# Isolate PDF generation and form layouts
+python -m pytest tests/test_pdf_generator.py -v
 ```
 
 ## License
