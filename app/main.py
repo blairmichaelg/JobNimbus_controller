@@ -186,3 +186,8 @@ async def serve_frontend(request: Request):
 async def serve_office_dashboard(request: Request):
     """Serve the Office Control Center desktop dashboard."""
     return templates.TemplateResponse("dashboard.html", {"request": request})
+
+@app.get("/office/jobs/{job_id}", tags=["frontend"])
+async def serve_job_detail(request: Request, job_id: str):
+    """Serve the unified Job Overview dashboard."""
+    return templates.TemplateResponse("job_detail.html", {"request": request, "job_id": job_id})

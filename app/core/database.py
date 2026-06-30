@@ -186,3 +186,23 @@ def insert_material_order(job_id: str, supplier_name: str, delivery_date: str, b
         raise
     finally:
         conn.close()
+
+def backup_database():
+    """
+    Safely creates a hot snapshot of the SQLite WAL database.
+    Saves to data/backups/crm_backup_{timestamp}.db.
+    """
+    backup_dir = Path("data/backups")
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = backup_dir / f"crm_backup_{timestamp}.db"
+    
+    conn = get_connection()
+    try:
+        # VACUUM INTO safely copies a live DB without locking it down
+        conn.execute(f"VACUUM INTO '{backup_path}';")
+        logger.info("database_backup_created", path=str(backup_path))
+    except Exception as e:
+        logger.error("database_backup_failed", error=str(e))
+    finally:
+        conn.close()

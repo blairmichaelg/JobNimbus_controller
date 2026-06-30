@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Overview - Wickham Roofing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .card {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .card-header {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1e293b;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans p-6">
+    
+    <div class="max-w-6xl mx-auto">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-slate-900">Job Overview</h1>
+                <p class="text-slate-500 mt-1" id="job-id-display">Loading...</p>
+            </div>
+            <a href="/office" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
+                &larr; Back to Dashboard
+            </a>
+        </div>
+
+        <!-- Margin Warning Banner -->
+        <div id="margin-warning" class="hidden mb-6 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-sm" role="alert">
+            <p class="font-bold">Low Profitability Alert</p>
+            <p>The gross margin for this job is below the 35% threshold. Please review the material and labor costs.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <!-- Metadata & Status Card -->
+            <div class="card">
+                <h2 class="card-header">Metadata & Status</h2>
+                <div class="space-y-3">
+                    <p><span class="font-semibold text-slate-600">Homeowner:</span> <span id="meta-homeowner">...</span></p>
+                    <p><span class="font-semibold text-slate-600">Address:</span> <span id="meta-address">...</span></p>
+                    <p><span class="font-semibold text-slate-600">Phone:</span> <span id="meta-phone">...</span></p>
+                    <p><span class="font-semibold text-slate-600">Email:</span> <span id="meta-email">...</span></p>
+                    <p><span class="font-semibold text-slate-600">Claim #:</span> <span id="meta-claim">...</span></p>
+                    <p><span class="font-semibold text-slate-600">Insurer:</span> <span id="meta-insurer">...</span></p>
+                    <div class="mt-4 pt-4 border-t border-slate-200">
+                        <span class="font-semibold text-slate-600">Current Status:</span> 
+                        <span id="meta-status" class="ml-2 inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financials Card -->
+            <div class="card">
+                <h2 class="card-header">Financials</h2>
+                <div class="space-y-4" id="financials-content">
+                    <p class="text-slate-500 italic">No financials recorded yet.</p>
+                </div>
+            </div>
+
+            <!-- Production Card -->
+            <div class="card">
+                <h2 class="card-header">Production Details</h2>
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="font-semibold text-slate-800 mb-2">Material Order</h3>
+                        <div id="production-materials">
+                            <p class="text-slate-500 italic">No materials ordered yet.</p>
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-slate-200">
+                        <h3 class="font-semibold text-slate-800 mb-2">Installation Schedule</h3>
+                        <div id="production-schedule">
+                            <p class="text-slate-500 italic">Not scheduled yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documents Card -->
+            <div class="card">
+                <h2 class="card-header">Compliance & Documents</h2>
+                <div class="grid grid-cols-1 gap-3" id="documents-content">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const JOB_ID = "{{ job_id }}";
+
+        async function init() {
+            try {
+                const response = await fetch(`/api/office/jobs/${JOB_ID}`);
+                if (!response.ok) throw new Error("Failed to fetch job details");
+                const data = await response.json();
+                
+                populateMetadata(data.job);
+                if (data.financials) populateFinancials(data.financials);
+                populateProduction(data.material_order, data.schedule);
+                populateDocuments(data);
+                
+            } catch (err) {
+                console.error(err);
+                alert("Failed to load job details. Check console.");
+            }
+        }
+
+        function populateMetadata(job) {
+            document.getElementById('job-id-display').textContent = `ID: ${job.id}`;
+            document.getElementById('meta-homeowner').textContent = job.homeowner_name;
+            document.getElementById('meta-address').textContent = `${job.address_line1}, ${job.city}, ${job.state} ${job.postal_code}`;
+            document.getElementById('meta-phone').textContent = job.phone;
+            document.getElementById('meta-email').textContent = job.email || 'N/A';
+            document.getElementById('meta-claim').textContent = job.claim_number || 'N/A';
+            document.getElementById('meta-insurer').textContent = job.insurer_name || 'N/A';
+            document.getElementById('meta-status').textContent = job.status.replace(/_/g, ' ');
+        }
+
+        function populateFinancials(fin) {
+            const container = document.getElementById('financials-content');
+            
+            // Reconstruct the margin math for the UI display
+            const revenue = fin.carrier_rcv;
+            const directCosts = fin.material_cost + fin.labor_cost;
+            const grossProfit = revenue - directCosts;
+            const grossMargin = revenue > 0 ? (grossProfit / revenue) : 0;
+            const overhead = revenue * fin.overhead_pct;
+            const netProfit = grossProfit - overhead;
+            const commission = grossProfit * fin.canvasser_commission_pct;
+
+            if (grossMargin < 0.35) {
+                document.getElementById('margin-warning').classList.remove('hidden');
+            }
+
+            container.innerHTML = `
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-slate-500">Carrier RCV (Revenue)</p>
+                        <p class="font-medium text-lg">$${revenue.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-slate-500">Gross Margin</p>
+                        <p class="font-bold text-lg ${grossMargin < 0.35 ? 'text-red-600' : 'text-emerald-600'}">${(grossMargin * 100).toFixed(1)}%</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-slate-500">Net Profit</p>
+                        <p class="font-medium text-lg">$${netProfit.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-slate-500">Commission Pool</p>
+                        <p class="font-medium text-lg">$${commission.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function populateProduction(mat, sched) {
+            if (mat) {
+                document.getElementById('production-materials').innerHTML = `
+                    <p><span class="font-semibold text-slate-600">Supplier:</span> ${mat.supplier_name}</p>
+                    <p><span class="font-semibold text-slate-600">Delivery Date:</span> ${mat.delivery_date || 'TBD'}</p>
+                `;
+            }
+            if (sched) {
+                document.getElementById('production-schedule').innerHTML = `
+                    <p><span class="font-semibold text-slate-600">Crew:</span> ${sched.crew_name}</p>
+                    <p><span class="font-semibold text-slate-600">Install Date:</span> ${sched.install_date}</p>
+                    <p><span class="font-semibold text-slate-600">Status:</span> ${sched.status}</p>
+                `;
+            }
+        }
+
+        function populateDocuments(data) {
+            const container = document.getElementById('documents-content');
+            let linksHTML = '';
+
+            const linkClass = "flex items-center justify-between p-3 rounded-md bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-colors";
+            
+            // These always exist if they were hit, but we'll show the links regardless as the endpoints exist.
+            linksHTML += `<a href="/api/office/jobs/${JOB_ID}/evidence_grid" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">1. Evidence Grid</span><span class="text-blue-600 text-sm">Download</span></a>`;
+            linksHTML += `<a href="/api/office/jobs/${JOB_ID}/qbo_export" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">2. QBO Invoice (CSV)</span><span class="text-blue-600 text-sm">Download</span></a>`;
+            
+            if (data.material_order) {
+                linksHTML += `<a href="/api/office/jobs/${JOB_ID}/docs/po?supplier_name=${encodeURIComponent(data.material_order.supplier_name)}" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">3. Material PO</span><span class="text-blue-600 text-sm">Download</span></a>`;
+            }
+
+            linksHTML += `<a href="/api/office/jobs/${JOB_ID}/docs/cancellation" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">Notice of Cancellation</span><span class="text-blue-600 text-sm">Generate</span></a>`;
+            
+            // For Certificate of Completion, we need a date. We'll default to today for generation preview.
+            const today = new Date().toISOString().split('T')[0];
+            linksHTML += `<a href="/api/office/jobs/${JOB_ID}/docs/completion?completion_date=${today}" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">Certificate of Completion</span><span class="text-blue-600 text-sm">Generate</span></a>`;
+
+            container.innerHTML = linksHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

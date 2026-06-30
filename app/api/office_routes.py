@@ -20,7 +20,7 @@ from app.services.qbo_export import generate_qbo_invoice
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
-from app.core.database import insert_material_order, JobStatus
+from app.core.database import insert_material_order, JobStatus, backup_database
 
 logger = structlog.get_logger("app.api.office_routes")
 
@@ -63,6 +63,45 @@ async def get_all_jobs() -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error("failed_to_fetch_jobs", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to fetch jobs")
+    finally:
+        conn.close()
+
+@router.get("/jobs/{job_id}")
+async def get_job_details(job_id: str) -> Dict[str, Any]:
+    """Retrieve unified job details across all production tables."""
+    conn = get_connection()
+    try:
+        # Get Job Metadata
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        job_row = cursor.fetchone()
+        if not job_row:
+            raise HTTPException(status_code=404, detail="Job not found.")
+        job_dict = dict(job_row)
+        job_dict["status_history"] = json.loads(job_dict["status_history"]) if job_dict["status_history"] else []
+        
+        # Get Financials
+        cursor = conn.execute("SELECT * FROM financials WHERE job_id = ?", (job_id,))
+        fin_row = cursor.fetchone()
+        
+        # Get Schedule
+        cursor = conn.execute("SELECT * FROM schedule WHERE job_id = ?", (job_id,))
+        sched_row = cursor.fetchone()
+        
+        # Get Material Order (Most recent)
+        cursor = conn.execute("SELECT * FROM material_orders WHERE job_id = ? ORDER BY delivery_date DESC LIMIT 1", (job_id,))
+        mat_row = cursor.fetchone()
+        
+        return {
+            "job": job_dict,
+            "financials": dict(fin_row) if fin_row else None,
+            "schedule": dict(sched_row) if sched_row else None,
+            "material_order": dict(mat_row) if mat_row else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("failed_to_fetch_job_details", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to fetch job details")
     finally:
         conn.close()
 
@@ -209,6 +248,9 @@ async def update_job_financials(job_id: str, payload: FinancialsPayload):
             canvasser_commission_pct=payload.commission_pct
         )
         
+        # Trigger Hot Backup
+        backup_database()
+        
         return {"status": "success", "financials": results}
     except Exception as e:
         logger.error("job_costing_failed", job_id=job_id, error=str(e))
@@ -250,6 +292,9 @@ async def generate_material_order(job_id: str, payload: MaterialOrderPayload):
         # Insert Record & Update State
         insert_material_order(job_id, payload.supplier_name, payload.delivery_date, bom.model_dump_json())
         update_job_status(job_id, JobStatus.MATERIAL_ORDERED)
+        
+        # Trigger Hot Backup
+        backup_database()
         
         return {"status": "success"}
     except Exception as e:

@@ -45,7 +45,26 @@ function getJobId() {
     return currentJobId;
 }
 
-// --- Intake Logic (Directive 3) ---
+// --- Intake Logic (Directive 3: LocalStorage Resilience) ---
+const intakeFields = [
+    'intake-name', 'intake-address', 'intake-city', 'intake-state', 
+    'intake-zip', 'intake-phone', 'intake-email', 'intake-insurer', 'intake-claim'
+];
+
+// Restore from LocalStorage
+intakeFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        const saved = localStorage.getItem(`v4_intake_${id}`);
+        if (saved) el.value = saved;
+        
+        // Save on every keystroke
+        el.addEventListener('input', (e) => {
+            localStorage.setItem(`v4_intake_${id}`, e.target.value);
+        });
+    }
+});
+
 intakeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     intakeSubmitBtn.disabled = true;
@@ -85,6 +104,9 @@ intakeForm.addEventListener('submit', async (e) => {
         activeHomeownerName.textContent = payload.homeowner_name;
         activeJobIdDisplay.textContent = currentJobId;
         jobActionsContainer.classList.remove('hidden');
+
+        // Clear LocalStorage on Success
+        intakeFields.forEach(id => localStorage.removeItem(`v4_intake_${id}`));
 
         showToast(`Lead Captured: ${currentJobId}`);
     } catch (err) {
