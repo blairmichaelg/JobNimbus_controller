@@ -47,7 +47,7 @@ class TestCodeRouter:
             sol_total_rfg_squares=5.0,
             square_variance=5.0,
             waste_explanation="Test",
-            material_bom=MaterialBOM(field_shingle_bundles=30, starter_bundles=1, ridge_cap_bundles=1, ice_water_rolls=1, underlayment_rolls=1),
+            material_bom=MaterialBOM(field_shingle_bundles=30, starter_bundles=1, ridge_cap_bundles=1, ice_water_rolls=1, underlayment_rolls=1, drip_edge_pieces=1),
             discrepancies=[
                 Discrepancy(category="Missing Drip Edge", description="Test", ev_value=1.0, sol_value=0.0, variance=1.0),
                 Discrepancy(category="Missing Ice & Water Shield", description="Test", ev_value=1.0, sol_value=0.0, variance=1.0),

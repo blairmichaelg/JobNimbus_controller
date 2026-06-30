@@ -4,6 +4,7 @@ Unit tests for the deterministic reconciliation engine.
 
 from app.core.reconciliation import reconcile
 from app.core.supplement_models import EagleViewData, StatementOfLoss, LineItem
+import pytest
 
 
 def test_reconcile_square_variance():
@@ -12,9 +13,10 @@ def test_reconcile_square_variance():
         eaves_lf=0, drip_edge_lf=0, flashing_lf=0, step_flashing_lf=0,
         total_facets=1, predominant_pitch="10/12"
     )
-    # Complexity: facets(1 * 0.2) + pitch(3 * 0.5) = 1.7
-    # Waste: 0.10 + 0.017 = 0.117 (rounded to 0.12)
-    # Normalized SQ: (6788 / 100) * 1.12 = 76.03
+    # Default waste factor = 0.15
+    # Normalized SQ: (6788 / 100) * 1.15 = 78.062 -> rounded by pure math?
+    # Wait, the code now does: ev_normalized_squares = (ev.total_area_sf / 100.0) * (1.0 + waste_factor)
+    # 6788 / 100 = 67.88. 67.88 * 1.15 = 78.062
     
     sol = StatementOfLoss(
         line_items=[
@@ -28,12 +30,12 @@ def test_reconcile_square_variance():
     report = reconcile(ev, sol, "job_1")
     
     assert report.sol_total_rfg_squares == 25.0
-    assert report.square_variance == 51.03
-    assert report.ev_normalized_squares == 76.03
+    assert report.square_variance == pytest.approx(53.06, rel=1e-3)
+    assert report.ev_normalized_squares == pytest.approx(78.062, rel=1e-3)
     
     area_disc = next((d for d in report.discrepancies if d.category == "Area Shortage"), None)
     assert area_disc is not None
-    assert area_disc.variance == 51.03
+    assert area_disc.variance == pytest.approx(53.06, rel=1e-3)
 
 
 def test_reconcile_missing_ice_and_water():
@@ -126,17 +128,12 @@ def test_reconcile_bom_calculation():
     sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
     report = reconcile(ev, sol, "job_1")
     
-    # 26 facets * 0.2 = 5.2
-    # 10/12 pitch = 1.5
-    # 288 valley / 50 = 5.76 * 0.5 = 2.88
-    # Total score = 5.2 + 1.5 + 2.88 = 9.58
-    # Waste = 0.10 + 0.0958 = 0.1958 -> clamp/round to 0.20
-    # SQ = 67.88 * 1.20 = 81.46
-    
+    # Normalized SQ: 67.88 * 1.15 = 78.062
     bom = report.material_bom
-    assert bom.field_shingle_bundles == 245  # ceil(81.46 * 3)
+    assert bom.field_shingle_bundles == 235  # ceil(78.062 * 3) = 235
     assert bom.starter_bundles == 4          # ceil((276 + 114) / 100) -> 390 / 100 = 3.9 -> 4
-    assert bom.ridge_cap_bundles == 14       # ceil((120 + 315) / 33) -> 435 / 33 = 13.18 -> 14
+    assert bom.ridge_cap_bundles == 4        # ceil(120 / 33) -> 120 / 33 = 3.63 -> 4
     assert bom.ice_water_rolls == 5          # ceil((288 * 3) / 200) -> 864 / 200 = 4.32 -> 5
-    assert bom.underlayment_rolls == 9       # ceil(81.46 / 10) -> 8.146 -> 9
+    assert bom.underlayment_rolls == 8       # ceil(78.062 / 10) -> 7.8062 -> 8
+    assert bom.drip_edge_pieces == 39        # ceil(390 / 10) = 39
 

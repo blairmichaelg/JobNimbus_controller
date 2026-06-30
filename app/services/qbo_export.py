@@ -7,8 +7,10 @@ format required for QBO batch imports.
 
 import csv
 import structlog
+from datetime import datetime
 from pathlib import Path
-from app.core.supplement_models import InvoiceExport
+from app.core.supplement_models import InvoiceExport, InvoiceLine, MaterialBOM
+from app.core.database import update_job_status
 
 logger = structlog.get_logger("app.services.qbo_export")
 
@@ -93,3 +95,35 @@ def export_to_csv(export: InvoiceExport) -> str:
     except Exception as e:
         log.error("qbo_export_failed", error=str(e))
         raise
+
+def generate_qbo_invoice(job_id: str, bom: MaterialBOM, customer_name: str = "Unknown Customer") -> str:
+    """
+    Generate an invoice from the Automated Math Engine BOM.
+    Updates CRM status to INVOICED upon completion.
+    """
+    now_date = datetime.utcnow().strftime("%Y-%m-%d")
+    
+    # We set default rates to 0.0 so the QBO account defaults override them, or user fills them
+    lines = [
+        InvoiceLine(item="shingle_install", description="Field Shingle Bundles", quantity=bom.field_shingle_bundles, rate=0.0, amount=0.0),
+        InvoiceLine(item="shingle_install", description="Starter Bundles", quantity=bom.starter_bundles, rate=0.0, amount=0.0),
+        InvoiceLine(item="ridge_cap", description="Ridge Cap Bundles", quantity=bom.ridge_cap_bundles, rate=0.0, amount=0.0),
+        InvoiceLine(item="ice_water", description="Ice & Water Shield Rolls", quantity=bom.ice_water_rolls, rate=0.0, amount=0.0),
+        InvoiceLine(item="underlayment", description="Synthetic Underlayment Rolls", quantity=bom.underlayment_rolls, rate=0.0, amount=0.0),
+        InvoiceLine(item="drip_edge", description="Drip Edge Pieces", quantity=bom.drip_edge_pieces, rate=0.0, amount=0.0)
+    ]
+    
+    export = InvoiceExport(
+        invoice_no=f"INV-{job_id[:8].upper()}",
+        customer=customer_name,
+        invoice_date=now_date,
+        due_date=now_date,
+        lines=lines
+    )
+    
+    csv_path = export_to_csv(export)
+    
+    # Directive 3: Update SQLite state
+    update_job_status(job_id, "INVOICED", f"Automated QBO Invoice Generated: {Path(csv_path).name}")
+    
+    return csv_path

@@ -46,8 +46,10 @@ class TestMaterialBOM:
             ridge_cap_bundles=3,
             ice_water_rolls=2,
             underlayment_rolls=4,
+            drip_edge_pieces=5,
         )
         assert bom.field_shingle_bundles == 100
+        assert bom.drip_edge_pieces == 5
 
 
 class TestLineItem:
@@ -109,7 +111,7 @@ class TestDiscrepancyReport:
             sol_total_rfg_squares=78.0,
             square_variance=0.06,
             waste_explanation="15%",
-            material_bom=MaterialBOM(field_shingle_bundles=10, starter_bundles=1, ridge_cap_bundles=1, ice_water_rolls=1, underlayment_rolls=1)
+            material_bom=MaterialBOM(field_shingle_bundles=10, starter_bundles=1, ridge_cap_bundles=1, ice_water_rolls=1, underlayment_rolls=1, drip_edge_pieces=1)
         )
         assert report.discrepancies == []
         assert report.square_variance == 0.06
@@ -121,7 +123,7 @@ class TestDiscrepancyReport:
             sol_total_rfg_squares=65.0,
             square_variance=13.06,
             waste_explanation="15%",
-            material_bom=MaterialBOM(field_shingle_bundles=10, starter_bundles=1, ridge_cap_bundles=1, ice_water_rolls=1, underlayment_rolls=1),
+            material_bom=MaterialBOM(field_shingle_bundles=10, starter_bundles=1, ridge_cap_bundles=1, ice_water_rolls=1, underlayment_rolls=1, drip_edge_pieces=1),
             discrepancies=[
                 Discrepancy(
                     category="Area Shortage",

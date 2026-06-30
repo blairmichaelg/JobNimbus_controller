@@ -24,6 +24,7 @@ class MaterialBOM(BaseModel):
     ridge_cap_bundles: int
     ice_water_rolls: int
     underlayment_rolls: int
+    drip_edge_pieces: int
 
 
 class EagleViewData(BaseModel):

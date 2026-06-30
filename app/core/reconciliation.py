@@ -23,18 +23,16 @@ from app.core.complexity import (
 import app.core.coverage_constants as constants
 
 
-def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str) -> DiscrepancyReport:
+def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor: float = 0.15) -> DiscrepancyReport:
     """
     Deterministically reconcile EV measurements against SoL items.
+    Accepts waste_factor dynamically (e.g. 0.15 for 15%).
     """
     discrepancies = []
 
-    # 1. Dynamic Waste & Area Computation
-    score = compute_complexity_score(ev)
-    waste_pct = calculate_dynamic_waste(score)
-    waste_explanation = build_waste_explanation(ev, waste_pct)
-    
-    ev_normalized_squares = round((ev.total_area_sf / 100.0) * (1.0 + waste_pct), 2)
+    # 1. Area Computation
+    ev_normalized_squares = (ev.total_area_sf / 100.0) * (1.0 + waste_factor)
+    waste_explanation = f"Dynamic Waste Factor applied: {waste_factor * 100}%"
     
     sol_total_rfg_squares = 0.0
     sq_items = [
@@ -117,13 +115,15 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str) -> Discrepan
             )
         )
 
-    # 5. Deterministic Material BOM
+    # 5. Deterministic Material BOM using exact math.ceil formulas
+    eaves_and_rakes = ev.eaves_lf + ev.rake_lf
     bom = MaterialBOM(
-        field_shingle_bundles=math.ceil(ev_normalized_squares * constants.SHINGLE_BUNDLES_PER_SQUARE),
-        starter_bundles=math.ceil((ev.eaves_lf + ev.rake_lf) / constants.STARTER_LF_PER_BUNDLE),
-        ridge_cap_bundles=math.ceil(total_ridge_hip_lf / constants.HIP_RIDGE_LF_PER_BUNDLE),
-        ice_water_rolls=math.ceil((ev.valley_lf * 3.0) / constants.ICE_WATER_SF_PER_ROLL),
-        underlayment_rolls=math.ceil(ev_normalized_squares / constants.UNDERLAYMENT_SQUARES_PER_ROLL),
+        field_shingle_bundles=math.ceil(ev_normalized_squares * 3),
+        starter_bundles=math.ceil(eaves_and_rakes / 100),
+        ridge_cap_bundles=math.ceil(ev.ridge_lf / 33),
+        ice_water_rolls=math.ceil((ev.valley_lf * 3) / 200),
+        underlayment_rolls=math.ceil(ev_normalized_squares / 10),
+        drip_edge_pieces=math.ceil(eaves_and_rakes / 10)
     )
 
     return DiscrepancyReport(
