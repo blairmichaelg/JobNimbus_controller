@@ -19,8 +19,8 @@ from app.core.supplement_models import StatementOfLoss
 from app.services.qbo_export import generate_qbo_invoice
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
-from app.core.database import upsert_financials
 from app.core.job_costing import compute_job_profitability
+from app.core.database import insert_material_order, JobStatus
 
 logger = structlog.get_logger("app.api.office_routes")
 
@@ -35,6 +35,10 @@ class FinancialsPayload(BaseModel):
     labor: float
     overhead_pct: float = 0.25
     commission_pct: float = 0.10
+
+class MaterialOrderPayload(BaseModel):
+    supplier_name: str
+    delivery_date: str
 
 @router.get("/jobs")
 async def get_all_jobs() -> List[Dict[str, Any]]:
@@ -209,3 +213,92 @@ async def update_job_financials(job_id: str, payload: FinancialsPayload):
     except Exception as e:
         logger.error("job_costing_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to calculate and save financials.")
+
+@router.post("/jobs/{job_id}/material_order")
+async def generate_material_order(job_id: str, payload: MaterialOrderPayload):
+    """
+    Triggers the generation of the supplier PO and updates job status to MATERIAL_ORDERED.
+    """
+    job_dir = FIELD_DOCS_DIR / job_id
+    pdf_path = job_dir / "eagleview.pdf"
+    
+    if not pdf_path.exists():
+        raise HTTPException(status_code=400, detail="EagleView PDF not found. Cannot generate PO.")
+        
+    try:
+        # Rebuild BOM
+        ev_data = await extract_eagleview_data(pdf_path)
+        empty_sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
+        report = reconcile(ev_data, empty_sol, job_id, waste_factor=0.15)
+        bom = report.material_bom
+        
+        # Fetch Homeowner Info
+        conn = get_connection()
+        try:
+            cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+            job_row = cursor.fetchone()
+            if not job_row:
+                raise HTTPException(status_code=404, detail="Job not found in database.")
+            job_dict = dict(job_row)
+        finally:
+            conn.close()
+            
+        # Generate PO PDF
+        pdf_gen = PDFGenerator()
+        await pdf_gen.generate_material_po(job_dict, bom, payload.supplier_name, payload.delivery_date)
+        
+        # Insert Record & Update State
+        insert_material_order(job_id, payload.supplier_name, payload.delivery_date, bom.model_dump_json())
+        update_job_status(job_id, JobStatus.MATERIAL_ORDERED)
+        
+        return {"status": "success"}
+    except Exception as e:
+        logger.error("material_order_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to process material order")
+
+@router.get("/jobs/{job_id}/docs/po")
+async def download_po(job_id: str, supplier_name: str):
+    """Returns the generated Material Purchase Order PDF."""
+    safe_name = supplier_name.replace(' ', '_')
+    po_path = FIELD_DOCS_DIR / job_id / f"PO_{safe_name}.pdf"
+    
+    if not po_path.exists():
+        raise HTTPException(status_code=404, detail="Purchase Order not found.")
+        
+    return FileResponse(path=po_path, filename=f"PO_{safe_name}.pdf", media_type="application/pdf")
+
+@router.get("/jobs/{job_id}/docs/cancellation")
+async def download_cancellation(job_id: str):
+    """Dynamically generates and returns the Georgia Notice of Cancellation."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Job not found.")
+        job_dict = dict(row)
+    finally:
+        conn.close()
+        
+    pdf_gen = PDFGenerator()
+    pdf_path = await pdf_gen.generate_notice_of_cancellation(job_dict)
+    
+    return FileResponse(path=pdf_path, filename=f"Notice_of_Cancellation_{job_id[:8]}.pdf", media_type="application/pdf")
+
+@router.get("/jobs/{job_id}/docs/completion")
+async def download_completion(job_id: str, completion_date: str):
+    """Dynamically generates and returns the Certificate of Completion."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Job not found.")
+        job_dict = dict(row)
+    finally:
+        conn.close()
+        
+    pdf_gen = PDFGenerator()
+    pdf_path = await pdf_gen.generate_certificate_of_completion(job_dict, completion_date)
+    
+    return FileResponse(path=pdf_path, filename=f"Certificate_of_Completion_{job_id[:8]}.pdf", media_type="application/pdf")

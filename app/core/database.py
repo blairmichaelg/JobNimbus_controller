@@ -9,6 +9,7 @@ import structlog
 from datetime import datetime
 from pathlib import Path
 from enum import Enum
+import uuid
 
 logger = structlog.get_logger("app.core.database")
 
@@ -163,6 +164,25 @@ def upsert_financials(job_id: str, carrier_rcv: float, material_cost: float, lab
         logger.info("financials_upserted", job_id=job_id)
     except Exception as e:
         logger.error("financials_upsert_failed", job_id=job_id, error=str(e))
+        raise
+    finally:
+        conn.close()
+
+def insert_material_order(job_id: str, supplier_name: str, delivery_date: str, bom_json: str):
+    """
+    Insert a material order and generate a UUID for the record.
+    """
+    conn = get_connection()
+    try:
+        order_id = str(uuid.uuid4())
+        conn.execute('''
+            INSERT INTO material_orders (id, job_id, supplier_name, delivery_date, bom_json)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (order_id, job_id, supplier_name, delivery_date, bom_json))
+        conn.commit()
+        logger.info("material_order_inserted", order_id=order_id, job_id=job_id)
+    except Exception as e:
+        logger.error("material_order_insert_failed", job_id=job_id, error=str(e))
         raise
     finally:
         conn.close()

@@ -6,6 +6,8 @@ import asyncio
 from pathlib import Path
 
 from app.services.pdf_generator import PDFGenerator
+from app.core.supplement_models import MaterialBOM
+from app.core.inspection_models import InspectionJob, InspectionPhoto, PhotoAnalysis, DamageType, Severity
 
 
 def test_generate_estimate_pdf_creates_file():
@@ -48,7 +50,57 @@ def test_generate_estimate_pdf_handles_missing_data():
         if path_obj.exists():
             path_obj.unlink()
 
-from app.core.inspection_models import InspectionJob, InspectionPhoto, PhotoAnalysis, DamageType, Severity
+import tempfile
+from unittest.mock import patch
+
+def test_generate_material_po_creates_file():
+    """Test that the Material PO generator creates a valid file."""
+    generator = PDFGenerator()
+    bom = MaterialBOM(
+        field_shingle_bundles=30,
+        starter_bundles=2,
+        ridge_cap_bundles=3,
+        ice_water_rolls=2,
+        underlayment_rolls=5,
+        drip_edge_pieces=15
+    )
+    job = {"id": "test_123", "homeowner_name": "Test", "address_line1": "123 St", "city": "City", "state": "GA", "postal_code": "30303", "claim_number": "123"}
+    
+    with patch("app.services.pdf_generator.FIELD_DOCS_DIR", Path(tempfile.gettempdir())):
+        filepath = asyncio.run(generator.generate_material_po(job, bom, "ABC Supply", "2026-07-01"))
+        path_obj = Path(filepath)
+        try:
+            assert path_obj.exists()
+            assert path_obj.stat().st_size > 0
+        finally:
+            if path_obj.exists():
+                path_obj.unlink()
+
+def test_generate_notice_of_cancellation_creates_file():
+    """Test that the Notice of Cancellation generator creates a valid file."""
+    generator = PDFGenerator()
+    job = {"id": "test_123", "homeowner_name": "Test", "address_line1": "123 St", "city": "City", "state": "GA", "postal_code": "30303", "claim_number": "123"}
+    filepath = asyncio.run(generator.generate_notice_of_cancellation(job))
+    path_obj = Path(filepath)
+    try:
+        assert path_obj.exists()
+        assert path_obj.stat().st_size > 0
+    finally:
+        if path_obj.exists():
+            path_obj.unlink()
+
+def test_generate_certificate_of_completion_creates_file():
+    """Test that the Certificate of Completion generator creates a valid file."""
+    generator = PDFGenerator()
+    job = {"id": "test_123", "homeowner_name": "Test", "address_line1": "123 St", "city": "City", "state": "GA", "postal_code": "30303", "claim_number": "123"}
+    filepath = asyncio.run(generator.generate_certificate_of_completion(job, "2026-07-10"))
+    path_obj = Path(filepath)
+    try:
+        assert path_obj.exists()
+        assert path_obj.stat().st_size > 0
+    finally:
+        if path_obj.exists():
+            path_obj.unlink()
 
 def test_generate_evidence_grid_creates_file(tmp_path):
     """Test that the Evidence Grid creates a valid multi-page PDF."""
