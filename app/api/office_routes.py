@@ -10,6 +10,7 @@ from typing import List, Dict, Any
 
 from fastapi import APIRouter, File, UploadFile, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from app.core.database import get_connection, update_job_status
 from app.services.pdf_extractor import extract_eagleview_data
@@ -18,6 +19,8 @@ from app.core.supplement_models import StatementOfLoss
 from app.services.qbo_export import generate_qbo_invoice
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
+from app.core.database import upsert_financials
+from app.core.job_costing import compute_job_profitability
 
 logger = structlog.get_logger("app.api.office_routes")
 
@@ -26,6 +29,12 @@ router = APIRouter(prefix="/api/office", tags=["office_ux"])
 FIELD_DOCS_DIR = Path("field_docs")
 EXPORT_DIR = Path("generated_exports")
 
+class FinancialsPayload(BaseModel):
+    revenue: float
+    materials: float
+    labor: float
+    overhead_pct: float = 0.25
+    commission_pct: float = 0.10
 
 @router.get("/jobs")
 async def get_all_jobs() -> List[Dict[str, Any]]:
@@ -159,3 +168,44 @@ async def download_qbo_export(job_id: str):
         filename=f"INV-{job_id[:8].upper()}_QBO.csv",
         media_type="text/csv"
     )
+
+@router.post("/jobs/{job_id}/financials")
+async def update_job_financials(job_id: str, payload: FinancialsPayload):
+    """
+    Process pre-build job costing parameters from the Office Dashboard.
+    Calculates exact margin profiles and logs alerts if profitability is too low.
+    """
+    try:
+        # Calculate precise financials
+        results = compute_job_profitability(
+            revenue=payload.revenue,
+            materials=payload.materials,
+            labor=payload.labor,
+            overhead_pct=payload.overhead_pct,
+            commission_pct=payload.commission_pct
+        )
+        
+        # Directive 4: Low Margin Alert
+        if results["gross_margin"] < 0.35:
+            logger.warning(
+                "low_margin_alert", 
+                job_id=job_id, 
+                gross_margin=results["gross_margin"],
+                revenue=payload.revenue,
+                direct_costs=results["direct_costs"]
+            )
+            
+        # Store raw parameters in DB
+        upsert_financials(
+            job_id=job_id,
+            carrier_rcv=payload.revenue,
+            material_cost=payload.materials,
+            labor_cost=payload.labor,
+            overhead_pct=payload.overhead_pct,
+            canvasser_commission_pct=payload.commission_pct
+        )
+        
+        return {"status": "success", "financials": results}
+    except Exception as e:
+        logger.error("job_costing_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to calculate and save financials.")

@@ -8,10 +8,25 @@ import json
 import structlog
 from datetime import datetime
 from pathlib import Path
+from enum import Enum
 
 logger = structlog.get_logger("app.core.database")
 
 DB_PATH = Path("truck_server.db")
+
+class JobStatus(str, Enum):
+    LEAD_CAPTURED = "LEAD_CAPTURED"
+    PHOTOS_UPLOADED = "PHOTOS_UPLOADED"
+    EV_PARSED = "EV_PARSED"
+    SUPPLEMENT_SUBMITTED = "SUPPLEMENT_SUBMITTED"
+    SCOPE_APPROVED = "SCOPE_APPROVED"
+    MATERIAL_ORDERED = "MATERIAL_ORDERED"
+    INSTALL_SCHEDULED = "INSTALL_SCHEDULED"
+    INSTALL_COMPLETED = "INSTALL_COMPLETED"
+    FINAL_INSPECTION = "FINAL_INSPECTION"
+    INVOICED = "INVOICED"
+    PAYMENT_RECEIVED = "PAYMENT_RECEIVED"
+    CLOSED = "CLOSED"
 
 def get_connection() -> sqlite3.Connection:
     """Get a SQLite connection with WAL mode enabled for concurrency."""
@@ -44,6 +59,40 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS material_orders (
+                id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                supplier_name TEXT NOT NULL,
+                delivery_date TIMESTAMP,
+                bom_json TEXT NOT NULL,
+                FOREIGN KEY(job_id) REFERENCES jobs(id)
+            )
+        ''')
+        
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS schedule (
+                id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                crew_name TEXT NOT NULL,
+                install_date TIMESTAMP,
+                status TEXT NOT NULL,
+                FOREIGN KEY(job_id) REFERENCES jobs(id)
+            )
+        ''')
+        
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS financials (
+                job_id TEXT PRIMARY KEY,
+                carrier_rcv REAL NOT NULL,
+                material_cost REAL NOT NULL,
+                labor_cost REAL NOT NULL,
+                overhead_pct REAL NOT NULL,
+                canvasser_commission_pct REAL NOT NULL,
+                FOREIGN KEY(job_id) REFERENCES jobs(id)
+            )
+        ''')
         conn.commit()
         logger.info("database_initialized", db_path=str(DB_PATH))
     except Exception as e:
@@ -56,6 +105,12 @@ def update_job_status(job_id: str, new_status: str, note: str = ""):
     """
     Enforces logical state transitions and appends to the JSON status history.
     """
+    try:
+        # Validate against Enum
+        JobStatus(new_status)
+    except ValueError:
+        raise ValueError(f"Invalid job status: {new_status}")
+
     conn = get_connection()
     try:
         # Get current status history
@@ -84,6 +139,30 @@ def update_job_status(job_id: str, new_status: str, note: str = ""):
         logger.info("job_status_updated", job_id=job_id, status=new_status)
     except Exception as e:
         logger.error("job_status_update_failed", job_id=job_id, error=str(e))
+        raise
+    finally:
+        conn.close()
+
+def upsert_financials(job_id: str, carrier_rcv: float, material_cost: float, labor_cost: float, overhead_pct: float, canvasser_commission_pct: float):
+    """
+    Upsert financial pre-build parameters into the financials table.
+    """
+    conn = get_connection()
+    try:
+        conn.execute('''
+            INSERT INTO financials (job_id, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id) DO UPDATE SET
+                carrier_rcv=excluded.carrier_rcv,
+                material_cost=excluded.material_cost,
+                labor_cost=excluded.labor_cost,
+                overhead_pct=excluded.overhead_pct,
+                canvasser_commission_pct=excluded.canvasser_commission_pct
+        ''', (job_id, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct))
+        conn.commit()
+        logger.info("financials_upserted", job_id=job_id)
+    except Exception as e:
+        logger.error("financials_upsert_failed", job_id=job_id, error=str(e))
         raise
     finally:
         conn.close()
