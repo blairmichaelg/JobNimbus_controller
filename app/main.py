@@ -14,7 +14,10 @@ from contextlib import asynccontextmanager
 
 import structlog
 from arq import create_pool
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.webhooks import router as webhook_router
 from app.api.field_routes import router as field_router
@@ -126,6 +129,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# --- Middleware ---
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        content_type = response.headers.get("Content-Type", "")
+        if "text/html" in content_type or "application/javascript" in content_type:
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+app.add_middleware(NoCacheMiddleware)
+
+# --- Static & Templates ---
+os.makedirs("app/static", exist_ok=True)
+os.makedirs("app/templates", exist_ok=True)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
+
 # --- Mount Routers ---
 app.include_router(webhook_router)
 app.include_router(field_router)
@@ -146,3 +168,10 @@ async def health_check():
         "env": settings.app_env,
         "dry_run": settings.dry_run,
     }
+
+
+# --- Frontend ---
+@app.get("/app", tags=["frontend"])
+async def serve_frontend(request: Request):
+    """Serve the Truck Server mobile web interface."""
+    return templates.TemplateResponse("field_app.html", {"request": request})
