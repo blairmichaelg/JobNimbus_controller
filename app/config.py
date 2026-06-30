@@ -67,6 +67,10 @@ class Settings(BaseSettings):
         default=True,
         description="When true, outbound CRM mutations are logged but NOT executed.",
     )
+    DB_PATH: str = Field(
+        default="data/truck_server.db",
+        description="Path to the local SQLite WAL database."
+    )
 
     @field_validator("log_level")
     @classmethod

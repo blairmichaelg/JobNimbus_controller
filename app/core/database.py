@@ -11,9 +11,12 @@ from pathlib import Path
 from enum import Enum
 import uuid
 
+from app.config import get_settings
+
 logger = structlog.get_logger("app.core.database")
 
-DB_PATH = Path("truck_server.db")
+def get_db_path() -> Path:
+    return Path(get_settings().DB_PATH)
 
 class JobStatus(str, Enum):
     LEAD_CAPTURED = "LEAD_CAPTURED"
@@ -31,7 +34,7 @@ class JobStatus(str, Enum):
 
 def get_connection() -> sqlite3.Connection:
     """Get a SQLite connection with WAL mode enabled for concurrency."""
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(get_db_path(), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     # Enable Write-Ahead Logging to allow concurrent read/writes between FastAPI and ARQ
     conn.execute("PRAGMA journal_mode=WAL;")
@@ -94,11 +97,54 @@ def init_db():
                 FOREIGN KEY(job_id) REFERENCES jobs(id)
             )
         ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS pricing (
+                item_key TEXT PRIMARY KEY,
+                default_rate REAL NOT NULL
+            )
+        ''')
         conn.commit()
-        logger.info("database_initialized", db_path=str(DB_PATH))
+        logger.info("database_initialized", db_path=str(get_db_path()))
+        seed_default_pricing()
     except Exception as e:
         logger.error("database_initialization_failed", error=str(e))
         raise
+    finally:
+        conn.close()
+
+def seed_default_pricing():
+    """Seed the pricing table with baseline material/labor rates."""
+    conn = get_connection()
+    try:
+        # Default Wickham Roofing baselines
+        baseline_pricing = [
+            ("field_shingle_bundles", 105.0),
+            ("starter_bundles", 45.0),
+            ("ridge_cap_bundles", 55.0),
+            ("ice_water_rolls", 80.0),
+            ("underlayment_rolls", 65.0),
+            ("drip_edge_pieces", 15.0),
+            ("labor_per_sq", 85.0), # Example labor metric
+        ]
+        conn.executemany('''
+            INSERT OR IGNORE INTO pricing (item_key, default_rate)
+            VALUES (?, ?)
+        ''', baseline_pricing)
+        conn.commit()
+    except Exception as e:
+        logger.error("pricing_seed_failed", error=str(e))
+    finally:
+        conn.close()
+
+def get_pricing_ledger() -> dict:
+    """Fetch all default rates from the pricing table."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT item_key, default_rate FROM pricing")
+        return {row["item_key"]: row["default_rate"] for row in cursor}
+    except Exception as e:
+        logger.error("failed_to_fetch_pricing", error=str(e))
+        return {}
     finally:
         conn.close()
 

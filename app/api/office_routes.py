@@ -20,7 +20,8 @@ from app.services.qbo_export import generate_qbo_invoice
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
-from app.core.database import insert_material_order, JobStatus, backup_database
+from app.core.database import insert_material_order, JobStatus, backup_database, get_connection
+from app.core.pipeline import run_full_office_pipeline
 
 logger = structlog.get_logger("app.api.office_routes")
 
@@ -128,17 +129,7 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
         logger.error("eagleview_upload_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to save EagleView PDF")
 
-    # 2. Extract Data
-    try:
-        ev_data = await extract_eagleview_data(pdf_path)
-    except Exception as e:
-        logger.error("eagleview_extraction_failed", job_id=job_id, error=str(e))
-        raise HTTPException(status_code=400, detail=str(e))
-
-    # 3. Calculate Math
-    # We use an empty SoL because we bypass Carrier Reconciliation for this V4 flow
-    empty_sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
-    
+    # 2. Get Homeowner Name for QBO
     conn = get_connection()
     try:
         cursor = conn.execute("SELECT homeowner_name FROM jobs WHERE id = ?", (job_id,))
@@ -147,22 +138,15 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
     finally:
         conn.close()
 
+    # 3. Trigger Master Orchestrator
     try:
-        report = reconcile(ev_data, empty_sol, job_id, waste_factor=0.15)
-        bom = report.material_bom
+        from asyncio import to_thread
+        result = await to_thread(run_full_office_pipeline, job_id, pdf_path, customer_name=homeowner_name)
     except Exception as e:
-        logger.error("automath_failed", job_id=job_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to calculate Material BOM")
+        logger.error("master_pipeline_failed_route", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Pipeline Orchestration Failed: {str(e)}")
 
-    # 4. Export QBO CSV & Update Status
-    try:
-        csv_path = generate_qbo_invoice(job_id, bom, customer_name=homeowner_name)
-        logger.info("qbo_invoice_generated", job_id=job_id, path=csv_path)
-    except Exception as e:
-        logger.error("qbo_export_failed", job_id=job_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to generate QuickBooks CSV")
-
-    return {"status": "success", "message": "EagleView processed, Math Engine complete, QBO CSV generated."}
+    return {"status": "success", "message": "Master Pipeline complete, QBO CSV generated.", "pipeline_result": result}
 
 
 @router.get("/jobs/{job_id}/evidence_grid")

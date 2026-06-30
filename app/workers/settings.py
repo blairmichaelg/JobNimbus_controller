@@ -13,7 +13,7 @@ import structlog
 from arq.connections import RedisSettings
 
 from app.config import get_settings
-from app.services.jobnimbus_client import JobNimbusClient
+from legacy_jobnimbus.jobnimbus_client import JobNimbusClient
 
 logger = structlog.get_logger("app.workers.settings")
 

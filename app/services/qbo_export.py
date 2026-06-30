@@ -10,7 +10,7 @@ import structlog
 from datetime import datetime
 from pathlib import Path
 from app.core.supplement_models import InvoiceExport, InvoiceLine, MaterialBOM
-from app.core.database import update_job_status
+from app.core.database import update_job_status, get_pricing_ledger
 
 logger = structlog.get_logger("app.services.qbo_export")
 
@@ -103,14 +103,26 @@ def generate_qbo_invoice(job_id: str, bom: MaterialBOM, customer_name: str = "Un
     """
     now_date = datetime.utcnow().strftime("%Y-%m-%d")
     
-    # We set default rates to 0.0 so the QBO account defaults override them, or user fills them
+    # Fetch actual pricing rates from the SQLite ledger
+    pricing = get_pricing_ledger()
+    
+    def create_line(item_type: str, qty: float, desc: str, pricing_key: str) -> InvoiceLine:
+        rate = pricing.get(pricing_key, 0.0)
+        return InvoiceLine(
+            item=item_type,
+            description=desc,
+            quantity=qty,
+            rate=rate,
+            amount=qty * rate
+        )
+    
     lines = [
-        InvoiceLine(item="shingle_install", description="Field Shingle Bundles", quantity=bom.field_shingle_bundles, rate=0.0, amount=0.0),
-        InvoiceLine(item="shingle_install", description="Starter Bundles", quantity=bom.starter_bundles, rate=0.0, amount=0.0),
-        InvoiceLine(item="ridge_cap", description="Ridge Cap Bundles", quantity=bom.ridge_cap_bundles, rate=0.0, amount=0.0),
-        InvoiceLine(item="ice_water", description="Ice & Water Shield Rolls", quantity=bom.ice_water_rolls, rate=0.0, amount=0.0),
-        InvoiceLine(item="underlayment", description="Synthetic Underlayment Rolls", quantity=bom.underlayment_rolls, rate=0.0, amount=0.0),
-        InvoiceLine(item="drip_edge", description="Drip Edge Pieces", quantity=bom.drip_edge_pieces, rate=0.0, amount=0.0)
+        create_line("shingle_install", bom.field_shingle_bundles, "Field Shingle Bundles", "field_shingle_bundles"),
+        create_line("shingle_install", bom.starter_bundles, "Starter Bundles", "starter_bundles"),
+        create_line("ridge_cap", bom.ridge_cap_bundles, "Ridge Cap Bundles", "ridge_cap_bundles"),
+        create_line("ice_water", bom.ice_water_rolls, "Ice & Water Shield Rolls", "ice_water_rolls"),
+        create_line("underlayment", bom.underlayment_rolls, "Synthetic Underlayment Rolls", "underlayment_rolls"),
+        create_line("drip_edge", bom.drip_edge_pieces, "Drip Edge Pieces", "drip_edge_pieces")
     ]
     
     export = InvoiceExport(

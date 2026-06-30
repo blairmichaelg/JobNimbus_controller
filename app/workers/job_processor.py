@@ -18,6 +18,7 @@ import structlog
 from app.config import get_settings
 from app.core.field_mapper import FieldMapper
 from app.services.ai_service import AIService
+from legacy_jobnimbus.jobnimbus_client import JobNimbusClient
 from app.services.pdf_generator import PDFGenerator
 
 logger = structlog.get_logger("app.workers.job_processor")

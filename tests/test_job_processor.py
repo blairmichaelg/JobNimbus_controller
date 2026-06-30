@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from app.workers.job_processor import process_jobnimbus_event
+from legacy_jobnimbus.jobnimbus_client import JobNimbusClient
 
 
 @pytest.fixture

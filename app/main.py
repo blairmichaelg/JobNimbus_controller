@@ -26,7 +26,7 @@ from app.api.office_routes import router as office_router
 from app.config import get_settings
 from app.core.cache import init_db as init_cache_db
 from app.core.database import init_db as init_crm_db
-from app.services.jobnimbus_client import JobNimbusClient
+from legacy_jobnimbus.jobnimbus_client import JobNimbusClient
 import os
 
 
