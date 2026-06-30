@@ -17,8 +17,11 @@ from arq import create_pool
 from fastapi import FastAPI
 
 from app.api.webhooks import router as webhook_router
+from app.api.field_routes import router as field_router
 from app.config import get_settings
+from app.core.cache import init_db
 from app.services.jobnimbus_client import JobNimbusClient
+import os
 
 
 def configure_logging(log_level: str) -> None:
@@ -85,6 +88,12 @@ async def lifespan(app: FastAPI):
     app.state.jn_client = jn_client
     logger.info("jobnimbus_client_attached_to_app_state")
 
+    # Initialize V3 Cache and Directories (Epic 1 & 2)
+    init_db()
+    os.makedirs("field_photos", exist_ok=True)
+    os.makedirs("signed_agreements", exist_ok=True)
+    logger.info("v3_infrastructure_initialized")
+
     # Initialize the ARQ Redis pool for task enqueueing (Phase 3)
     from app.workers.settings import get_redis_settings
 
@@ -119,6 +128,7 @@ app = FastAPI(
 
 # --- Mount Routers ---
 app.include_router(webhook_router)
+app.include_router(field_router)
 
 
 # --- Health Check ---

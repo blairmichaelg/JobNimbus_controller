@@ -106,3 +106,35 @@ class DiscrepancyReport(BaseModel):
     waste_explanation: str
     material_bom: MaterialBOM
     discrepancies: list[Discrepancy] = []
+
+
+class CodeSection(BaseModel):
+    """
+    Structured representation of a building code or amendment.
+    Used for strict citation adherence in AI generation.
+    """
+    code_set: str          # e.g., "IRC"
+    edition: str           # e.g., "2024"
+    jurisdiction: str      # e.g., "GA", "National"
+    section: str           # e.g., "R905.2.8.5"
+    text: str
+
+
+class InvoiceLine(BaseModel):
+    """A single line item mapped to a QuickBooks Online product/service."""
+    item: str
+    description: str
+    quantity: float
+    rate: float
+    amount: float
+
+
+class InvoiceExport(BaseModel):
+    """
+    Structured representation of an invoice to be exported to QuickBooks Online via CSV.
+    """
+    invoice_no: str
+    customer: str
+    invoice_date: str
+    due_date: str
+    lines: list[InvoiceLine]

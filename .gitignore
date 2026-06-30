@@ -45,9 +45,14 @@ htmlcov/
 # === Generated Files ===
 generated_pdfs/
 signed_agreements/
+generated_exports/
 
 # === Linter Cache ===
 .ruff_cache/
 
+# === Cache / Temp ===
+cache.db
+
 # === Google Drive Sync (local photos) ===
 drive_photos/
+field_photos/

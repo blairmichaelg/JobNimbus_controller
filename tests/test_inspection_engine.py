@@ -30,7 +30,7 @@ from app.core.temp_manager import (
     get_tracked_count,
     _reset_tracking,
 )
-from app.workers.inspection_processor import resize_for_pdf
+from app.workers.inspection_processor import resize_for_pdf, resize_for_ai
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -215,10 +215,14 @@ class TestAnalyzeRoofPhoto:
 class TestInspectionProcessor:
     """Tests for the sequential photo processing lifecycle."""
 
+    @patch("app.workers.inspection_processor.set_cached_analysis")
+    @patch("app.workers.inspection_processor.get_cached_analysis")
     @patch("app.workers.inspection_processor.time.sleep")
     @patch("app.workers.inspection_processor.AIService")
-    def test_full_lifecycle(self, mock_ai_class, mock_sleep, tmp_path, sample_analysis):
+    def test_full_lifecycle(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path, sample_analysis):
         """Verify upload → poll → analyze → delete lifecycle for each photo."""
+        mock_get_cache.return_value = None
+        
         # Create a real image file
         img_path = tmp_path / "photo1.jpg"
         _create_test_image(img_path)
@@ -244,25 +248,31 @@ class TestInspectionProcessor:
             job_id="WR-TEST-001",
             property_address="123 Test St, Valdosta, GA",
             inspection_date=datetime(2026, 6, 30),
-            photos=[InspectionPhoto(filepath=img_path)],
+            photos=[InspectionPhoto(filepath=img_path, sha256="fake_hash")],
         )
 
         from app.workers.inspection_processor import process_inspection
         result = asyncio.run(process_inspection({}, job))
 
         # Verify lifecycle
+        mock_get_cache.assert_called_once_with("WR-TEST-001", "fake_hash")
         mock_ai.client.files.upload.assert_called_once()
         mock_ai.client.files.get.assert_called_with(name="files/test123")
         mock_ai._call_with_backoff.assert_called_once()
+        mock_set_cache.assert_called_once()
         mock_ai.client.files.delete.assert_called_once_with(name="files/test123")
 
         assert len(result.analyses) == 1
         assert result.analyses[0].damage_detected is True
 
+    @patch("app.workers.inspection_processor.set_cached_analysis")
+    @patch("app.workers.inspection_processor.get_cached_analysis")
     @patch("app.workers.inspection_processor.time.sleep")
     @patch("app.workers.inspection_processor.AIService")
-    def test_failed_processing_skips_photo(self, mock_ai_class, mock_sleep, tmp_path):
+    def test_failed_processing_skips_photo(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path):
         """Photos that fail server-side processing should be skipped, not crash."""
+        mock_get_cache.return_value = None
+        
         img_path = tmp_path / "bad_photo.jpg"
         _create_test_image(img_path)
 
@@ -282,7 +292,7 @@ class TestInspectionProcessor:
             job_id="WR-TEST-002",
             property_address="456 Fail Rd",
             inspection_date=datetime(2026, 6, 30),
-            photos=[InspectionPhoto(filepath=img_path)],
+            photos=[InspectionPhoto(filepath=img_path, sha256="fake_hash")],
         )
 
         from app.workers.inspection_processor import process_inspection
@@ -291,16 +301,21 @@ class TestInspectionProcessor:
         assert len(result.analyses) == 0
         # Cleanup should still happen
         mock_ai.client.files.delete.assert_called_once_with(name="files/bad")
+        mock_set_cache.assert_not_called()
 
+    @patch("app.workers.inspection_processor.set_cached_analysis")
+    @patch("app.workers.inspection_processor.get_cached_analysis")
     @patch("app.workers.inspection_processor.time.sleep")
     @patch("app.workers.inspection_processor.AIService")
-    def test_multiple_photos_sequential(self, mock_ai_class, mock_sleep, tmp_path, sample_analysis):
+    def test_multiple_photos_sequential(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path, sample_analysis):
         """Multiple photos should be processed sequentially, not in parallel."""
+        mock_get_cache.return_value = None
+        
         photos = []
         for i in range(3):
             p = tmp_path / f"photo_{i}.jpg"
             _create_test_image(p)
-            photos.append(InspectionPhoto(filepath=p))
+            photos.append(InspectionPhoto(filepath=p, sha256=f"hash_{i}"))
 
         mock_ai = MagicMock()
         mock_ai_class.return_value = mock_ai
@@ -328,11 +343,16 @@ class TestInspectionProcessor:
         assert len(result.analyses) == 3
         assert mock_ai.client.files.upload.call_count == 3
         assert mock_ai.client.files.delete.call_count == 3
+        assert mock_set_cache.call_count == 3
 
+    @patch("app.workers.inspection_processor.set_cached_analysis")
+    @patch("app.workers.inspection_processor.get_cached_analysis")
     @patch("app.workers.inspection_processor.time.sleep")
     @patch("app.workers.inspection_processor.AIService")
-    def test_cleanup_runs_on_analysis_error(self, mock_ai_class, mock_sleep, tmp_path):
+    def test_cleanup_runs_on_analysis_error(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path):
         """Remote file should be deleted even if analysis throws an exception."""
+        mock_get_cache.return_value = None
+        
         img_path = tmp_path / "error_photo.jpg"
         _create_test_image(img_path)
 
@@ -353,7 +373,7 @@ class TestInspectionProcessor:
             job_id="WR-TEST-004",
             property_address="101 Error Ave",
             inspection_date=datetime(2026, 6, 30),
-            photos=[InspectionPhoto(filepath=img_path)],
+            photos=[InspectionPhoto(filepath=img_path, sha256="fake_hash")],
         )
 
         from app.workers.inspection_processor import process_inspection
@@ -362,6 +382,36 @@ class TestInspectionProcessor:
         assert len(result.analyses) == 0
         # Cleanup must still happen despite the error
         mock_ai.client.files.delete.assert_called_once_with(name="files/error")
+        mock_set_cache.assert_not_called()
+
+    @patch("app.workers.inspection_processor.get_cached_analysis")
+    @patch("app.workers.inspection_processor.AIService")
+    def test_cache_hit_bypasses_ai(self, mock_ai_class, mock_get_cache, tmp_path, sample_analysis):
+        """A cache hit should instantly append the analysis and skip Gemini completely."""
+        mock_get_cache.return_value = sample_analysis
+        
+        img_path = tmp_path / "cached_photo.jpg"
+        _create_test_image(img_path)
+        
+        mock_ai = MagicMock()
+        mock_ai_class.return_value = mock_ai
+        
+        job = InspectionJob(
+            job_id="WR-TEST-005",
+            property_address="Cache St",
+            inspection_date=datetime(2026, 6, 30),
+            photos=[InspectionPhoto(filepath=img_path, sha256="hash_hit")],
+        )
+        
+        from app.workers.inspection_processor import process_inspection
+        result = asyncio.run(process_inspection({}, job))
+        
+        assert len(result.analyses) == 1
+        assert result.analyses[0] == sample_analysis
+        
+        # Verify API was bypassed entirely
+        mock_ai.client.files.upload.assert_not_called()
+        mock_ai._call_with_backoff.assert_not_called()
 
 
 # ── Image Resizer Tests ───────────────────────────────────────────────────────
@@ -421,6 +471,33 @@ class TestResizeForPdf:
 
         result_img = PILImage.open(result_buf)
         assert result_img.width == 800
+
+
+class TestResizeForAi:
+    """Tests for the Pillow-based image downsampler to 1600px max width."""
+    
+    def setup_method(self):
+        _reset_tracking()
+    
+    def test_large_image_downsampled_to_file(self, tmp_path):
+        """Images wider than max_width should be resized and saved as temporary JPEGs."""
+        img_path = tmp_path / "large_raw.jpg"
+        _create_test_image(img_path, width=4000, height=3000)
+
+        result_path = resize_for_ai(img_path, max_width=1600)
+
+        assert Path(result_path).exists()
+        
+        result_img = PILImage.open(result_path)
+        assert result_img.width == 1600
+        assert result_img.height == 1200  # Proportional: 3000 * (1600/4000)
+        assert result_img.format == "JPEG"
+        
+        # Verify temp_manager is tracking it
+        assert get_tracked_count() == 1
+        
+        # Cleanup
+        cleanup_all()
 
 
 # ── Temp Manager Tests ────────────────────────────────────────────────────────

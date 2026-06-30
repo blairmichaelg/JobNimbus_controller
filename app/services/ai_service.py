@@ -290,7 +290,7 @@ Rules:
         You have analyzed the EagleView measurement report and the Carrier's Statement of Loss and found the following numerical shortages.
         You MUST explicitly state the mathematical shortages found in the report below.
         Only cite the building codes provided below if they directly relate to the identified discrepancies.
-        If a building code applies to a shortage (e.g., Drip Edge, Ice & Water), you MUST quote the exact code section provided in the Building Codes context.
+        You MUST use the exact `code_citation` string provided as a bolded header before quoting the building code. Do not hallucinate or alter the citation.
         
         --- DISCREPANCY REPORT ---
         {report.model_dump_json(indent=2)}

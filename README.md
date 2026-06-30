@@ -15,10 +15,10 @@ A proprietary, zero-cost, multi-agent AI pipeline for insurance roofing operatio
 │  │ Extractor│  │ SoL (LLM)│  │ (Pure Py) │  │ + AI Narrative   │  │
 │  └──────────┘  └──────────┘  └───────────┘  └──────────────────┘  │
 │                                                                     │
-│  V3 INSPECTION ENGINE (In Progress)                                 │
+│  V3 INSPECTION ENGINE (Complete)                                    │
 │  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌──────────────────┐  │
-│  │ Drive    │─▶│ Gemini   │─▶│ Forensic  │─▶│ Evidence Grid    │  │
-│  │ Sync     │  │ Vision   │  │ Analysis  │  │ PDF              │  │
+│  │ Local/LAN│─▶│ Gemini   │─▶│ Forensic  │─▶│ Evidence Grid    │  │
+│  │ iPad API │  │ Vision   │  │ Analysis  │  │ PDF              │  │
 │  └──────────┘  └──────────┘  └───────────┘  └──────────────────┘  │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -34,19 +34,18 @@ Deterministic insurance supplement generation. Extracts EagleView measurements v
 - **Carrier Router**: Zero-temp Gemini classifier identifies Xactimate vs Symbility formats
 - **Smart Code Router**: Zero-cost RAG mapping discrepancy categories to IRC/Georgia building codes
 
-### V3 — Inspection Vision Engine 🚧
+### V3 — Inspection Vision Engine ✅
 Multimodal roof damage detection pipeline using Gemini 2.5 Flash's vision capabilities.
 
 - **Inspection Models**: Flat Pydantic schemas for Gemini structured output (hail hits, crease marks, granule loss, exposed fiberglass)
 - **Drive Sync Guard**: 10-second mtime staleness check + SHA256 deduplication for Google Drive folders
 - **Sequential Processor**: Rate-limit-safe batch processing with exponential backoff + jitter
 - **Image Resizer**: Pillow-based downsampler (800px max) preventing OOM in ReportLab
-- **Temp Manager**: Centralized `atexit` cleanup for temp PDFs and image buffers
-
-### V3 Upcoming
-- **PDF Evidence Grid**: ReportLab photo grid with per-image forensic annotations
-- **Signature Capture**: FastAPI + HTML5 Canvas digital contingency agreements
+- **Performance Cache**: SQLite thread-safe DB preventing redundant API token burn
+- **LAN Field UX**: FastAPI endpoints for direct iPad photo uploads and signature capture
+- **PDF Evidence Grid**: ReportLab photo grid with per-image forensic annotations and signatures
 - **CPA QuickBooks Bridge**: CSV exporter matching Intuit's bulk import standards
+
 
 ## Tech Stack
 

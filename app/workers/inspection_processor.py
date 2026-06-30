@@ -21,6 +21,8 @@ from PIL import Image as PILImage
 
 from app.services.ai_service import AIService
 from app.core.inspection_models import InspectionJob
+from app.core.temp_manager import create_temp_file
+from app.core.cache import get_cached_analysis, set_cached_analysis
 
 logger = structlog.get_logger("app.workers.inspection_processor")
 
@@ -57,6 +59,38 @@ def resize_for_pdf(src: Path, max_width: int = 800) -> io.BytesIO:
         return buf
 
 
+def resize_for_ai(src: Path, max_width: int = 1600) -> str:
+    """
+    Downsample a field photo for Gemini File API upload.
+
+    Reduces 4000px+ raw field photos to 1600px to save network bandwidth
+    and API processing time, while preserving enough detail for forensic
+    damage analysis.
+
+    Writes the output to a managed temporary file that will be cleaned up
+    on process exit by temp_manager.
+
+    Args:
+        src: Path to the source image file on disk.
+        max_width: Maximum pixel width for the output. Default 1600.
+
+    Returns:
+        Absolute filepath to the downscaled temporary JPEG file.
+    """
+    with PILImage.open(src) as img:
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+
+        if img.width > max_width:
+            ratio = max_width / img.width
+            new_height = int(img.height * ratio)
+            img = img.resize((max_width, new_height), PILImage.LANCZOS)
+
+        temp_path = create_temp_file(suffix=".jpg")
+        img.save(temp_path, format="JPEG", quality=85)
+        return temp_path
+
+
 async def process_inspection(ctx: dict, job: InspectionJob) -> InspectionJob:
     """
     Process all photos in an InspectionJob through the Gemini Vision Engine.
@@ -88,12 +122,25 @@ async def process_inspection(ctx: dict, job: InspectionJob) -> InspectionJob:
                 index=idx + 1,
                 total=len(job.photos),
             )
+
+            # Check cache first (EPIC 1)
+            cached = get_cached_analysis(job.job_id, photo.sha256)
+            if cached:
+                cached.filename = photo.filepath.name
+                job.analyses.append(cached)
+                photo_log.info("photo_analysis_cache_hit", damage=cached.damage_detected)
+                continue
+
             photo_log.info("photo_processing_started")
 
             uploaded_name = None
             try:
+                # 0. Dual-Image Scaling: Create 1600px temporary file for AI
+                photo_log.debug("downscaling_for_ai")
+                ai_file_path = resize_for_ai(photo.filepath, max_width=1600)
+
                 # 1. Upload to Gemini File API
-                uploaded_file = ai.client.files.upload(file=str(photo.filepath))
+                uploaded_file = ai.client.files.upload(file=ai_file_path)
                 uploaded_name = uploaded_file.name
                 photo_log.debug("photo_uploaded", remote_name=uploaded_name)
 
@@ -111,6 +158,9 @@ async def process_inspection(ctx: dict, job: InspectionJob) -> InspectionJob:
                 analysis = ai._call_with_backoff(ai.analyze_roof_photo, file_info)
                 analysis.filename = photo.filepath.name
                 job.analyses.append(analysis)
+
+                # Cache the successful result (EPIC 1)
+                set_cached_analysis(job.job_id, photo.sha256, analysis)
 
                 photo_log.info(
                     "photo_analysis_complete",
