@@ -9,7 +9,7 @@ from app.core.database import update_job_status, JobStatus
 
 logger = structlog.get_logger("app.core.pipeline")
 
-def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name: str = "Unknown Customer") -> dict:
+async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name: str = "Unknown Customer") -> dict:
     """
     The Master Orchestrator for the V4 Pipeline.
     Strictly executes the chain: Parse EV PDF -> Calculate BOM -> Generate QBO CSV -> Transition Status.
@@ -19,8 +19,7 @@ def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name: str 
     
     try:
         # 1. Parse EV PDF
-        import asyncio
-        ev_data = asyncio.run(extract_eagleview_data(ev_pdf_path))
+        ev_data = await extract_eagleview_data(ev_pdf_path)
         log.info("pipeline_ev_parsed", sq=ev_data.total_area_sf / 100.0)
         
         # 2. Calculate BOM

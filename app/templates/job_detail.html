@@ -70,6 +70,29 @@
                 <div class="space-y-4" id="financials-content">
                     <p class="text-slate-500 italic">No financials recorded yet.</p>
                 </div>
+                
+                <form id="financials-form" class="mt-4 pt-4 border-t border-slate-200 space-y-3" onsubmit="submitFinancials(event)">
+                    <h3 class="font-semibold text-slate-800">Update Financials</h3>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Total Revenue / Contract Price</label>
+                        <input type="number" id="fin-revenue" class="w-full border border-slate-300 rounded px-3 py-2" step="0.01" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Carrier RCV</label>
+                        <input type="number" id="fin-carrier-rcv" class="w-full border border-slate-300 rounded px-3 py-2" step="0.01" required>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Materials</label>
+                            <input type="number" id="fin-materials" class="w-full border border-slate-300 rounded px-3 py-2" step="0.01" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Labor</label>
+                            <input type="number" id="fin-labor" class="w-full border border-slate-300 rounded px-3 py-2" step="0.01" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium w-full mt-2">Save Financials</button>
+                </form>
             </div>
 
             <!-- Production Card -->
@@ -77,18 +100,40 @@
                 <h2 class="card-header">Production Details</h2>
                 <div class="space-y-4">
                     <div>
-                        <h3 class="font-semibold text-slate-800 mb-2">Material Order</h3>
+                        <h3 class="font-semibold text-slate-800 mb-2">Material Order & Schedule</h3>
                         <div id="production-materials">
                             <p class="text-slate-500 italic">No materials ordered yet.</p>
                         </div>
-                    </div>
-                    <div class="pt-4 border-t border-slate-200">
-                        <h3 class="font-semibold text-slate-800 mb-2">Installation Schedule</h3>
-                        <div id="production-schedule">
+                        <div id="production-schedule" class="mt-2">
                             <p class="text-slate-500 italic">Not scheduled yet.</p>
                         </div>
                     </div>
                 </div>
+                
+                <form id="production-form" class="mt-4 pt-4 border-t border-slate-200 space-y-3" onsubmit="submitProduction(event)">
+                    <h3 class="font-semibold text-slate-800">Schedule Production</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Supplier</label>
+                            <input type="text" id="prod-supplier" class="w-full border border-slate-300 rounded px-3 py-2" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Delivery Date</label>
+                            <input type="date" id="prod-delivery" class="w-full border border-slate-300 rounded px-3 py-2" required>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Crew Name</label>
+                            <input type="text" id="prod-crew" class="w-full border border-slate-300 rounded px-3 py-2" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Install Date</label>
+                            <input type="date" id="prod-install" class="w-full border border-slate-300 rounded px-3 py-2" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium w-full mt-2">Set Schedule</button>
+                </form>
             </div>
 
             <!-- Documents Card -->
@@ -136,14 +181,23 @@
         function populateFinancials(fin) {
             const container = document.getElementById('financials-content');
             
-            // Reconstruct the margin math for the UI display
-            const revenue = fin.carrier_rcv;
-            const directCosts = fin.material_cost + fin.labor_cost;
-            const grossProfit = revenue - directCosts;
-            const grossMargin = revenue > 0 ? (grossProfit / revenue) : 0;
-            const overhead = revenue * fin.overhead_pct;
-            const netProfit = grossProfit - overhead;
-            const commission = grossProfit * fin.canvasser_commission_pct;
+            const revenue = fin.revenue || fin.carrier_rcv;
+            let grossMargin = 0;
+            let netProfit = 0;
+            let commission = 0;
+
+            if (fin.computed_margins) {
+                grossMargin = fin.computed_margins.gross_margin;
+                netProfit = fin.computed_margins.net_profit;
+                commission = fin.computed_margins.commission_pool;
+            } else {
+                const directCosts = fin.material_cost + fin.labor_cost;
+                const grossProfit = revenue - directCosts;
+                grossMargin = revenue > 0 ? (grossProfit / revenue) : 0;
+                const overhead = revenue * fin.overhead_pct;
+                netProfit = grossProfit - overhead;
+                commission = grossProfit * fin.canvasser_commission_pct;
+            }
 
             if (grossMargin < 0.35) {
                 document.getElementById('margin-warning').classList.remove('hidden');
@@ -152,7 +206,7 @@
             container.innerHTML = `
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <p class="text-sm text-slate-500">Carrier RCV (Revenue)</p>
+                        <p class="text-sm text-slate-500">Revenue</p>
                         <p class="font-medium text-lg">$${revenue.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                     </div>
                     <div>
@@ -169,6 +223,12 @@
                     </div>
                 </div>
             `;
+            
+            // Pre-fill form
+            document.getElementById('fin-revenue').value = fin.revenue;
+            document.getElementById('fin-carrier-rcv').value = fin.carrier_rcv;
+            document.getElementById('fin-materials').value = fin.material_cost;
+            document.getElementById('fin-labor').value = fin.labor_cost;
         }
 
         function populateProduction(mat, sched) {
@@ -211,6 +271,54 @@
         }
 
         document.addEventListener('DOMContentLoaded', init);
+
+        async function submitFinancials(e) {
+            e.preventDefault();
+            const payload = {
+                revenue: parseFloat(document.getElementById('fin-revenue').value),
+                carrier_rcv: parseFloat(document.getElementById('fin-carrier-rcv').value),
+                materials: parseFloat(document.getElementById('fin-materials').value),
+                labor: parseFloat(document.getElementById('fin-labor').value),
+                overhead_pct: 0.25,
+                commission_pct: 0.10
+            };
+            
+            try {
+                const response = await fetch(`/api/office/jobs/${JOB_ID}/financials`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error("Failed to save financials");
+                window.location.reload();
+            } catch (err) {
+                console.error(err);
+                alert("Error saving financials");
+            }
+        }
+
+        async function submitProduction(e) {
+            e.preventDefault();
+            const payload = {
+                supplier_name: document.getElementById('prod-supplier').value,
+                delivery_date: document.getElementById('prod-delivery').value,
+                crew_name: document.getElementById('prod-crew').value,
+                install_date: document.getElementById('prod-install').value
+            };
+            
+            try {
+                const response = await fetch(`/api/office/jobs/${JOB_ID}/production`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error("Failed to schedule production");
+                window.location.reload();
+            } catch (err) {
+                console.error(err);
+                alert("Error scheduling production");
+            }
+        }
     </script>
 </body>
 </html>

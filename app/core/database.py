@@ -81,6 +81,7 @@ def init_db():
                 job_id TEXT NOT NULL,
                 crew_name TEXT NOT NULL,
                 install_date TIMESTAMP,
+                delivery_date TIMESTAMP,
                 status TEXT NOT NULL,
                 FOREIGN KEY(job_id) REFERENCES jobs(id)
             )
@@ -89,6 +90,7 @@ def init_db():
         conn.execute('''
             CREATE TABLE IF NOT EXISTS financials (
                 job_id TEXT PRIMARY KEY,
+                revenue REAL NOT NULL DEFAULT 0.0,
                 carrier_rcv REAL NOT NULL,
                 material_cost REAL NOT NULL,
                 labor_cost REAL NOT NULL,
@@ -190,22 +192,23 @@ def update_job_status(job_id: str, new_status: str, note: str = ""):
     finally:
         conn.close()
 
-def upsert_financials(job_id: str, carrier_rcv: float, material_cost: float, labor_cost: float, overhead_pct: float, canvasser_commission_pct: float):
+def upsert_financials(job_id: str, revenue: float, carrier_rcv: float, material_cost: float, labor_cost: float, overhead_pct: float, canvasser_commission_pct: float):
     """
     Upsert financial pre-build parameters into the financials table.
     """
     conn = get_connection()
     try:
         conn.execute('''
-            INSERT INTO financials (job_id, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO financials (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
+                revenue=excluded.revenue,
                 carrier_rcv=excluded.carrier_rcv,
                 material_cost=excluded.material_cost,
                 labor_cost=excluded.labor_cost,
                 overhead_pct=excluded.overhead_pct,
                 canvasser_commission_pct=excluded.canvasser_commission_pct
-        ''', (job_id, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct))
+        ''', (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct))
         conn.commit()
         logger.info("financials_upserted", job_id=job_id)
     except Exception as e:
@@ -229,6 +232,25 @@ def insert_material_order(job_id: str, supplier_name: str, delivery_date: str, b
         logger.info("material_order_inserted", order_id=order_id, job_id=job_id)
     except Exception as e:
         logger.error("material_order_insert_failed", job_id=job_id, error=str(e))
+        raise
+    finally:
+        conn.close()
+
+def insert_schedule(job_id: str, crew_name: str, install_date: str, delivery_date: str, status: str):
+    """
+    Insert a production schedule and generate a UUID for the record.
+    """
+    conn = get_connection()
+    try:
+        schedule_id = str(uuid.uuid4())
+        conn.execute('''
+            INSERT INTO schedule (id, job_id, crew_name, install_date, delivery_date, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (schedule_id, job_id, crew_name, install_date, delivery_date, status))
+        conn.commit()
+        logger.info("schedule_inserted", schedule_id=schedule_id, job_id=job_id)
+    except Exception as e:
+        logger.error("schedule_insert_failed", job_id=job_id, error=str(e))
         raise
     finally:
         conn.close()

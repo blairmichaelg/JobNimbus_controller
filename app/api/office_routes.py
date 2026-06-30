@@ -20,7 +20,7 @@ from app.services.qbo_export import generate_qbo_invoice
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
-from app.core.database import insert_material_order, JobStatus, backup_database, get_connection
+from app.core.database import insert_material_order, insert_schedule, JobStatus, backup_database, get_connection
 from app.core.pipeline import run_full_office_pipeline
 
 logger = structlog.get_logger("app.api.office_routes")
@@ -32,10 +32,17 @@ EXPORT_DIR = Path("generated_exports")
 
 class FinancialsPayload(BaseModel):
     revenue: float
+    carrier_rcv: float
     materials: float
     labor: float
     overhead_pct: float = 0.25
     commission_pct: float = 0.10
+
+class ProductionPayload(BaseModel):
+    supplier_name: str
+    delivery_date: str
+    crew_name: str
+    install_date: str
 
 class MaterialOrderPayload(BaseModel):
     supplier_name: str
@@ -92,9 +99,21 @@ async def get_job_details(job_id: str) -> Dict[str, Any]:
         cursor = conn.execute("SELECT * FROM material_orders WHERE job_id = ? ORDER BY delivery_date DESC LIMIT 1", (job_id,))
         mat_row = cursor.fetchone()
         
+        fin_dict = dict(fin_row) if fin_row else None
+        if fin_dict:
+            # Dynamically compute exact margins
+            margins = compute_job_profitability(
+                revenue=fin_dict["revenue"],
+                materials=fin_dict["material_cost"],
+                labor=fin_dict["labor_cost"],
+                overhead_pct=fin_dict["overhead_pct"],
+                commission_pct=fin_dict["canvasser_commission_pct"]
+            )
+            fin_dict["computed_margins"] = margins
+
         return {
             "job": job_dict,
-            "financials": dict(fin_row) if fin_row else None,
+            "financials": fin_dict,
             "schedule": dict(sched_row) if sched_row else None,
             "material_order": dict(mat_row) if mat_row else None
         }
@@ -140,8 +159,7 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
 
     # 3. Trigger Master Orchestrator
     try:
-        from asyncio import to_thread
-        result = await to_thread(run_full_office_pipeline, job_id, pdf_path, customer_name=homeowner_name)
+        result = await run_full_office_pipeline(job_id, pdf_path, customer_name=homeowner_name)
     except Exception as e:
         logger.error("master_pipeline_failed_route", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"Pipeline Orchestration Failed: {str(e)}")
@@ -225,7 +243,8 @@ async def update_job_financials(job_id: str, payload: FinancialsPayload):
         # Store raw parameters in DB
         upsert_financials(
             job_id=job_id,
-            carrier_rcv=payload.revenue,
+            revenue=payload.revenue,
+            carrier_rcv=payload.carrier_rcv,
             material_cost=payload.materials,
             labor_cost=payload.labor,
             overhead_pct=payload.overhead_pct,
@@ -239,6 +258,40 @@ async def update_job_financials(job_id: str, payload: FinancialsPayload):
     except Exception as e:
         logger.error("job_costing_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to calculate and save financials.")
+
+
+@router.post("/jobs/{job_id}/production")
+async def update_job_production(job_id: str, payload: ProductionPayload):
+    """
+    Unified route to set both material orders and installation schedule.
+    Transitions job to INSTALL_SCHEDULED.
+    """
+    try:
+        # Dummy BOM JSON for now, in a real scenario we'd pull the actual calculated BOM
+        dummy_bom = json.dumps({"status": "scheduled_for_delivery"})
+        
+        insert_material_order(
+            job_id=job_id,
+            supplier_name=payload.supplier_name,
+            delivery_date=payload.delivery_date,
+            bom_json=dummy_bom
+        )
+        
+        insert_schedule(
+            job_id=job_id,
+            crew_name=payload.crew_name,
+            install_date=payload.install_date,
+            delivery_date=payload.delivery_date,
+            status="SCHEDULED"
+        )
+        
+        update_job_status(job_id, JobStatus.INSTALL_SCHEDULED, f"Scheduled with {payload.crew_name} on {payload.install_date}")
+        backup_database()
+        
+        return {"status": "success", "message": "Production scheduled."}
+    except Exception as e:
+        logger.error("production_update_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to schedule production.")
 
 @router.post("/jobs/{job_id}/material_order")
 async def generate_material_order(job_id: str, payload: MaterialOrderPayload):
