@@ -51,17 +51,47 @@ const intakeFields = [
     'intake-zip', 'intake-phone', 'intake-email', 'intake-insurer', 'intake-claim'
 ];
 
-// Restore from LocalStorage
+function saveIntakeCache() {
+    const payload = {};
+    intakeFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) payload[id] = el.value;
+    });
+    localStorage.setItem("intake_cache", JSON.stringify({ data: payload, timestamp: Date.now() }));
+}
+
+function restoreIntakeCache() {
+    const cachedStr = localStorage.getItem("intake_cache");
+    if (!cachedStr) return;
+    
+    try {
+        const parsed = JSON.parse(cachedStr);
+        // 2 hours = 7,200,000 ms
+        if (Date.now() - parsed.timestamp > 7200000) {
+            localStorage.removeItem("intake_cache");
+            return;
+        }
+        
+        const payload = parsed.data;
+        if (payload) {
+            intakeFields.forEach(id => {
+                const el = document.getElementById(id);
+                if (el && payload[id]) el.value = payload[id];
+            });
+        }
+    } catch (e) {
+        localStorage.removeItem("intake_cache");
+    }
+}
+
+// Restore on load
+restoreIntakeCache();
+
+// Attach save listener to all fields
 intakeFields.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-        const saved = localStorage.getItem(`v4_intake_${id}`);
-        if (saved) el.value = saved;
-        
-        // Save on every keystroke
-        el.addEventListener('input', (e) => {
-            localStorage.setItem(`v4_intake_${id}`, e.target.value);
-        });
+        el.addEventListener('input', saveIntakeCache);
     }
 });
 
@@ -106,7 +136,7 @@ intakeForm.addEventListener('submit', async (e) => {
         jobActionsContainer.classList.remove('hidden');
 
         // Clear LocalStorage on Success
-        intakeFields.forEach(id => localStorage.removeItem(`v4_intake_${id}`));
+        localStorage.removeItem("intake_cache");
 
         showToast(`Lead Captured: ${currentJobId}`);
     } catch (err) {

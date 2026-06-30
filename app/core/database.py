@@ -202,6 +202,17 @@ def backup_database():
         # VACUUM INTO safely copies a live DB without locking it down
         conn.execute(f"VACUUM INTO '{backup_path}';")
         logger.info("database_backup_created", path=str(backup_path))
+        
+        # Enforce 10-backup retention policy
+        backups = sorted(backup_dir.glob("crm_backup_*.db"), key=lambda p: p.stat().st_mtime)
+        while len(backups) > 10:
+            oldest = backups.pop(0)
+            try:
+                oldest.unlink()
+                logger.info("old_backup_pruned", path=str(oldest))
+            except Exception as prune_err:
+                logger.warning("failed_to_prune_backup", path=str(oldest), error=str(prune_err))
+                
     except Exception as e:
         logger.error("database_backup_failed", error=str(e))
     finally:
