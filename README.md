@@ -65,7 +65,7 @@ Multimodal roof damage detection pipeline using Gemini 2.5 Flash's vision capabi
 
 ```
 app/
-├── api/              # FastAPI webhook routes
+├── api/              # FastAPI webhook & field routes
 ├── core/             # Business logic & data models
 │   ├── supplement_models.py    # V2 Pydantic schemas
 │   ├── inspection_models.py    # V3 Pydantic schemas + Drive sync guard
@@ -79,14 +79,17 @@ app/
 │   ├── ai_service.py           # Gemini SDK wrapper (V2 + V3)
 │   ├── pdf_generator.py        # ReportLab document renderer
 │   ├── pdf_extractor.py        # pdfplumber EagleView parser
+│   ├── qbo_export.py           # QuickBooks Online CSV exporter
 │   └── jobnimbus_client.py     # CRM HTTP client
 ├── workers/          # Async task processors
 │   ├── supplement_processor.py # V2 supplement pipeline orchestrator
 │   └── inspection_processor.py # V3 vision engine orchestrator
+├── static/           # Truck Server Frontend (app.js, tailwind)
+├── templates/        # Truck Server Jinja2 Views (field_app.html)
 └── config.py         # Pydantic Settings (env validation)
 
 building_codes/       # IRC & Georgia amendment XML files
-tests/                # pytest suite (117 tests)
+tests/                # pytest suite (133 tests)
 ```
 
 ## Quick Start
