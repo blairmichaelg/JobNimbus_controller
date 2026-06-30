@@ -27,3 +27,6 @@ pydantic-settings>=2.0.0
 
 # === Structured Logging ===
 structlog>=24.0.0
+
+# === Image Processing (V3 Inspection Engine) ===
+Pillow>=10.0
