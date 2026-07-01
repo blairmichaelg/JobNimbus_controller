@@ -3,17 +3,27 @@ V4 Job Costing Engine.
 Pure Python domain logic for calculating job profitability and margins.
 """
 
-def compute_job_profitability(revenue: float, materials: float, labor: float, overhead_pct: float, commission_pct: float) -> dict:
-    """
-    Computes precise industry financial metrics before a build begins.
-    
-    Returns a dictionary of:
-    - direct_costs
-    - gross_profit
-    - gross_margin
-    - overhead_cost
-    - net_profit
-    - canvasser_commission
+from __future__ import annotations
+
+def compute_job_profitability(
+    revenue: float, 
+    materials: float, 
+    labor: float, 
+    overhead_pct: float, 
+    commission_pct: float
+) -> dict[str, float]:
+    """Computes precise industry financial metrics before a build begins.
+
+    Args:
+        revenue (float): The total contract price (Carrier RCV).
+        materials (float): The total calculated material cost.
+        labor (float): The total calculated labor cost.
+        overhead_pct (float): The baseline overhead percentage (e.g., 0.10).
+        commission_pct (float): The canvasser commission percentage (e.g., 0.10).
+
+    Returns:
+        dict[str, float]: A dictionary containing direct_costs, gross_profit, gross_margin,
+            overhead_cost, net_profit, and canvasser_commission.
     """
     direct_costs = materials + labor
     gross_profit = revenue - direct_costs

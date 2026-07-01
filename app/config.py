@@ -21,16 +21,17 @@ class Settings(BaseSettings):
     )
 
     # --- JobNimbus CRM ---
-    jobnimbus_api_key: str = Field(
-        ..., description="Bearer token for the JobNimbus API."
+    jobnimbus_api_key: str | None = Field(
+        default=None,
+        description="Legacy SaaS integration. Unused in V4 local mode."
     )
-    jobnimbus_base_url: str = Field(
-        default="https://app.jobnimbus.com/api1",
-        description="Base URL for JobNimbus API requests.",
+    jobnimbus_base_url: str | None = Field(
+        default=None,
+        description="Legacy SaaS integration. Unused in V4 local mode.",
     )
-    jobnimbus_actor_email: str = Field(
-        ...,
-        description="Email address used for impersonation auditing on outbound API calls.",
+    jobnimbus_actor_email: str | None = Field(
+        default=None,
+        description="Legacy SaaS integration. Unused in V4 local mode.",
     )
 
     # --- Webhook Security ---
@@ -71,6 +72,10 @@ class Settings(BaseSettings):
         default="data/truck_server.db",
         description="Path to the local SQLite WAL database."
     )
+    BACKUP_RETENTION_LIMIT: int = Field(
+        default=10,
+        description="Number of hot SQLite WAL backups to retain before pruning."
+    )
 
     @field_validator("log_level")
     @classmethod
@@ -91,4 +96,4 @@ def get_settings() -> Settings:
     Raises pydantic's ValidationError at startup if required
     environment variables are missing or malformed.
     """
-    return Settings()
+    return Settings() # type: ignore

@@ -57,3 +57,5 @@ truck_server.db
 # === Google Drive Sync (local photos) ===
 drive_photos/
 field_photos/
+sample_pdfs/
+field_docs/

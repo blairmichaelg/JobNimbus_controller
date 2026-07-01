@@ -3,6 +3,8 @@ V4 Independent CRM Local Database
 Manages the SQLite connection and state machine for the local pipeline.
 """
 
+from __future__ import annotations
+
 import sqlite3
 import json
 import structlog
@@ -42,8 +44,15 @@ def get_connection() -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
-def init_db():
-    """Initialize the jobs table if it does not exist."""
+def init_db() -> None:
+    """Initialize the jobs table and associated schemas if they do not exist.
+    
+    Creates the jobs, material_orders, schedule, financials, and pricing tables.
+    Also seeds the database with default pricing values.
+    
+    Raises:
+        Exception: If database initialization fails.
+    """
     conn = get_connection()
     try:
         conn.execute('''
@@ -114,8 +123,11 @@ def init_db():
     finally:
         conn.close()
 
-def seed_default_pricing():
-    """Seed the pricing table with baseline material/labor rates."""
+def seed_default_pricing() -> None:
+    """Seed the pricing table with baseline material/labor rates.
+    
+    Inserts default Wickham Roofing pricing values if they do not already exist.
+    """
     conn = get_connection()
     try:
         # Default Wickham Roofing baselines
@@ -138,8 +150,12 @@ def seed_default_pricing():
     finally:
         conn.close()
 
-def get_pricing_ledger() -> dict:
-    """Fetch all default rates from the pricing table."""
+def get_pricing_ledger() -> dict[str, float]:
+    """Fetch all default rates from the pricing table.
+    
+    Returns:
+        dict[str, float]: A dictionary mapping item keys to their default rates.
+    """
     conn = get_connection()
     try:
         cursor = conn.execute("SELECT item_key, default_rate FROM pricing")
@@ -150,9 +166,17 @@ def get_pricing_ledger() -> dict:
     finally:
         conn.close()
 
-def update_job_status(job_id: str, new_status: str, note: str = ""):
-    """
-    Enforces logical state transitions and appends to the JSON status history.
+def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
+    """Enforces logical state transitions and appends to the JSON status history.
+
+    Args:
+        job_id (str): The unique identifier for the job.
+        new_status (str): The new JobStatus to transition to.
+        note (str, optional): An optional note to append to the status history. Defaults to "".
+        
+    Raises:
+        ValueError: If the new_status is invalid or the job_id does not exist.
+        Exception: If the database update fails.
     """
     try:
         # Validate against Enum
@@ -192,9 +216,28 @@ def update_job_status(job_id: str, new_status: str, note: str = ""):
     finally:
         conn.close()
 
-def upsert_financials(job_id: str, revenue: float, carrier_rcv: float, material_cost: float, labor_cost: float, overhead_pct: float, canvasser_commission_pct: float):
-    """
-    Upsert financial pre-build parameters into the financials table.
+def upsert_financials(
+    job_id: str, 
+    revenue: float, 
+    carrier_rcv: float, 
+    material_cost: float, 
+    labor_cost: float, 
+    overhead_pct: float, 
+    canvasser_commission_pct: float
+) -> None:
+    """Upsert financial pre-build parameters into the financials table.
+
+    Args:
+        job_id (str): The unique identifier for the job.
+        revenue (float): Total contract price or revenue.
+        carrier_rcv (float): The carrier's Replacement Cost Value.
+        material_cost (float): Total material cost.
+        labor_cost (float): Total labor cost.
+        overhead_pct (float): Overhead percentage.
+        canvasser_commission_pct (float): Commission percentage.
+        
+    Raises:
+        Exception: If the upsert operation fails.
     """
     conn = get_connection()
     try:
@@ -217,9 +260,17 @@ def upsert_financials(job_id: str, revenue: float, carrier_rcv: float, material_
     finally:
         conn.close()
 
-def insert_material_order(job_id: str, supplier_name: str, delivery_date: str, bom_json: str):
-    """
-    Insert a material order and generate a UUID for the record.
+def insert_material_order(job_id: str, supplier_name: str, delivery_date: str, bom_json: str) -> None:
+    """Insert a material order and generate a UUID for the record.
+
+    Args:
+        job_id (str): The unique identifier for the job.
+        supplier_name (str): The name of the material supplier.
+        delivery_date (str): The requested delivery date.
+        bom_json (str): The bill of materials encoded as a JSON string.
+        
+    Raises:
+        Exception: If the database insertion fails.
     """
     conn = get_connection()
     try:
@@ -236,9 +287,18 @@ def insert_material_order(job_id: str, supplier_name: str, delivery_date: str, b
     finally:
         conn.close()
 
-def insert_schedule(job_id: str, crew_name: str, install_date: str, delivery_date: str, status: str):
-    """
-    Insert a production schedule and generate a UUID for the record.
+def insert_schedule(job_id: str, crew_name: str, install_date: str, delivery_date: str, status: str) -> None:
+    """Insert a production schedule and generate a UUID for the record.
+
+    Args:
+        job_id (str): The unique identifier for the job.
+        crew_name (str): The assigned installation crew.
+        install_date (str): The scheduled installation date.
+        delivery_date (str): The scheduled material delivery date.
+        status (str): The current schedule status.
+        
+    Raises:
+        Exception: If the database insertion fails.
     """
     conn = get_connection()
     try:
@@ -255,10 +315,11 @@ def insert_schedule(job_id: str, crew_name: str, install_date: str, delivery_dat
     finally:
         conn.close()
 
-def backup_database():
-    """
-    Safely creates a hot snapshot of the SQLite WAL database.
+def backup_database() -> None:
+    """Safely creates a hot snapshot of the SQLite WAL database.
+    
     Saves to data/backups/crm_backup_{timestamp}.db.
+    Enforces a backup retention limit based on application settings.
     """
     backup_dir = Path("data/backups")
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -271,9 +332,10 @@ def backup_database():
         conn.execute(f"VACUUM INTO '{backup_path}';")
         logger.info("database_backup_created", path=str(backup_path))
         
-        # Enforce 10-backup retention policy
+        # Enforce backup retention policy
+        limit = get_settings().BACKUP_RETENTION_LIMIT
         backups = sorted(backup_dir.glob("crm_backup_*.db"), key=lambda p: p.stat().st_mtime)
-        while len(backups) > 10:
+        while len(backups) > limit:
             oldest = backups.pop(0)
             try:
                 oldest.unlink()

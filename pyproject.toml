@@ -1,0 +1,32 @@
+[project]
+name = "wickham-roofing-crm"
+version = "0.4.0"
+description = "Local CRM and automated estimating engine."
+authors = [{name = "Wickham Roofing LLC"}]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.23.0",
+    "pydantic-settings>=2.0.0",
+    "pydantic>=2.0.0",
+    "pdfplumber>=0.10.0",
+    "reportlab>=4.0.0",
+    "structlog>=23.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+
+[[tool.mypy.overrides]]
+module = [
+    "app.core.pipeline",
+    "app.core.job_costing",
+    "app.core.database",
+    "app.services.qbo_export"
+]
+disallow_untyped_defs = true

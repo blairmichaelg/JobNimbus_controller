@@ -1,5 +1,9 @@
 # Wickham Roofing AI Pipeline (V4 "Truck Server")
 
+The **V4 — Independent CRM & Office Pipeline** is a complete local operating system for Wickham Roofing. Running entirely on a field office laptop via **FastAPI**, **SQLite WAL mode**, and **Ngrok**, it orchestrates the full job lifecycle (intake, math, PDF generation, and QBO CSV exports) natively.
+
+A proprietary, zero-cost, multi-agent AI pipeline and local CRM for insurance roofing operations. Built on **Python 3.11+**, **Gemini 2.5 Flash**, **FastAPI**, **ReportLab**, and **SQLite WAL**, this system completely bypasses expensive SaaS subscriptions (like JobNimbus) by running fully locally on a field office laptop.
+
 A proprietary, zero-cost, multi-agent AI pipeline and local CRM for insurance roofing operations. Built on **Python 3.11+**, **Gemini 2.5 Flash**, **FastAPI**, **ReportLab**, and **SQLite WAL**, this system completely bypasses expensive SaaS subscriptions (like JobNimbus) by running fully locally on a field office laptop.
 
 ## Architecture & Operational Flow
@@ -108,3 +112,14 @@ python -m pytest tests/test_pdf_generator.py -v
 ## License
 
 Proprietary — Wickham Roofing LLC. All rights reserved.
+
+## Legacy SaaS Integration (Deprecated)
+
+> [!WARNING]
+> In V4, all cloud-based SaaS integrations have been permanently quarantined. The local pipeline operates independently.
+
+### JobNimbus (Quarantined)
+Former webhook integration used to mutate JobNimbus API states. Code moved to `legacy_jobnimbus/`.
+
+### AccuLynx (Quarantined)
+Former endpoints configured for estimating APIs. Deprecated in favor of the local Automath Engine.

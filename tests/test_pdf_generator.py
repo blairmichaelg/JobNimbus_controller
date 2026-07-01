@@ -102,6 +102,19 @@ def test_generate_certificate_of_completion_creates_file():
         if path_obj.exists():
             path_obj.unlink()
 
+def test_generate_contingency_agreement_creates_file():
+    """Test that the Contingency Agreement generator creates a valid file."""
+    generator = PDFGenerator()
+    job = {"id": "test_123", "homeowner_name": "Test", "address_line1": "123 St", "city": "City", "state": "GA", "postal_code": "30303", "claim_number": "123"}
+    filepath = asyncio.run(generator.generate_contingency_agreement(job))
+    path_obj = Path(filepath)
+    try:
+        assert path_obj.exists()
+        assert path_obj.stat().st_size > 0
+    finally:
+        if path_obj.exists():
+            path_obj.unlink()
+
 def test_generate_evidence_grid_creates_file(tmp_path):
     """Test that the Evidence Grid creates a valid multi-page PDF."""
     generator = PDFGenerator()

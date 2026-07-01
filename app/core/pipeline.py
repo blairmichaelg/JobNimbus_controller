@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import structlog
 from pathlib import Path
+from typing import Any
 
 from app.services.pdf_extractor import extract_eagleview_data
 from app.core.reconciliation import reconcile
@@ -9,10 +12,21 @@ from app.core.database import update_job_status, JobStatus
 
 logger = structlog.get_logger("app.core.pipeline")
 
-async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name: str = "Unknown Customer") -> dict:
-    """
-    The Master Orchestrator for the V4 Pipeline.
+async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name: str = "Unknown Customer") -> dict[str, Any]:
+    """The Master Orchestrator for the V4 Pipeline.
+    
     Strictly executes the chain: Parse EV PDF -> Calculate BOM -> Generate QBO CSV -> Transition Status.
+    
+    Args:
+        job_id (str): The unique identifier for the job.
+        ev_pdf_path (Path): Path to the uploaded EagleView PDF.
+        customer_name (str, optional): The name of the homeowner/customer. Defaults to "Unknown Customer".
+        
+    Returns:
+        dict[str, Any]: A dictionary containing the status, parsed EV data, BOM, and QBO CSV path.
+        
+    Raises:
+        Exception: If any step in the orchestration pipeline fails.
     """
     log = logger.bind(job_id=job_id)
     log.info("master_pipeline_started", ev_pdf_path=str(ev_pdf_path))

@@ -5,6 +5,8 @@ Flattens structured InvoiceExport data into the exact strict multi-line CSV
 format required for QBO batch imports.
 """
 
+from __future__ import annotations
+
 import csv
 import structlog
 from datetime import datetime
@@ -33,14 +35,22 @@ EXPORT_DIR = Path("generated_exports")
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 def export_to_csv(export: InvoiceExport) -> str:
-    """
-    Generate a strictly formatted QBO CSV file from an InvoiceExport.
+    """Generate a strictly formatted QBO CSV file from an InvoiceExport.
     
     QBO Rules Enforced:
     1. Exact headers required.
     2. Multi-line invoices must repeat InvoiceNo, Customer, InvoiceDate, DueDate.
     3. ItemAmount must be >= 0.
     4. Max 100 lines (safety limit).
+    
+    Args:
+        export (InvoiceExport): The populated export model containing line items.
+        
+    Returns:
+        str: The absolute or relative string path to the generated CSV file.
+        
+    Raises:
+        Exception: If writing the CSV file fails.
     """
     log = logger.bind(invoice_no=export.invoice_no, customer=export.customer)
     log.info("qbo_export_started")
@@ -97,9 +107,18 @@ def export_to_csv(export: InvoiceExport) -> str:
         raise
 
 def generate_qbo_invoice(job_id: str, bom: MaterialBOM, customer_name: str = "Unknown Customer") -> str:
-    """
-    Generate an invoice from the Automated Math Engine BOM.
+    """Generate an invoice from the Automated Math Engine BOM.
+    
+    Uses real dynamic pricing from the database ledger.
     Updates CRM status to INVOICED upon completion.
+    
+    Args:
+        job_id (str): The unique identifier for the job.
+        bom (MaterialBOM): The calculated bill of materials.
+        customer_name (str, optional): The name of the customer. Defaults to "Unknown Customer".
+        
+    Returns:
+        str: The string path to the generated QBO CSV file.
     """
     now_date = datetime.utcnow().strftime("%Y-%m-%d")
     

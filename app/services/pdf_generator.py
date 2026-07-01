@@ -12,7 +12,7 @@ import tempfile
 import asyncio
 import structlog
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem, KeepTogether
 from reportlab.platypus.flowables import HRFlowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
@@ -40,7 +40,58 @@ class PDFGenerator:
 
     def __init__(self) -> None:
         self.styles = getSampleStyleSheet()
+        self._build_custom_styles()
         logger.info("pdf_generator_initialized")
+
+    def _build_custom_styles(self) -> None:
+        base_normal = self.styles["Normal"]
+        self.custom_styles = {
+            "Title": ParagraphStyle(
+                "Title", parent=self.styles["Heading1"], fontSize=16, fontName="Helvetica-Bold", alignment=1
+            ),
+            "SectionHeading": ParagraphStyle(
+                "SectionHeading", parent=self.styles["Heading2"], fontSize=11, fontName="Helvetica-Bold", spaceBefore=12, spaceAfter=6
+            ),
+            "BodyText": ParagraphStyle(
+                "BodyText", parent=base_normal, fontSize=10, alignment=4 # 4=TA_JUSTIFY
+            ),
+            "StatWarning": ParagraphStyle(
+                "StatWarning", parent=base_normal, fontSize=10, fontName="Helvetica-Bold", textColor=colors.darkred
+            ),
+            "FinePrint": ParagraphStyle(
+                "FinePrint", parent=base_normal, fontSize=8, textColor=colors.dimgrey, alignment=4
+            ),
+            "Normal": base_normal,
+        }
+
+    def _universal_letterhead(self, canvas, doc) -> None:
+        """Universal callback for page headers."""
+        canvas.saveState()
+        canvas.setFont("Helvetica-Bold", 14)
+        canvas.drawString(50, 750, "WICKHAM ROOFING, LLC")
+        canvas.setFont("Helvetica", 10)
+        canvas.drawString(50, 735, "123 Roofing Lane, Thomasville, GA 31792")
+        canvas.drawString(50, 720, "Phone: (555) 123-4567 | Email: info@wickhamroofing.com")
+        # Line under header
+        canvas.setStrokeColor(colors.black)
+        canvas.setLineWidth(1)
+        canvas.line(50, 710, 560, 710)
+        canvas.restoreState()
+
+    def _build_signature_block(self, title1: str = "Homeowner Signature & Date", title2: str = "Contractor Signature & Date"):
+        """Returns a KeepTogether flowable for clean signature blocks."""
+        story = []
+        story.append(Spacer(1, 30))
+        
+        # We can use a 2-column table for side-by-side signatures, or stacked.
+        # The prompt asks for Homeowner and Contractor lines. Let's do stacked for simplicity and space.
+        story.append(HRFlowable(width="50%", thickness=1, color=colors.black, hAlign='LEFT'))
+        story.append(Paragraph(title1, self.custom_styles["BodyText"]))
+        story.append(Spacer(1, 40))
+        story.append(HRFlowable(width="50%", thickness=1, color=colors.black, hAlign='LEFT'))
+        story.append(Paragraph(title2, self.custom_styles["BodyText"]))
+        
+        return KeepTogether(story)
 
     async def generate_estimate_pdf(self, data: dict, jnid: str) -> str:
         """
@@ -358,34 +409,24 @@ class PDFGenerator:
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
         def build_pdf():
-            doc = SimpleDocTemplate(filepath, pagesize=letter)
+            # Add topMargin to prevent overlapping universal letterhead
+            doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)
             story = []
             
-            # Styles
-            header_style = self.styles["Heading1"]
-            normal_style = self.styles["Normal"]
-            
-            # --- 1. Company Header Block ---
-            story.append(Paragraph("<b>Wickham Roofing LLC - Purchase Order</b>", header_style))
-            story.append(Paragraph("3074 Ellen St., Ochlocknee, GA, 31773 | Phone: (555) 123-4567", normal_style))
-            story.append(Spacer(1, 12))
-            story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceBefore=0, spaceAfter=12))
-            
-            # --- 2. Order Details ---
-            story.append(Paragraph(f"<b>Supplier:</b> {supplier_name}", normal_style))
-            story.append(Paragraph(f"<b>Order Date:</b> {datetime.date.today().isoformat()}", normal_style))
-            story.append(Paragraph(f"<b>Requested Delivery Date:</b> {delivery_date}", normal_style))
+            # --- 1. Order Details ---
+            story.append(Paragraph(f"<b>Supplier:</b> {supplier_name}", self.custom_styles["BodyText"]))
+            story.append(Paragraph(f"<b>Order Date:</b> {datetime.date.today().isoformat()}", self.custom_styles["BodyText"]))
+            story.append(Paragraph(f"<b>Requested Delivery Date:</b> {delivery_date}", self.custom_styles["BodyText"]))
             story.append(Spacer(1, 12))
             
-            story.append(Paragraph("<b>Delivery Information:</b>", self.styles["Heading3"]))
-            story.append(Paragraph(f"<b>Homeowner:</b> {job['homeowner_name']}", normal_style))
-            story.append(Paragraph(f"<b>Address:</b> {job['address_line1']}, {job['city']}, {job['state']} {job['postal_code']}", normal_style))
-            story.append(Paragraph(f"<b>Claim #:</b> {job.get('claim_number', 'N/A')}", normal_style))
+            story.append(Paragraph("Delivery Information:", self.custom_styles["SectionHeading"]))
+            story.append(Paragraph(f"<b>Homeowner:</b> {job['homeowner_name']}", self.custom_styles["BodyText"]))
+            story.append(Paragraph(f"<b>Address:</b> {job['address_line1']}, {job['city']}, {job['state']} {job['postal_code']}", self.custom_styles["BodyText"]))
+            story.append(Paragraph(f"<b>Claim #:</b> {job.get('claim_number', 'N/A')}", self.custom_styles["BodyText"]))
             story.append(Spacer(1, 18))
             
-            # --- 3. BOM Table ---
-            story.append(Paragraph("<b>Material Bill of Quantities:</b>", self.styles["Heading3"]))
-            story.append(Spacer(1, 6))
+            # --- 2. BOM Table ---
+            story.append(Paragraph("Material Bill of Quantities:", self.custom_styles["SectionHeading"]))
             
             table_data = [["Material Type", "Quantity", "Unit"]]
             table_data.append(["Field Shingles", str(bom.field_shingle_bundles), "Bundles"])
@@ -395,19 +436,23 @@ class PDFGenerator:
             table_data.append(["Synthetic Underlayment", str(bom.underlayment_rolls), "Rolls"])
             table_data.append(["Drip Edge (10ft)", str(bom.drip_edge_pieces), "Pieces"])
             
+            # Build alternating backgrounds
+            row_colors = [('BACKGROUND', (0, i), (-1, i), colors.whitesmoke if i % 2 == 1 else colors.lightgrey) for i in range(1, len(table_data))]
+            
             t = Table(table_data, colWidths=[200, 100, 100])
-            t.setStyle(TableStyle([
+            base_style = [
                 ('BACKGROUND', (0,0), (-1,0), colors.grey),
                 ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('ALIGN', (0,0), (0,-1), 'LEFT'),
+                ('ALIGN', (1,0), (-1,-1), 'RIGHT'), # right align numeric columns
                 ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
                 ('BOTTOMPADDING', (0,0), (-1,0), 8),
-                ('BACKGROUND', (0,1), (-1,-1), colors.white),
-                ('GRID', (0,0), (-1,-1), 1, colors.black),
-            ]))
+                ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+            ]
+            t.setStyle(TableStyle(base_style + row_colors))
             story.append(t)
             
-            doc.build(story)
+            doc.build(story, onFirstPage=self._universal_letterhead, onLaterPages=self._universal_letterhead)
 
         try:
             await asyncio.to_thread(build_pdf)
@@ -416,7 +461,51 @@ class PDFGenerator:
         except Exception as exc:
             log.error("material_po_generation_failed", error=str(exc))
             raise
+    async def generate_contingency_agreement(self, job: dict) -> str:
+        """Generate a Georgia Insurance Contingency Agreement.
+        
+        Args:
+            job (dict): Job dictionary containing homeowner_name, address_line1, etc.
+        """
+        temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+        filepath = temp_file.name
+        temp_file.close()
 
+        def build_pdf():
+            doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)
+            story = []
+            
+            story.append(Paragraph("INSURANCE CONTINGENCY AGREEMENT", self.custom_styles["Title"]))
+            story.append(Spacer(1, 20))
+            
+            story.append(Paragraph(f"<b>Homeowner:</b> {job['homeowner_name']}", self.custom_styles["BodyText"]))
+            story.append(Paragraph(f"<b>Address:</b> {job['address_line1']}, {job['city']}, {job['state']} {job['postal_code']}", self.custom_styles["BodyText"]))
+            story.append(Paragraph(f"<b>Claim #:</b> {job.get('claim_number', 'N/A')}", self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 15))
+            
+            story.append(Paragraph("Scope of Work & Payment", self.custom_styles["SectionHeading"]))
+            scope_text = "Contractor agrees to repair or replace the roof at the above address. The final scope of work and price shall be strictly determined by the insurance carrier's approved estimate. Any additional work or upgrades require a signed change order."
+            story.append(Paragraph(scope_text, self.custom_styles["BodyText"]))
+            
+            story.append(Paragraph("HB 423 Deductible & Inducement Clause", self.custom_styles["SectionHeading"]))
+            warning_text = "WARNING: It is a violation of Georgia law (O.C.G.A. § 33-24-59.27) for a contractor to pay, waive, rebate, or promise to pay or rebate all or part of an insurance deductible. The homeowner is strictly responsible for the payment of the deductible."
+            story.append(Paragraph(warning_text, self.custom_styles["StatWarning"]))
+            
+            story.append(Paragraph("Public Adjuster Restriction", self.custom_styles["SectionHeading"]))
+            pa_text = "The contractor is not a public adjuster and does not represent or negotiate on behalf of the owner for the insurance claim."
+            story.append(Paragraph(pa_text, self.custom_styles["BodyText"]))
+            
+            story.append(Paragraph("Statutory Cancellation Disclosure", self.custom_styles["SectionHeading"]))
+            cancel_text = "You may cancel this contract within five (5) business days after you receive written notice from your insurer that all or any part of your claim is not a covered loss under your insurance policy."
+            story.append(Paragraph(cancel_text, self.custom_styles["StatWarning"]))
+            
+            # Signature block
+            story.append(self._build_signature_block())
+            
+            doc.build(story, onFirstPage=self._universal_letterhead, onLaterPages=self._universal_letterhead)
+
+        await asyncio.to_thread(build_pdf)
+        return filepath
     async def generate_notice_of_cancellation(self, job: dict) -> str:
         """
         Generate Georgia statutory Notice of Cancellation.
@@ -426,39 +515,37 @@ class PDFGenerator:
         temp_file.close()
 
         def build_pdf():
-            doc = SimpleDocTemplate(filepath, pagesize=letter)
+            doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)
             story = []
             
-            header_style = self.styles["Heading1"]
-            normal_style = self.styles["Normal"]
+            for copy_type in ["Customer Copy", "Contractor Copy"]:
+                story.append(Paragraph(copy_type, self.custom_styles["FinePrint"]))
+                story.append(Spacer(1, 10))
+                
+                story.append(Paragraph("NOTICE OF CANCELLATION", self.custom_styles["Title"]))
+                story.append(Spacer(1, 12))
+                
+                story.append(Paragraph(f"Date of Transaction: {datetime.date.today().isoformat()}", self.custom_styles["BodyText"]))
+                story.append(Spacer(1, 12))
+                
+                statutory_text = (
+                    "You may cancel this contract at any time before midnight on the fifth business day after you have received written "
+                    "notification from your insurer that all or any part of the claim or contract is not a covered loss under the insurance policy. "
+                    "See attached notice of cancellation form for an explanation of this right."
+                )
+                story.append(Paragraph(statutory_text, self.custom_styles["StatWarning"]))
+                story.append(Spacer(1, 40))
+                
+                story.append(Paragraph("I HEREBY CANCEL THIS TRANSACTION.", self.custom_styles["BodyText"]))
+                story.append(Spacer(1, 40))
+                
+                # Use standard signature block but with specific Homeowner Signature text
+                story.append(self._build_signature_block(title1="Homeowner Signature", title2="Date"))
+                
+                if copy_type == "Customer Copy":
+                    story.append(PageBreak())
             
-            story.append(Paragraph("<b>NOTICE OF CANCELLATION</b>", header_style))
-            story.append(Paragraph(f"Date of Transaction: {datetime.date.today().isoformat()}", normal_style))
-            story.append(Spacer(1, 12))
-            
-            statutory_text = (
-                "You may CANCEL this transaction, without any penalty or obligation, within FIVE (5) "
-                "BUSINESS DAYS from the above date.<br/><br/>"
-                "If you cancel, any property traded in, any payments made by you under the contract or sale, "
-                "and any negotiable instrument executed by you will be returned within TEN (10) BUSINESS DAYS "
-                "following receipt by the seller of your cancellation notice, and any security interest arising "
-                "out of the transaction will be canceled.<br/><br/>"
-                "To cancel this transaction, mail or deliver a signed and dated copy of this cancellation notice "
-                "or any other written notice, or send a telegram, to Wickham Roofing LLC at 3074 Ellen St., "
-                "Ochlocknee, GA, 31773 NOT LATER THAN MIDNIGHT OF THE FIFTH BUSINESS DAY FOLLOWING THE TRANSACTION DATE."
-            )
-            story.append(Paragraph(statutory_text, normal_style))
-            story.append(Spacer(1, 40))
-            
-            story.append(Paragraph("I HEREBY CANCEL THIS TRANSACTION.", normal_style))
-            story.append(Spacer(1, 40))
-            story.append(HRFlowable(width="50%", thickness=1, color=colors.black, hAlign='LEFT'))
-            story.append(Paragraph("Homeowner Signature", normal_style))
-            story.append(Spacer(1, 10))
-            story.append(HRFlowable(width="50%", thickness=1, color=colors.black, hAlign='LEFT'))
-            story.append(Paragraph("Date", normal_style))
-            
-            doc.build(story)
+            doc.build(story, onFirstPage=self._universal_letterhead, onLaterPages=self._universal_letterhead)
 
         await asyncio.to_thread(build_pdf)
         return filepath
@@ -472,33 +559,44 @@ class PDFGenerator:
         temp_file.close()
 
         def build_pdf():
-            doc = SimpleDocTemplate(filepath, pagesize=letter)
+            doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)
             story = []
             
-            header_style = self.styles["Heading1"]
-            normal_style = self.styles["Normal"]
-            
-            story.append(Paragraph("<b>CERTIFICATE OF COMPLETION</b>", header_style))
+            story.append(Paragraph("CERTIFICATE OF COMPLETION", self.custom_styles["Title"]))
             story.append(Spacer(1, 12))
             
+            story.append(Paragraph("Work Acceptance & Punch List", self.custom_styles["SectionHeading"]))
             text = (
                 f"This document certifies that Wickham Roofing LLC has satisfactorily completed "
                 f"all roofing services per the agreed scope of work at the property located at:<br/><br/>"
                 f"<b>{job['address_line1']}, {job['city']}, {job['state']} {job['postal_code']}</b><br/><br/>"
-                f"for the homeowner, <b>{job['homeowner_name']}</b>, on <b>{completion_date}</b>.<br/><br/>"
-                f"All work has been performed in compliance with applicable local and state building codes."
+                f"for the homeowner, <b>{job['homeowner_name']}</b>, on <b>{completion_date}</b>. "
+                f"The homeowner acknowledges that the roof has been inspected, all punch list items have been resolved, and "
+                f"all work has been performed in compliance with applicable local and state building codes."
             )
-            story.append(Paragraph(text, normal_style))
-            story.append(Spacer(1, 40))
+            story.append(Paragraph(text, self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 15))
             
-            story.append(HRFlowable(width="50%", thickness=1, color=colors.black, hAlign='LEFT'))
-            story.append(Paragraph("Homeowner Signature & Date", normal_style))
-            story.append(Spacer(1, 30))
+            story.append(Paragraph("Conditional Waiver and Release of Lien", self.custom_styles["SectionHeading"]))
+            lien_text = (
+                "Upon receipt by Wickham Roofing LLC of a check or final insurance draft in the sum of the remaining balance, "
+                "and when the check has been properly endorsed and has been paid by the bank upon which it is drawn, this document "
+                "shall become effective to release any pro tanto mechanic's lien, stop notice, or bond right the Contractor has on the job."
+            )
+            story.append(Paragraph(lien_text, self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 15))
             
-            story.append(HRFlowable(width="50%", thickness=1, color=colors.black, hAlign='LEFT'))
-            story.append(Paragraph("Wickham Roofing LLC Representative & Date", normal_style))
+            warranty_text = (
+                "WARRANTY DISCLAIMER: Wickham Roofing LLC guarantees the workmanship of the installation for a "
+                "period of 5 years from the date of completion. Material warranties are provided directly by the manufacturer "
+                "and any claims regarding defective materials must be directed to the manufacturer."
+            )
+            story.append(Paragraph(warranty_text, self.custom_styles["FinePrint"]))
+            story.append(Spacer(1, 20))
             
-            doc.build(story)
+            story.append(self._build_signature_block(title1="Homeowner Signature & Date", title2="Wickham Roofing LLC Representative & Date"))
+            
+            doc.build(story, onFirstPage=self._universal_letterhead, onLaterPages=self._universal_letterhead)
 
         await asyncio.to_thread(build_pdf)
         return filepath
