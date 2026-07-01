@@ -62,4 +62,5 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
         
     except Exception as e:
         log.error("master_pipeline_failed", error=str(e))
+        update_job_status(job_id, JobStatus.PIPELINE_FAILED, f"Pipeline crashed: {str(e)}")
         raise

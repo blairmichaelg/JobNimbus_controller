@@ -14,6 +14,7 @@ from app.core.cache import set_cached_analysis, init_db
 from app.core.inspection_models import PhotoAnalysis, DamageType, Severity
 
 client = TestClient(app)
+client.headers.update({"X-Internal-Token": "dev-secret-token"})
 
 @pytest.fixture(autouse=True)
 def setup_dirs(tmp_path, monkeypatch):

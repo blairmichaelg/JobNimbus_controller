@@ -20,7 +20,7 @@ class TestRetryOnRateLimit:
 
     def test_successful_request_no_retry(self):
         """A successful request should not trigger any retries."""
-        from app.services.jobnimbus_client import retry_on_rate_limit
+        from legacy_jobnimbus.jobnimbus_client import retry_on_rate_limit
 
         call_count = 0
 
@@ -36,7 +36,7 @@ class TestRetryOnRateLimit:
 
     def test_retries_on_429(self):
         """Should retry on 429 and succeed when the API recovers."""
-        from app.services.jobnimbus_client import retry_on_rate_limit
+        from legacy_jobnimbus.jobnimbus_client import retry_on_rate_limit
 
         call_count = 0
 
@@ -55,7 +55,7 @@ class TestRetryOnRateLimit:
 
         # Patch asyncio.sleep to avoid real delays in tests
         with patch(
-            "app.services.jobnimbus_client.asyncio.sleep", new_callable=AsyncMock
+            "legacy_jobnimbus.jobnimbus_client.asyncio.sleep", new_callable=AsyncMock
         ):
             result = asyncio.run(mock_request())
 
@@ -64,7 +64,7 @@ class TestRetryOnRateLimit:
 
     def test_non_429_error_not_retried(self):
         """Non-429 HTTP errors should propagate immediately without retry."""
-        from app.services.jobnimbus_client import retry_on_rate_limit
+        from legacy_jobnimbus.jobnimbus_client import retry_on_rate_limit
 
         call_count = 0
 
@@ -86,7 +86,7 @@ class TestRetryOnRateLimit:
 
     def test_max_retries_exhausted(self):
         """Should raise after MAX_RETRIES consecutive 429s."""
-        from app.services.jobnimbus_client import retry_on_rate_limit, MAX_RETRIES
+        from legacy_jobnimbus.jobnimbus_client import retry_on_rate_limit, MAX_RETRIES
 
         call_count = 0
 
@@ -101,7 +101,7 @@ class TestRetryOnRateLimit:
             )
 
         with patch(
-            "app.services.jobnimbus_client.asyncio.sleep", new_callable=AsyncMock
+            "legacy_jobnimbus.jobnimbus_client.asyncio.sleep", new_callable=AsyncMock
         ):
             with pytest.raises(httpx.HTTPStatusError) as exc_info:
                 asyncio.run(mock_request())
@@ -118,7 +118,7 @@ class TestRetryOnTransientNetwork:
 
     def test_transient_network_error_retried(self):
         """Should retry up to 2 times on httpx.RequestError."""
-        from app.services.jobnimbus_client import retry_on_transient_network_errors, MAX_RETRIES
+        from legacy_jobnimbus.jobnimbus_client import retry_on_transient_network_errors, MAX_RETRIES
 
         call_count = 0
 
@@ -131,7 +131,7 @@ class TestRetryOnTransientNetwork:
                 raise httpx.RequestError("Connection timeout", request=request)
             return {"status": "recovered"}
 
-        with patch("app.services.jobnimbus_client.asyncio.sleep", new_callable=AsyncMock):
+        with patch("legacy_jobnimbus.jobnimbus_client.asyncio.sleep", new_callable=AsyncMock):
             result = asyncio.run(mock_request())
 
         assert result == {"status": "recovered"}
@@ -139,7 +139,7 @@ class TestRetryOnTransientNetwork:
 
     def test_max_transient_retries_exhausted(self):
         """Should raise after max transient retries (2)."""
-        from app.services.jobnimbus_client import retry_on_transient_network_errors
+        from legacy_jobnimbus.jobnimbus_client import retry_on_transient_network_errors
 
         call_count = 0
 
@@ -150,7 +150,7 @@ class TestRetryOnTransientNetwork:
             request = httpx.Request("GET", "https://example.com/test")
             raise httpx.RequestError("Connection timeout", request=request)
 
-        with patch("app.services.jobnimbus_client.asyncio.sleep", new_callable=AsyncMock):
+        with patch("legacy_jobnimbus.jobnimbus_client.asyncio.sleep", new_callable=AsyncMock):
             with pytest.raises(httpx.RequestError):
                 asyncio.run(mock_request())
 
@@ -164,7 +164,7 @@ class TestQueryParamBuilders:
 
     def _make_client(self):
         """Create a client with mock settings to avoid needing real env vars."""
-        from app.services.jobnimbus_client import JobNimbusClient
+        from legacy_jobnimbus.jobnimbus_client import JobNimbusClient
 
         mock_settings = MagicMock()
         mock_settings.jobnimbus_api_key = "test_key_123"
@@ -210,7 +210,7 @@ class TestDryRunBehavior:
     """Tests that mutations are logged but not executed in DRY_RUN mode."""
 
     def _make_client(self, dry_run: bool = True):
-        from app.services.jobnimbus_client import JobNimbusClient
+        from legacy_jobnimbus.jobnimbus_client import JobNimbusClient
 
         mock_settings = MagicMock()
         mock_settings.jobnimbus_api_key = "test_key_123"

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
+client.headers.update({"X-Internal-Token": "dev-secret-token"})
 
 
 class TestOfficeJobsRoute:

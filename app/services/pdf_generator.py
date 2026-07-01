@@ -25,7 +25,7 @@ from pathlib import Path
 
 logger = structlog.get_logger("app.services.pdf_generator")
 
-FIELD_DOCS_DIR = Path("field_docs")
+FIELD_DOCS_DIR = Path("data/field_docs")
 
 
 class PDFGenerator:
@@ -102,9 +102,9 @@ class PDFGenerator:
         log.info("pdf_generation_started")
 
         # Create a secure temporary file that persists until manually deleted
-        temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-        filepath = temp_file.name
-        temp_file.close()  # Close so ReportLab can write to it
+        job_dir = FIELD_DOCS_DIR / jnid
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "estimate.pdf")  # Close so ReportLab can write to it
 
         def build_pdf():
             doc = SimpleDocTemplate(filepath, pagesize=letter)
@@ -179,9 +179,9 @@ class PDFGenerator:
         log = logger.bind(jnid=jnid)
         log.info("supplement_pdf_generation_started")
 
-        temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-        filepath = temp_file.name
-        temp_file.close()
+        job_dir = FIELD_DOCS_DIR / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "line_item_grid.pdf")
 
         def build_pdf():
             doc = SimpleDocTemplate(filepath, pagesize=letter)
@@ -283,9 +283,9 @@ class PDFGenerator:
         log = logger.bind(job_id=job.job_id)
         log.info("evidence_grid_generation_started")
 
-        temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-        filepath = temp_file.name
-        temp_file.close()
+        job_dir = FIELD_DOCS_DIR / job.job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "evidence_grid.pdf")
 
         def build_pdf():
             doc = SimpleDocTemplate(filepath, pagesize=letter)
@@ -467,9 +467,9 @@ class PDFGenerator:
         Args:
             job (dict): Job dictionary containing homeowner_name, address_line1, etc.
         """
-        temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-        filepath = temp_file.name
-        temp_file.close()
+        job_dir = FIELD_DOCS_DIR / job["id"]
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "contingency_agreement.pdf")
 
         def build_pdf():
             doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)
@@ -510,9 +510,9 @@ class PDFGenerator:
         """
         Generate Georgia statutory Notice of Cancellation.
         """
-        temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-        filepath = temp_file.name
-        temp_file.close()
+        job_dir = FIELD_DOCS_DIR / job["id"]
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "notice_of_cancellation.pdf")
 
         def build_pdf():
             doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)
@@ -554,9 +554,9 @@ class PDFGenerator:
         """
         Generate Certificate of Completion.
         """
-        temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-        filepath = temp_file.name
-        temp_file.close()
+        job_dir = FIELD_DOCS_DIR / job["id"]
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "certificate_of_completion.pdf")
 
         def build_pdf():
             doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)

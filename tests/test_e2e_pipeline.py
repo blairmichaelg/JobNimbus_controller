@@ -7,6 +7,7 @@ from app.main import app
 from app.core.database import get_connection
 
 client = TestClient(app)
+client.headers.update({"X-Internal-Token": "dev-secret-token"})
 
 @pytest.fixture(autouse=True)
 def setup_teardown():

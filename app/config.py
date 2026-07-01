@@ -39,6 +39,10 @@ class Settings(BaseSettings):
         ...,
         description="Shared secret for x-api-key header validation on inbound webhooks.",
     )
+    internal_api_token: str = Field(
+        default="dev-secret-token",
+        description="Global access token for backend API endpoints.",
+    )
 
     # --- Redis ---
     redis_url: str = Field(
@@ -97,3 +101,10 @@ def get_settings() -> Settings:
     environment variables are missing or malformed.
     """
     return Settings() # type: ignore
+
+from fastapi import Header, HTTPException
+
+async def verify_internal_token(x_internal_token: str = Header(...)):
+    """Global dependency to verify internal API routes."""
+    if x_internal_token != get_settings().internal_api_token:
+        raise HTTPException(status_code=401, detail="Invalid internal token")

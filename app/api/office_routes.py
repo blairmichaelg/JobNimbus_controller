@@ -8,7 +8,7 @@ from pathlib import Path
 import structlog
 from typing import List, Dict, Any
 
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -20,12 +20,13 @@ from app.services.qbo_export import generate_qbo_invoice
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
-from app.core.database import insert_material_order, insert_schedule, JobStatus, backup_database, get_connection
+from app.core.database import insert_material_order, insert_schedule, JobStatus, backup_database, upsert_financials
 from app.core.pipeline import run_full_office_pipeline
+from app.config import verify_internal_token
 
 logger = structlog.get_logger("app.api.office_routes")
 
-router = APIRouter(prefix="/api/office", tags=["office_ux"])
+router = APIRouter(prefix="/api/office", tags=["office_ux"], dependencies=[Depends(verify_internal_token)])
 
 FIELD_DOCS_DIR = Path("field_docs")
 EXPORT_DIR = Path("generated_exports")
@@ -132,7 +133,7 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
     Trigger the V4 Automath pipeline.
     Saves PDF, extracts metrics, calculates BOM, generates QBO CSV, and updates status.
     """
-    if not file.filename.endswith(".pdf"):
+    if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Must upload a PDF file.")
 
     job_dir = FIELD_DOCS_DIR / job_id
@@ -142,8 +143,12 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
     # 1. Save File
     try:
         content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large (10MB max).")
         pdf_path.write_bytes(content)
         logger.info("eagleview_pdf_uploaded", job_id=job_id, bytes=len(content))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("eagleview_upload_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to save EagleView PDF")
@@ -252,7 +257,7 @@ async def update_job_financials(job_id: str, payload: FinancialsPayload):
         )
         
         # Trigger Hot Backup
-        backup_database()
+        await backup_database()
         
         return {"status": "success", "financials": results}
     except Exception as e:
@@ -286,7 +291,7 @@ async def update_job_production(job_id: str, payload: ProductionPayload):
         )
         
         update_job_status(job_id, JobStatus.INSTALL_SCHEDULED, f"Scheduled with {payload.crew_name} on {payload.install_date}")
-        backup_database()
+        await backup_database()
         
         return {"status": "success", "message": "Production scheduled."}
     except Exception as e:
@@ -331,7 +336,7 @@ async def generate_material_order(job_id: str, payload: MaterialOrderPayload):
         update_job_status(job_id, JobStatus.MATERIAL_ORDERED)
         
         # Trigger Hot Backup
-        backup_database()
+        await backup_database()
         
         return {"status": "success"}
     except Exception as e:

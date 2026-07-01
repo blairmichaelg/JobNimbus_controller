@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from enum import Enum
 import uuid
+import asyncio
 
 from app.config import get_settings
 
@@ -33,6 +34,7 @@ class JobStatus(str, Enum):
     INVOICED = "INVOICED"
     PAYMENT_RECEIVED = "PAYMENT_RECEIVED"
     CLOSED = "CLOSED"
+    PIPELINE_FAILED = "PIPELINE_FAILED"
 
 def get_connection() -> sqlite3.Connection:
     """Get a SQLite connection with WAL mode enabled for concurrency."""
@@ -203,11 +205,21 @@ def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
         }
         history.append(entry)
 
-        # Update DB
-        conn.execute(
-            "UPDATE jobs SET status = ?, status_history = ? WHERE id = ?",
-            (new_status, json.dumps(history), job_id)
-        )
+        # Update DB with Optimistic Concurrency
+        if history_str is None:
+            cursor = conn.execute(
+                "UPDATE jobs SET status = ?, status_history = ? WHERE id = ? AND status_history IS NULL",
+                (new_status, json.dumps(history), job_id)
+            )
+        else:
+            cursor = conn.execute(
+                "UPDATE jobs SET status = ?, status_history = ? WHERE id = ? AND status_history = ?",
+                (new_status, json.dumps(history), job_id, history_str)
+            )
+            
+        if cursor.rowcount == 0:
+            raise RuntimeError("Concurrent status update detected")
+            
         conn.commit()
         logger.info("job_status_updated", job_id=job_id, status=new_status)
     except Exception as e:
@@ -315,35 +327,39 @@ def insert_schedule(job_id: str, crew_name: str, install_date: str, delivery_dat
     finally:
         conn.close()
 
-def backup_database() -> None:
+async def backup_database() -> None:
     """Safely creates a hot snapshot of the SQLite WAL database.
     
     Saves to data/backups/crm_backup_{timestamp}.db.
     Enforces a backup retention limit based on application settings.
+    Runs asynchronously to avoid locking the event loop.
     """
-    backup_dir = Path("data/backups")
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = backup_dir / f"crm_backup_{timestamp}.db"
-    
-    conn = get_connection()
-    try:
-        # VACUUM INTO safely copies a live DB without locking it down
-        conn.execute(f"VACUUM INTO '{backup_path}';")
-        logger.info("database_backup_created", path=str(backup_path))
+    def _do_backup():
+        backup_dir = Path("data/backups")
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backup_dir / f"crm_backup_{timestamp}.db"
         
-        # Enforce backup retention policy
-        limit = get_settings().BACKUP_RETENTION_LIMIT
-        backups = sorted(backup_dir.glob("crm_backup_*.db"), key=lambda p: p.stat().st_mtime)
-        while len(backups) > limit:
-            oldest = backups.pop(0)
-            try:
-                oldest.unlink()
-                logger.info("old_backup_pruned", path=str(oldest))
-            except Exception as prune_err:
-                logger.warning("failed_to_prune_backup", path=str(oldest), error=str(prune_err))
-                
-    except Exception as e:
-        logger.error("database_backup_failed", error=str(e))
-    finally:
-        conn.close()
+        conn = get_connection()
+        try:
+            # VACUUM INTO safely copies a live DB without locking it down
+            conn.execute(f"VACUUM INTO '{backup_path}';")
+            logger.info("database_backup_created", path=str(backup_path))
+            
+            # Enforce backup retention policy
+            limit = get_settings().BACKUP_RETENTION_LIMIT
+            backups = sorted(backup_dir.glob("crm_backup_*.db"), key=lambda p: p.stat().st_mtime)
+            while len(backups) > limit:
+                oldest = backups.pop(0)
+                try:
+                    oldest.unlink()
+                    logger.info("old_backup_pruned", path=str(oldest))
+                except Exception as prune_err:
+                    logger.warning("failed_to_prune_backup", path=str(oldest), error=str(prune_err))
+                    
+        except Exception as e:
+            logger.error("database_backup_failed", error=str(e))
+        finally:
+            conn.close()
+
+    await asyncio.to_thread(_do_backup)

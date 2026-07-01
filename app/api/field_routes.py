@@ -22,10 +22,11 @@ from pydantic import BaseModel, Field
 from app.core.inspection_models import get_stable_photos, InspectionJob
 from app.core.cache import get_cached_analyses_for_job
 from app.core.database import get_connection, update_job_status
+from app.config import verify_internal_token
 
 logger = structlog.get_logger("app.api.field_routes")
 
-router = APIRouter(prefix="/api/field", tags=["field_ux"])
+router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends(verify_internal_token)])
 
 # Base directories (created on startup)
 FIELD_PHOTOS_DIR = Path("field_photos")
@@ -99,6 +100,9 @@ async def upload_field_photo(job_id: str, file: UploadFile = File(...)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename missing")
 
+    if file.content_type not in ["image/jpeg", "image/png"]:
+        raise HTTPException(status_code=400, detail="Invalid image format. Must be JPEG or PNG.")
+
     job_dir = FIELD_PHOTOS_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 
@@ -108,9 +112,13 @@ async def upload_field_photo(job_id: str, file: UploadFile = File(...)):
 
     try:
         content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large (10MB max).")
         file_path.write_bytes(content)
         logger.info("field_photo_uploaded", job_id=job_id, filename=safe_name, bytes=len(content))
         return {"status": "success", "filename": safe_name}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("field_photo_upload_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to save photo")
