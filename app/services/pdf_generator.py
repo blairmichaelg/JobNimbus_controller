@@ -12,7 +12,7 @@ import tempfile
 import asyncio
 import structlog
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, ListFlowable, ListItem, KeepTogether
 from reportlab.platypus.flowables import HRFlowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
@@ -93,6 +93,49 @@ class PDFGenerator:
         
         return KeepTogether(story)
 
+    def _get_doc_template(self, filepath: str, top_margin: int = 100) -> BaseDocTemplate:
+        """Returns a BaseDocTemplate configured with a Frame that prevents overlapping with the header."""
+        doc = BaseDocTemplate(filepath, pagesize=letter, leftMargin=50, rightMargin=50, topMargin=top_margin, bottomMargin=50)
+        # letter height is 792. Leave space at the top.
+        frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height - top_margin, id='normal')
+        template = PageTemplate(id='standard', frames=frame, onPage=self._universal_letterhead)
+        doc.addPageTemplates([template])
+        return doc
+
+    def _build_metadata_table(self, job: dict) -> Table:
+        """Constructs a structured metadata table for the top of documents."""
+        address = f"{job.get('address_line1', '')}, {job.get('city', '')}, {job.get('state', '')} {job.get('postal_code', '')}"
+        data = [
+            ["Job ID:", job.get("id", "N/A")],
+            ["Homeowner:", job.get("homeowner_name", "N/A")],
+            ["Service Address:", address],
+            ["Claim #:", job.get("claim_number", "N/A")],
+        ]
+        t = Table(data, colWidths=[120, 380])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+            ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+            ('PADDING', (0,0), (-1,-1), 6),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ]))
+        return t
+
+    def _box_warning(self, title: str, text: str, border_color) -> Table:
+        """Wraps a critical legal warning inside a styled Table box."""
+        t_data = [
+            [Paragraph(title, self.custom_styles["SectionHeading"])],
+            [Paragraph(text, self.custom_styles["StatWarning"])]
+        ]
+        t = Table(t_data, colWidths=[500])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.whitesmoke),
+            ('BOX', (0,0), (-1,-1), 1.5, border_color),
+            ('PADDING', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (0,0), 0), # Reduce space between title and text
+        ]))
+        return t
+
     async def generate_estimate_pdf(self, data: dict, jnid: str) -> str:
         """
         Generate a PDF estimate from AI-structured data and return the absolute filepath.
@@ -107,7 +150,7 @@ class PDFGenerator:
         filepath = str(job_dir / "estimate.pdf")  # Close so ReportLab can write to it
 
         def build_pdf():
-            doc = SimpleDocTemplate(filepath, pagesize=letter)
+            doc = self._get_doc_template(filepath)
             story = []
             
             # Styles
@@ -184,7 +227,7 @@ class PDFGenerator:
         filepath = str(job_dir / "line_item_grid.pdf")
 
         def build_pdf():
-            doc = SimpleDocTemplate(filepath, pagesize=letter)
+            doc = self._get_doc_template(filepath)
             story = []
             
             # Styles
@@ -288,7 +331,7 @@ class PDFGenerator:
         filepath = str(job_dir / "evidence_grid.pdf")
 
         def build_pdf():
-            doc = SimpleDocTemplate(filepath, pagesize=letter)
+            doc = self._get_doc_template(filepath)
             story = []
             
             # Styles
@@ -409,11 +452,12 @@ class PDFGenerator:
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
         def build_pdf():
-            # Add topMargin to prevent overlapping universal letterhead
-            doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)
+            doc = self._get_doc_template(filepath)
             story = []
             
             # --- 1. Order Details ---
+            po_number = f"PO-{job['id'][:8].upper()}-{datetime.date.today().isoformat()}"
+            story.append(Paragraph(f"<b>PO Number:</b> {po_number}", self.custom_styles["BodyText"]))
             story.append(Paragraph(f"<b>Supplier:</b> {supplier_name}", self.custom_styles["BodyText"]))
             story.append(Paragraph(f"<b>Order Date:</b> {datetime.date.today().isoformat()}", self.custom_styles["BodyText"]))
             story.append(Paragraph(f"<b>Requested Delivery Date:</b> {delivery_date}", self.custom_styles["BodyText"]))
@@ -429,15 +473,21 @@ class PDFGenerator:
             story.append(Paragraph("Material Bill of Quantities:", self.custom_styles["SectionHeading"]))
             
             table_data = [["Material Type", "Quantity", "Unit"]]
-            table_data.append(["Field Shingles", str(bom.field_shingle_bundles), "Bundles"])
-            table_data.append(["Starter Shingles", str(bom.starter_bundles), "Bundles"])
-            table_data.append(["Hip & Ridge", str(bom.ridge_cap_bundles), "Bundles"])
-            table_data.append(["Ice & Water Shield", str(bom.ice_water_rolls), "Rolls"])
-            table_data.append(["Synthetic Underlayment", str(bom.underlayment_rolls), "Rolls"])
-            table_data.append(["Drip Edge (10ft)", str(bom.drip_edge_pieces), "Pieces"])
             
-            # Build alternating backgrounds
-            row_colors = [('BACKGROUND', (0, i), (-1, i), colors.whitesmoke if i % 2 == 1 else colors.lightgrey) for i in range(1, len(table_data))]
+            table_data.append(["Field System", "", ""])
+            table_data.append(["  Field Shingles", str(bom.field_shingle_bundles), "Bundles"])
+            table_data.append(["  Starter Shingles", str(bom.starter_bundles), "Bundles"])
+            table_data.append(["  Hip & Ridge", str(bom.ridge_cap_bundles), "Bundles"])
+            
+            table_data.append(["Underlayments", "", ""])
+            table_data.append(["  Ice & Water Shield", str(bom.ice_water_rolls), "Rolls"])
+            table_data.append(["  Synthetic Underlayment", str(bom.underlayment_rolls), "Rolls"])
+            
+            table_data.append(["Metal & Trim", "", ""])
+            table_data.append(["  Drip Edge (10ft)", str(bom.drip_edge_pieces), "Pieces"])
+            
+            # Build alternating backgrounds, but explicitly style subheaders
+            row_colors = [('BACKGROUND', (0, i), (-1, i), colors.whitesmoke if i % 2 == 1 else colors.white) for i in range(1, len(table_data))]
             
             t = Table(table_data, colWidths=[200, 100, 100])
             base_style = [
@@ -448,11 +498,24 @@ class PDFGenerator:
                 ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
                 ('BOTTOMPADDING', (0,0), (-1,0), 8),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                
+                # Subheaders
+                ('BACKGROUND', (0,1), (-1,1), colors.lightgrey),
+                ('FONTNAME', (0,1), (-1,1), 'Helvetica-Bold'),
+                ('BACKGROUND', (0,5), (-1,5), colors.lightgrey),
+                ('FONTNAME', (0,5), (-1,5), 'Helvetica-Bold'),
+                ('BACKGROUND', (0,8), (-1,8), colors.lightgrey),
+                ('FONTNAME', (0,8), (-1,8), 'Helvetica-Bold'),
             ]
             t.setStyle(TableStyle(base_style + row_colors))
             story.append(t)
+            story.append(Spacer(1, 20))
             
-            doc.build(story, onFirstPage=self._universal_letterhead, onLaterPages=self._universal_letterhead)
+            # --- 3. Special Instructions ---
+            story.append(Paragraph("Special Instructions:", self.custom_styles["SectionHeading"]))
+            story.append(Paragraph("Deliver to driveway; no yard entry with loaded truck.", self.custom_styles["BodyText"]))
+            
+            doc.build(story)
 
         try:
             await asyncio.to_thread(build_pdf)
@@ -472,37 +535,38 @@ class PDFGenerator:
         filepath = str(job_dir / "contingency_agreement.pdf")
 
         def build_pdf():
-            doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)
+            doc = self._get_doc_template(filepath)
             story = []
             
             story.append(Paragraph("INSURANCE CONTINGENCY AGREEMENT", self.custom_styles["Title"]))
             story.append(Spacer(1, 20))
             
-            story.append(Paragraph(f"<b>Homeowner:</b> {job['homeowner_name']}", self.custom_styles["BodyText"]))
-            story.append(Paragraph(f"<b>Address:</b> {job['address_line1']}, {job['city']}, {job['state']} {job['postal_code']}", self.custom_styles["BodyText"]))
-            story.append(Paragraph(f"<b>Claim #:</b> {job.get('claim_number', 'N/A')}", self.custom_styles["BodyText"]))
+            # --- Metadata Table ---
+            story.append(self._build_metadata_table(job))
             story.append(Spacer(1, 15))
             
             story.append(Paragraph("Scope of Work & Payment", self.custom_styles["SectionHeading"]))
             scope_text = "Contractor agrees to repair or replace the roof at the above address. The final scope of work and price shall be strictly determined by the insurance carrier's approved estimate. Any additional work or upgrades require a signed change order."
             story.append(Paragraph(scope_text, self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 10))
             
-            story.append(Paragraph("HB 423 Deductible & Inducement Clause", self.custom_styles["SectionHeading"]))
+            # --- Boxed Warnings ---
             warning_text = "WARNING: It is a violation of Georgia law (O.C.G.A. § 33-24-59.27) for a contractor to pay, waive, rebate, or promise to pay or rebate all or part of an insurance deductible. The homeowner is strictly responsible for the payment of the deductible."
-            story.append(Paragraph(warning_text, self.custom_styles["StatWarning"]))
+            story.append(self._box_warning("HB 423 Deductible & Inducement Clause", warning_text, colors.darkred))
+            story.append(Spacer(1, 10))
             
             story.append(Paragraph("Public Adjuster Restriction", self.custom_styles["SectionHeading"]))
             pa_text = "The contractor is not a public adjuster and does not represent or negotiate on behalf of the owner for the insurance claim."
             story.append(Paragraph(pa_text, self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 10))
             
-            story.append(Paragraph("Statutory Cancellation Disclosure", self.custom_styles["SectionHeading"]))
             cancel_text = "You may cancel this contract within five (5) business days after you receive written notice from your insurer that all or any part of your claim is not a covered loss under your insurance policy."
-            story.append(Paragraph(cancel_text, self.custom_styles["StatWarning"]))
+            story.append(self._box_warning("Statutory Cancellation Disclosure", cancel_text, colors.darkred))
             
             # Signature block
             story.append(self._build_signature_block())
             
-            doc.build(story, onFirstPage=self._universal_letterhead, onLaterPages=self._universal_letterhead)
+            doc.build(story)
 
         await asyncio.to_thread(build_pdf)
         return filepath
@@ -515,7 +579,7 @@ class PDFGenerator:
         filepath = str(job_dir / "notice_of_cancellation.pdf")
 
         def build_pdf():
-            doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)
+            doc = self._get_doc_template(filepath)
             story = []
             
             for copy_type in ["Customer Copy", "Contractor Copy"]:
@@ -523,6 +587,10 @@ class PDFGenerator:
                 story.append(Spacer(1, 10))
                 
                 story.append(Paragraph("NOTICE OF CANCELLATION", self.custom_styles["Title"]))
+                story.append(Spacer(1, 12))
+                
+                # --- Metadata Table ---
+                story.append(self._build_metadata_table(job))
                 story.append(Spacer(1, 12))
                 
                 story.append(Paragraph(f"Date of Transaction: {datetime.date.today().isoformat()}", self.custom_styles["BodyText"]))
@@ -545,7 +613,7 @@ class PDFGenerator:
                 if copy_type == "Customer Copy":
                     story.append(PageBreak())
             
-            doc.build(story, onFirstPage=self._universal_letterhead, onLaterPages=self._universal_letterhead)
+            doc.build(story)
 
         await asyncio.to_thread(build_pdf)
         return filepath
@@ -559,11 +627,15 @@ class PDFGenerator:
         filepath = str(job_dir / "certificate_of_completion.pdf")
 
         def build_pdf():
-            doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=100)
+            doc = self._get_doc_template(filepath)
             story = []
             
             story.append(Paragraph("CERTIFICATE OF COMPLETION", self.custom_styles["Title"]))
             story.append(Spacer(1, 12))
+            
+            # --- Metadata Table ---
+            story.append(self._build_metadata_table(job))
+            story.append(Spacer(1, 15))
             
             story.append(Paragraph("Work Acceptance & Punch List", self.custom_styles["SectionHeading"]))
             text = (
@@ -587,16 +659,16 @@ class PDFGenerator:
             story.append(Spacer(1, 15))
             
             warranty_text = (
-                "WARRANTY DISCLAIMER: Wickham Roofing LLC guarantees the workmanship of the installation for a "
+                "Wickham Roofing LLC guarantees the workmanship of the installation for a "
                 "period of 5 years from the date of completion. Material warranties are provided directly by the manufacturer "
                 "and any claims regarding defective materials must be directed to the manufacturer."
             )
-            story.append(Paragraph(warranty_text, self.custom_styles["FinePrint"]))
+            story.append(self._box_warning("Warranty Disclaimer", warranty_text, colors.lightgrey))
             story.append(Spacer(1, 20))
             
             story.append(self._build_signature_block(title1="Homeowner Signature & Date", title2="Wickham Roofing LLC Representative & Date"))
             
-            doc.build(story, onFirstPage=self._universal_letterhead, onLaterPages=self._universal_letterhead)
+            doc.build(story)
 
         await asyncio.to_thread(build_pdf)
         return filepath
