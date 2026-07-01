@@ -384,3 +384,21 @@ async def download_completion(job_id: str, completion_date: str):
     pdf_path = await pdf_gen.generate_certificate_of_completion(job_dict, completion_date)
     
     return FileResponse(path=pdf_path, filename=f"Certificate_of_Completion_{job_id[:8]}.pdf", media_type="application/pdf")
+
+@router.get("/jobs/{job_id}/docs/contingency")
+async def download_contingency(job_id: str):
+    """Dynamically generates and returns the Insurance Contingency Agreement."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Job not found.")
+        job_dict = dict(row)
+    finally:
+        conn.close()
+        
+    pdf_gen = PDFGenerator()
+    pdf_path = await pdf_gen.generate_contingency_agreement(job_dict)
+    
+    return FileResponse(path=pdf_path, filename=f"Contingency_Agreement_{job_id[:8]}.pdf", media_type="application/pdf")

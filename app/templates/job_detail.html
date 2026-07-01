@@ -254,6 +254,7 @@
             const linkClass = "flex items-center justify-between p-3 rounded-md bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-colors";
             
             // These always exist if they were hit, but we'll show the links regardless as the endpoints exist.
+            linksHTML += `<a href="/api/office/jobs/${JOB_ID}/docs/contingency" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">Contingency Agreement</span><span class="text-blue-600 text-sm">Generate</span></a>`;
             linksHTML += `<a href="/api/office/jobs/${JOB_ID}/evidence_grid" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">1. Evidence Grid</span><span class="text-blue-600 text-sm">Download</span></a>`;
             linksHTML += `<a href="/api/office/jobs/${JOB_ID}/qbo_export" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">2. QBO Invoice (CSV)</span><span class="text-blue-600 text-sm">Download</span></a>`;
             
