@@ -8,7 +8,7 @@ from pathlib import Path
 import structlog
 from typing import List, Dict, Any
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -20,7 +20,7 @@ from app.services.qbo_export import generate_qbo_invoice
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
-from app.core.database import insert_material_order, insert_schedule, JobStatus, backup_database, upsert_financials
+from app.core.database import insert_material_order, insert_schedule, JobStatus, backup_database, upsert_financials, insert_job_document
 from app.core.pipeline import run_full_office_pipeline
 from app.config import verify_internal_token
 
@@ -38,6 +38,7 @@ class FinancialsPayload(BaseModel):
     labor: float
     overhead_pct: float = 0.25
     commission_pct: float = 0.10
+    permits_fee: float = 0.0
 
 class ProductionPayload(BaseModel):
     supplier_name: str
@@ -205,6 +206,49 @@ async def download_evidence_grid(job_id: str):
         raise HTTPException(status_code=500, detail="Failed to generate Evidence Grid PDF")
 
 
+@router.get("/download/{filename}")
+async def download_export(filename: str):
+    """
+    Download a generated CSV or PDF from the exports directory.
+    """
+    file_path = EXPORT_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/octet-stream"
+    )
+
+@router.post("/jobs/{job_id}/docs/upload")
+async def upload_job_document(job_id: str, file_type: str = Form(...), file: UploadFile = File(...)):
+    """Upload a miscellaneous document to the universal vault."""
+    valid_types = ["application/pdf", "image/jpeg", "image/png"]
+    if file.content_type not in valid_types:
+        raise HTTPException(status_code=400, detail="Must upload a PDF, JPEG, or PNG.")
+
+    job_dir = FIELD_DOCS_DIR / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Sanitize and assign a safe filename
+    safe_name = Path(file.filename).name
+    pdf_path = job_dir / safe_name
+
+    try:
+        content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large (10MB max).")
+        pdf_path.write_bytes(content)
+        insert_job_document(job_id, safe_name, file_type, str(pdf_path))
+        logger.info("job_document_uploaded", job_id=job_id, filename=safe_name, bytes=len(content))
+        return {"status": "success", "filename": safe_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("job_document_upload_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to save document")
+
 @router.get("/jobs/{job_id}/qbo_export")
 async def download_qbo_export(job_id: str):
     """Returns the generated QBO CSV for the given job."""
@@ -253,7 +297,8 @@ async def update_job_financials(job_id: str, payload: FinancialsPayload):
             material_cost=payload.materials,
             labor_cost=payload.labor,
             overhead_pct=payload.overhead_pct,
-            canvasser_commission_pct=payload.commission_pct
+            canvasser_commission_pct=payload.commission_pct,
+            permits_fee=payload.permits_fee
         )
         
         # Trigger Hot Backup

@@ -144,6 +144,37 @@ def generate_qbo_invoice(job_id: str, bom: MaterialBOM, customer_name: str = "Un
         create_line("drip_edge", bom.drip_edge_pieces, "Drip Edge Pieces", "drip_edge_pieces")
     ]
     
+    # Financials for O&P and Permits
+    from app.core.database import get_financials
+    financials = get_financials(job_id)
+    if financials:
+        oh_pct = financials.get("overhead_pct", 0.0)
+        if oh_pct > 0:
+            oh_val = oh_pct if oh_pct < 1 else (oh_pct / 100.0)
+            base = financials.get("material_cost", 0.0) + financials.get("labor_cost", 0.0)
+            oh_amt = base * oh_val
+            lines.append(
+                InvoiceLine(
+                    item="o_and_p",
+                    description=f"Overhead & Profit",
+                    quantity=1.0,
+                    rate=oh_amt,
+                    amount=oh_amt
+                )
+            )
+            
+        permits = financials.get("permits_fee", 0.0)
+        if permits > 0:
+            lines.append(
+                InvoiceLine(
+                    item="permits",
+                    description="Permits & Fees",
+                    quantity=1.0,
+                    rate=permits,
+                    amount=permits
+                )
+            )
+    
     export = InvoiceExport(
         invoice_no=f"INV-{job_id[:8].upper()}",
         customer=customer_name,

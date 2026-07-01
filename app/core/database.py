@@ -8,10 +8,11 @@ from __future__ import annotations
 import sqlite3
 import json
 import structlog
+import uuid
+from typing import Optional
 from datetime import datetime
 from pathlib import Path
 from enum import Enum
-import uuid
 import asyncio
 
 from app.config import get_settings
@@ -107,6 +108,25 @@ def init_db() -> None:
                 labor_cost REAL NOT NULL,
                 overhead_pct REAL NOT NULL,
                 canvasser_commission_pct REAL NOT NULL,
+                permits_fee REAL NOT NULL DEFAULT 0.0,
+                FOREIGN KEY(job_id) REFERENCES jobs(id)
+            )
+        ''')
+        
+        # Lightweight migration if financials existed before permits_fee
+        try:
+            conn.execute("ALTER TABLE financials ADD COLUMN permits_fee REAL NOT NULL DEFAULT 0.0")
+        except sqlite3.OperationalError:
+            pass # Column already exists
+            
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS job_documents (
+                id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                file_type TEXT NOT NULL,
+                storage_path TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(job_id) REFERENCES jobs(id)
             )
         ''')
@@ -235,7 +255,8 @@ def upsert_financials(
     material_cost: float, 
     labor_cost: float, 
     overhead_pct: float, 
-    canvasser_commission_pct: float
+    canvasser_commission_pct: float,
+    permits_fee: float = 0.0
 ) -> None:
     """Upsert financial pre-build parameters into the financials table.
 
@@ -247,6 +268,7 @@ def upsert_financials(
         labor_cost (float): Total labor cost.
         overhead_pct (float): Overhead percentage.
         canvasser_commission_pct (float): Commission percentage.
+        permits_fee (float): Cost of permits.
         
     Raises:
         Exception: If the upsert operation fails.
@@ -254,16 +276,10 @@ def upsert_financials(
     conn = get_connection()
     try:
         conn.execute('''
-            INSERT INTO financials (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(job_id) DO UPDATE SET
-                revenue=excluded.revenue,
-                carrier_rcv=excluded.carrier_rcv,
-                material_cost=excluded.material_cost,
-                labor_cost=excluded.labor_cost,
-                overhead_pct=excluded.overhead_pct,
-                canvasser_commission_pct=excluded.canvasser_commission_pct
-        ''', (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct))
+            INSERT OR REPLACE INTO financials 
+            (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct, permits_fee)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct, permits_fee))
         conn.commit()
         logger.info("financials_upserted", job_id=job_id)
     except Exception as e:
@@ -363,3 +379,53 @@ async def backup_database() -> None:
             conn.close()
 
     await asyncio.to_thread(_do_backup)
+
+def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str) -> str:
+    """Insert a new document tracking record into the vault."""
+    conn = get_connection()
+    doc_id = str(uuid.uuid4())
+    try:
+        conn.execute(
+            "INSERT INTO job_documents (id, job_id, filename, file_type, storage_path) VALUES (?, ?, ?, ?, ?)",
+            (doc_id, job_id, filename, file_type, storage_path)
+        )
+        conn.commit()
+        return doc_id
+    except Exception as e:
+        logger.error("insert_job_document_failed", error=str(e))
+        raise
+    finally:
+        conn.close()
+
+def get_financials(job_id: str) -> Optional[dict]:
+    """Fetch the raw financial parameters for a given job."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM financials WHERE job_id = ?", (job_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error("get_financials_failed", error=str(e))
+        raise
+    finally:
+        conn.close()
+
+def get_monthly_financials(month: int, year: int) -> list[dict]:
+    """Aggregate all INVOICED or CLOSED jobs for a specific month and year."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute("""
+            SELECT j.id, j.homeowner_name, j.status, f.revenue, f.material_cost, 
+                   f.labor_cost, f.overhead_pct, f.canvasser_commission_pct, f.permits_fee
+            FROM jobs j
+            JOIN financials f ON j.id = f.job_id
+            WHERE j.status IN ('INVOICED', 'CLOSED')
+            AND cast(strftime('%m', j.created_at) as integer) = ?
+            AND cast(strftime('%Y', j.created_at) as integer) = ?
+        """, (month, year))
+        return [dict(r) for r in cursor]
+    except Exception as e:
+        logger.error("get_monthly_financials_failed", error=str(e))
+        return []
+    finally:
+        conn.close()

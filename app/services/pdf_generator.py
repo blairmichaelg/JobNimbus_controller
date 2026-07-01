@@ -672,3 +672,103 @@ class PDFGenerator:
 
         await asyncio.to_thread(build_pdf)
         return filepath
+
+    async def generate_monthly_financial_summary(self, month: int, year: int) -> str:
+        """Generate a professional PDF summary for the specified month."""
+        from app.core.database import get_monthly_financials
+        
+        log = logger.bind(month=month, year=year)
+        log.info("monthly_summary_generation_started")
+        
+        filepath = str(FIELD_DOCS_DIR / f"Monthly_Financial_Summary_{year}_{month:02d}.pdf")
+        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+        
+        def build_pdf():
+            doc = self._get_doc_template(filepath, top_margin=120)
+            story = []
+            
+            story.append(Paragraph(f"Monthly Financial Summary - {year}-{month:02d}", self.custom_styles["Title"]))
+            story.append(Spacer(1, 20))
+            
+            jobs = get_monthly_financials(month, year)
+            
+            if not jobs:
+                story.append(Paragraph("No INVOICED or CLOSED jobs found for this period.", self.custom_styles["BodyText"]))
+                doc.build(story)
+                return
+            
+            total_rev = 0.0
+            total_cogs = 0.0
+            total_comm = 0.0
+            
+            # Details Table
+            table_data = [["Job ID", "Homeowner", "Revenue", "Costs", "Margin"]]
+            
+            for j in jobs:
+                rev = j.get("revenue", 0.0)
+                mat = j.get("material_cost", 0.0)
+                lab = j.get("labor_cost", 0.0)
+                oh_pct = j.get("overhead_pct", 0.0)
+                comm_pct = j.get("canvasser_commission_pct", 0.0)
+                
+                oh_val = oh_pct if oh_pct < 1 else (oh_pct / 100.0)
+                comm_val = comm_pct if comm_pct < 1 else (comm_pct / 100.0)
+                
+                cogs = mat + lab + ((mat+lab)*oh_val)
+                comm = rev * comm_val
+                margin = rev - cogs - comm
+                
+                total_rev += rev
+                total_cogs += cogs
+                total_comm += comm
+                
+                table_data.append([
+                    j["id"][:8], 
+                    j["homeowner_name"], 
+                    f"${rev:,.2f}", 
+                    f"${cogs:,.2f}", 
+                    f"${margin:,.2f}"
+                ])
+                
+            total_margin = total_rev - total_cogs - total_comm
+            
+            # Summary Block
+            summary_data = [
+                ["Total Revenue:", f"${total_rev:,.2f}"],
+                ["Total COGS:", f"${total_cogs:,.2f}"],
+                ["Total Commissions:", f"${total_comm:,.2f}"],
+                ["Total Gross Margin:", f"${total_margin:,.2f}"]
+            ]
+            
+            st = Table(summary_data, colWidths=[150, 150], hAlign='LEFT')
+            st.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+                ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+                ('PADDING', (0,0), (-1,-1), 6)
+            ]))
+            
+            story.append(Paragraph("Executive Summary", self.custom_styles["SectionHeading"]))
+            story.append(st)
+            story.append(Spacer(1, 20))
+            
+            # Details Block
+            story.append(Paragraph("Job Details", self.custom_styles["SectionHeading"]))
+            
+            dt = Table(table_data, colWidths=[80, 150, 80, 80, 80])
+            dt.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('ALIGN', (2,0), (-1,-1), 'RIGHT'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
+                ('PADDING', (0,0), (-1,-1), 6)
+            ]))
+            story.append(dt)
+            
+            doc.build(story)
+            
+        await asyncio.to_thread(build_pdf)
+        log.info("monthly_summary_generation_complete", filepath=filepath)
+        return filepath
