@@ -51,8 +51,8 @@ async def main():
         init_db()
         conn = get_connection()
         try:
-            conn.execute("INSERT OR IGNORE INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                         ("demo_job_1", "Scott Wickham", "123 Peachtree Lane", "Thomasville", "GA", "31792", "555-0199", "INVOICED", "2026-07-01 12:00:00"))
+            conn.execute("INSERT OR IGNORE INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, status, inspector_name, inspection_date, inspection_notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         ("demo_job_1", "Scott Wickham", "123 Peachtree Lane", "Thomasville", "GA", "31792", "555-0199", "INVOICED", "John Doe (Lead Inspector)", "2026-06-30 09:15:00", "Observed significant hail damage to the west-facing slopes.", "2026-07-01 12:00:00"))
             conn.commit()
         except Exception:
             pass
@@ -109,19 +109,38 @@ async def main():
     monthly_final = sample_dir / "Monthly_Financial_Summary_Mock.pdf"
     shutil.move(monthly_path, str(monthly_final))
 
+    # 8. Generate Inspection Letter
+    print("[*] Generating Inspection Letter...")
+    ev_data = {"total_squares": 32.5, "ridges": 40, "valleys": 25, "eaves": 120}
+    inspection_summary = {"damage_count": 14, "predominant_damage_type": "Hail Hits (3/4in)", "severity": "High", "notes": "Customer requested urgent tarping."}
+    # fetch the job from db to get metadata
+    conn = get_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", ("demo_job_1",))
+        row = cursor.fetchone()
+        mock_job_with_meta = dict(row) if row else mock_job
+    finally:
+        conn.close()
+    
+    insp_path = await generator.generate_inspection_letter(mock_job_with_meta, ev_data, inspection_summary)
+    insp_final = sample_dir / "Inspection_Letter_Mock.pdf"
+    shutil.move(insp_path, str(insp_final))
+
     # Cleanup the field_docs demo folder if it exists
     try:
         shutil.rmtree(Path("field_docs/demo_job_1"))
-    except OSError:
+    except Exception:
         pass
 
-    # 8. Output Results
+    # 9. Output Results
     print("\n[SUCCESS] Mock PDFs generated successfully!\n")
     print(f"Contingency Agreement: {ca_final}")
     print(f"Notice of Cancellation: {noc_final}")
     print(f"Certificate of Completion: {coc_final}")
     print(f"Material PO: {po_final}")
-    print(f"Monthly Financial Summary: {monthly_final}\n")
+    print(f"Monthly Financial Summary: {monthly_final}")
+    print(f"Inspection Letter: {insp_final}\n")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -72,9 +72,19 @@ def init_db() -> None:
                 insurer_name TEXT,
                 status TEXT DEFAULT 'LEAD_CAPTURED',
                 status_history TEXT,
+                inspector_name TEXT,
+                inspection_date TIMESTAMP,
+                inspection_notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        
+        # Lightweight migration if jobs existed before inspection fields
+        for col in ["inspector_name TEXT", "inspection_date TIMESTAMP", "inspection_notes TEXT"]:
+            try:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass # Column already exists
         
         conn.execute('''
             CREATE TABLE IF NOT EXISTS material_orders (
@@ -427,5 +437,22 @@ def get_monthly_financials(month: int, year: int) -> list[dict]:
     except Exception as e:
         logger.error("get_monthly_financials_failed", error=str(e))
         return []
+    finally:
+        conn.close()
+
+def update_job_metadata(job_id: str, inspector_name: str, inspection_date: str, inspection_notes: str) -> None:
+    """Update inspection-related metadata for a specific job."""
+    conn = get_connection()
+    try:
+        conn.execute('''
+            UPDATE jobs 
+            SET inspector_name = ?, inspection_date = ?, inspection_notes = ? 
+            WHERE id = ?
+        ''', (inspector_name, inspection_date, inspection_notes, job_id))
+        conn.commit()
+        logger.info("job_metadata_updated", job_id=job_id)
+    except Exception as e:
+        logger.error("update_job_metadata_failed", job_id=job_id, error=str(e))
+        raise
     finally:
         conn.close()

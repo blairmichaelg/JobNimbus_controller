@@ -249,6 +249,33 @@ async def upload_job_document(job_id: str, file_type: str = Form(...), file: Upl
         logger.error("job_document_upload_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to save document")
 
+@router.get("/jobs/{job_id}/docs/inspection_letter")
+async def get_inspection_letter(job_id: str):
+    from app.core.database import get_connection
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        job = dict(row) if row else None
+    finally:
+        conn.close()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # In a real app we'd fetch actual ev_data and inspection_summary from DB.
+    # Simulating retrieval for the PDF generation.
+    ev_data = {"total_squares": 32.5, "ridges": 40, "valleys": 25, "eaves": 120}
+    inspection_summary = {"damage_count": 14, "predominant_damage_type": "Hail Hits (3/4in)", "severity": "High"}
+    
+    gen = PDFGenerator()
+    try:
+        pdf_path = await gen.generate_inspection_letter(job, ev_data, inspection_summary)
+        return FileResponse(path=pdf_path, filename="Inspection_Letter.pdf", media_type="application/pdf")
+    except Exception as e:
+        logger.error("inspection_letter_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to generate Inspection Letter")
+
 @router.get("/jobs/{job_id}/qbo_export")
 async def download_qbo_export(job_id: str):
     """Returns the generated QBO CSV for the given job."""

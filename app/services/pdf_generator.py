@@ -772,3 +772,78 @@ class PDFGenerator:
         await asyncio.to_thread(build_pdf)
         log.info("monthly_summary_generation_complete", filepath=filepath)
         return filepath
+
+    async def generate_inspection_letter(self, job: dict, ev_data: dict, inspection_summary: dict) -> str:
+        """Generate a formal inspection letter combining measurements and photo evidence."""
+        job_id = job.get("id", "UNKNOWN")
+        job_dir = FIELD_DOCS_DIR / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "inspection_letter.pdf")
+        
+        def build_pdf():
+            doc = self._get_doc_template(filepath, top_margin=120)
+            story = []
+            
+            story.append(Paragraph("FORMAL ROOF INSPECTION REPORT", self.custom_styles["Title"]))
+            story.append(Spacer(1, 20))
+            
+            # Metadata with new inspector fields
+            address = f"{job.get('address_line1', '')}, {job.get('city', '')}, {job.get('state', '')} {job.get('postal_code', '')}"
+            meta_data = [
+                ["Job ID:", job.get("id", "N/A")],
+                ["Homeowner:", job.get("homeowner_name", "N/A")],
+                ["Property Address:", address],
+                ["Inspector:", job.get("inspector_name", "N/A")],
+                ["Inspection Date:", job.get("inspection_date", "N/A")]
+            ]
+            
+            t = Table(meta_data, colWidths=[120, 380])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+                ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+                ('PADDING', (0,0), (-1,-1), 6),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ]))
+            story.append(t)
+            story.append(Spacer(1, 20))
+            
+            story.append(Paragraph("Measurement Summary", self.custom_styles["SectionHeading"]))
+            sq = ev_data.get("total_squares", "N/A")
+            ridge = ev_data.get("ridges", "N/A")
+            valleys = ev_data.get("valleys", "N/A")
+            eaves = ev_data.get("eaves", "N/A")
+            meas_text = f"Total Squares: {sq} SQ<br/>Ridges: {ridge} LF<br/>Valleys: {valleys} LF<br/>Eaves (Drip Edge): {eaves} LF"
+            story.append(Paragraph(meas_text, self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 15))
+            
+            story.append(Paragraph("Photo Evidence Summary", self.custom_styles["SectionHeading"]))
+            damage_count = inspection_summary.get("damage_count", 0)
+            predominant = inspection_summary.get("predominant_damage_type", "None detected")
+            severity = inspection_summary.get("severity", "Unknown")
+            photo_text = f"Detected Damage Count: {damage_count}<br/>Predominant Damage Type: {predominant}<br/>Overall Severity: {severity}"
+            story.append(Paragraph(photo_text, self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 15))
+            
+            if "notes" in inspection_summary:
+                story.append(Paragraph(f"Notes: {inspection_summary['notes']}", self.custom_styles["BodyText"]))
+                story.append(Spacer(1, 15))
+            
+            if job.get("inspection_notes"):
+                story.append(Paragraph("Inspector Notes", self.custom_styles["SectionHeading"]))
+                story.append(Paragraph(job["inspection_notes"], self.custom_styles["BodyText"]))
+                story.append(Spacer(1, 15))
+            
+            legal_text = (
+                "This report constitutes a preliminary assessment of apparent roof conditions on the date of inspection. "
+                "It does not serve as an engineering report, nor does it guarantee insurance coverage."
+            )
+            story.append(self._box_warning("Disclaimer", legal_text, colors.darkred))
+            story.append(Spacer(1, 20))
+            
+            story.append(self._build_signature_block(title1="Inspector Signature & Date", title2="Homeowner Acknowledgment & Date"))
+            
+            doc.build(story)
+            
+        await asyncio.to_thread(build_pdf)
+        return filepath
