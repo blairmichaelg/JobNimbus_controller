@@ -6,11 +6,15 @@ import sys
 import sqlite3
 
 # Ensure imports work from the root directory
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(root_dir)
 from app.core.supplement_models import MaterialBOM
 from app.services.pdf_generator import PDFGenerator
 from app.core.database import insert_job_document, init_db, upsert_financials, get_connection
+from app.services.ai_service import AIService
+from app.services.pdf_extractor import extract_eagleview_data
+from app.core.reconciliation import reconcile
+from app.core.complexity import compute_complexity_score, calculate_dynamic_waste
 
 async def main():
     print("==================================================")
@@ -18,7 +22,7 @@ async def main():
     print("==================================================\n")
 
     # 1. Setup Output Directory
-    sample_dir = Path("sample_pdfs").resolve()
+    sample_dir = (Path(root_dir) / "sample_pdfs").resolve()
     sample_dir.mkdir(parents=True, exist_ok=True)
     print(f"[*] Ensuring output directory exists: {sample_dir}")
 
@@ -127,20 +131,72 @@ async def main():
     insp_final = sample_dir / "Inspection_Letter_Mock.pdf"
     shutil.move(insp_path, str(insp_final))
 
+    # 9. E2E AI PDF Generation (Estimate & Supplement)
+    print("[*] Running E2E AI Extraction for Estimate and Supplement...")
+    print("    -> Note: This will call the live Gemini API and takes ~15-30 seconds.")
+    
+    # Paths to the samples
+    ev_pdf = Path(root_dir) / "samples" / "EagleView-Sample-Premium_Roof_Report.pdf"
+    sol_pdf = Path(root_dir) / "samples" / "xactimate-sample.pdf"
+    
+    if ev_pdf.exists() and sol_pdf.exists():
+        ai_service = AIService()
+        
+        print("    -> Extracting EagleView data...")
+        ev_data_obj = await extract_eagleview_data(ev_pdf)
+        
+        print("    -> Extracting Statement of Loss (Live AI Call)...")
+        sol_data_obj = await ai_service.extract_sol_from_pdf(str(sol_pdf))
+        
+        print("    -> Reconciling & Computing Waste...")
+        score = compute_complexity_score(ev_data_obj)
+        waste = calculate_dynamic_waste(score)
+        report = reconcile(ev_data_obj, sol_data_obj, "demo_job_1", waste_factor=waste)
+        
+        print("    -> Generating Supplement Narrative (Live AI Call)...")
+        # In a real run, codes would be fetched from RAG, we'll pass a dummy string for the mock
+        codes = "IRC R905.2.7 Underlayment application. IRC R905.2.8.2 Valleys."
+        narrative = await ai_service.generate_supplement_narrative(report, codes)
+        
+        print("    -> Generating Estimate PDF...")
+        # Prepare data for estimate
+        bom_dict = report.material_bom.model_dump()
+        materials_list = [f"{k}: {v}" for k, v in bom_dict.items() if v and isinstance(v, (int, float)) and v > 0]
+        # In a real run, total_cost is calculated dynamically. We'll put a mock amount.
+        estimate_data = {"materials": materials_list, "total_cost": 15450.00}
+        est_path = await generator.generate_estimate_pdf(estimate_data, "demo_job_1")
+        est_final = sample_dir / "Estimate_Mock.pdf"
+        shutil.move(est_path, str(est_final))
+        
+        print("    -> Generating Supplement Request PDF...")
+        supp_path = await generator.generate_supplement_pdf(report, narrative, "demo_job_1")
+        supp_final = sample_dir / "Supplement_Request_Mock.pdf"
+        shutil.move(supp_path, str(supp_final))
+    else:
+        print("    -> SKIPPED: Sample PDFs not found in samples/ directory.")
+        est_final = None
+        supp_final = None
+
     # Cleanup the field_docs demo folder if it exists
     try:
-        shutil.rmtree(Path("field_docs/demo_job_1"))
+        shutil.rmtree(Path(root_dir) / "data" / "field_docs" / "demo_job_1")
     except Exception:
-        pass
+        try:
+            shutil.rmtree(Path(root_dir) / "field_docs" / "demo_job_1")
+        except Exception:
+            pass
 
-    # 9. Output Results
+    # 10. Output Results
     print("\n[SUCCESS] Mock PDFs generated successfully!\n")
     print(f"Contingency Agreement: {ca_final}")
     print(f"Notice of Cancellation: {noc_final}")
     print(f"Certificate of Completion: {coc_final}")
     print(f"Material PO: {po_final}")
     print(f"Monthly Financial Summary: {monthly_final}")
-    print(f"Inspection Letter: {insp_final}\n")
+    print(f"Inspection Letter: {insp_final}")
+    if est_final and supp_final:
+        print(f"Estimate: {est_final}")
+        print(f"Supplement Request: {supp_final}\n")
 
 if __name__ == "__main__":
     asyncio.run(main())

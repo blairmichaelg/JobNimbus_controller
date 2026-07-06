@@ -1,83 +1,39 @@
 """
-Webhook ingestion endpoint for JobNimbus.
+Generic Event Trigger Endpoint.
 
-Receives POST requests from JobNimbus webhooks, validates the
-shared API key via constant-time comparison, applies the quarantine
-filter (fast-reject for non-test jobs), and enqueues valid events
-into the ARQ Redis queue for async processing.
-
-Security:
-- Custom x-api-key header validation (JN does NOT sign webhooks with HMAC)
-- Constant-time comparison via secrets.compare_digest to prevent timing attacks
-
-Quarantine Filter (dual-check pattern):
-- Fast-reject here based on the shallow payload's status_name (best-effort)
-- Authoritative re-verification happens post-hydration in the worker (Phase 4)
+Replaces legacy JobNimbus webhooks.
+Receives POST requests, validates the shared API key via constant-time comparison,
+and enqueues valid events into the ARQ Redis queue for async processing.
 """
 
 import secrets
-
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
 
 logger = structlog.get_logger("app.api.webhooks")
 
-router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+router = APIRouter(prefix="/events", tags=["events"])
 
 
-# ---------------------------------------------------------------------------
-# Pydantic Model — Incoming Webhook Payload
-# ---------------------------------------------------------------------------
-class WebhookPayload(BaseModel):
+class EventPayload(BaseModel):
     """
-    Represents the flat JSON payload from a JobNimbus webhook.
-
-    JobNimbus payloads are shallow and unpredictable — the set of fields
-    varies by record type and event. We extract the fields we need and
-    allow everything else to pass through via extra='allow'.
-
-    Note: JobNimbus may use either 'jnid' or 'id' as the entity identifier.
-    We accept both and normalize to 'jnid'.
+    Generic event trigger payload.
     """
-
-    model_config = ConfigDict(extra="allow")
-
-    jnid: str | None = Field(
-        default=None, description="JobNimbus entity ID (primary key)"
-    )
-    id: str | None = Field(default=None, description="Alternate entity ID field")
-    record_type_name: str | None = Field(
-        default=None, description="Entity type: 'contact', 'job', 'task', etc."
-    )
-    status_name: str | None = Field(
-        default=None, description="Current workflow status of the entity"
-    )
-    event_type: str | None = Field(
-        default=None, description="Event type: 'created', 'modified', 'deleted'"
-    )
-
-    @property
-    def entity_id(self) -> str | None:
-        """Normalize entity ID — prefer 'jnid', fall back to 'id'."""
-        return self.jnid or self.id
+    job_id: str = Field(..., description="Target Job ID")
+    event_type: str = Field(..., description="Event type: 'supplement' or 'inspection'")
+    ev_pdf_path: str | None = Field(default=None, description="Path to EV PDF for supplements")
+    sol_pdf_path: str | None = Field(default=None, description="Path to SoL PDF for supplements")
 
 
-# ---------------------------------------------------------------------------
-# Security Dependency — x-api-key Validation
-# ---------------------------------------------------------------------------
 async def verify_api_key(
     x_api_key: str | None = Header(default=None),
     settings: Settings = Depends(get_settings),
 ) -> None:
     """
     Validate the x-api-key header against the configured webhook secret.
-
-    Uses secrets.compare_digest for constant-time comparison to prevent
-    timing attacks. This is our only authentication layer since JobNimbus
-    does NOT sign webhooks with HMAC.
     """
     if x_api_key is None:
         logger.warning("webhook_auth_missing_header")
@@ -88,68 +44,45 @@ async def verify_api_key(
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
-# ---------------------------------------------------------------------------
-# Webhook Route
-# ---------------------------------------------------------------------------
-@router.post("/jobnimbus", dependencies=[Depends(verify_api_key)])
-async def receive_jobnimbus_webhook(
-    payload: WebhookPayload,
+@router.post("/trigger", dependencies=[Depends(verify_api_key)])
+async def receive_event_trigger(
+    payload: EventPayload,
     request: Request,
 ) -> dict:
     """
-    Ingest a JobNimbus webhook event.
-
-    Flow:
-    1. Log the incoming webhook receipt
-    2. Fast-reject if status_name != QUARANTINE_STATUS
-    3. Enqueue the jnid + event to the ARQ Redis queue
-    4. Return 200 OK immediately (ack before processing)
+    Ingest a generic event and trigger ARQ background workers.
     """
-    settings = get_settings()
-    entity_id = payload.entity_id
-
-    # --- Step 1: Log receipt ---
     logger.info(
-        "webhook_received",
-        jnid=entity_id,
-        status_name=payload.status_name,
-        record_type=payload.record_type_name,
+        "event_trigger_received",
+        job_id=payload.job_id,
         event_type=payload.event_type,
     )
 
-    # --- Step 2: Quarantine Filter (fast-reject) ---
-    # This is a best-effort check on the shallow payload.
-    # The authoritative check happens post-hydration in the worker (Phase 4).
-    if payload.status_name != settings.quarantine_status:
-        logger.debug(
-            "webhook_quarantine_rejected",
-            jnid=entity_id,
-            payload_status=payload.status_name,
-            required_status=settings.quarantine_status,
-        )
-        return {"status": "ignored", "reason": "quarantine"}
-
-    # --- Step 3: Validate we have an entity ID ---
-    if not entity_id:
-        logger.warning(
-            "webhook_missing_entity_id",
-            payload_keys=list(payload.model_dump().keys()),
-        )
-        return {"status": "ignored", "reason": "missing_entity_id"}
-
-    # --- Step 4: Enqueue for async processing ---
     redis_pool = request.app.state.redis_pool
 
     try:
-        await redis_pool.enqueue_job(
-            "process_jobnimbus_event",
-            jnid=entity_id,
-            payload=payload.model_dump(),
-        )
+        if payload.event_type == "supplement":
+            if not payload.ev_pdf_path or not payload.sol_pdf_path:
+                return {"status": "ignored", "reason": "missing_pdf_paths"}
+            
+            await redis_pool.enqueue_job(
+                "process_supplement_event",
+                job_id=payload.job_id,
+                ev_pdf_path=payload.ev_pdf_path,
+                sol_pdf_path=payload.sol_pdf_path,
+            )
+        elif payload.event_type == "inspection":
+            # Inspection payloads need to be hydrated into an InspectionJob first.
+            # Currently unhandled directly from flat webhooks.
+            logger.warning("inspection_event_not_fully_implemented_from_webhook")
+            return {"status": "ignored", "reason": "inspection_event_not_implemented"}
+        else:
+            return {"status": "ignored", "reason": "unknown_event_type"}
+
     except Exception as e:
         logger.error(
-            "webhook_enqueue_failed",
-            jnid=entity_id,
+            "event_enqueue_failed",
+            job_id=payload.job_id,
             error=str(e),
         )
         raise HTTPException(
@@ -157,9 +90,9 @@ async def receive_jobnimbus_webhook(
         )
 
     logger.info(
-        "webhook_enqueued",
-        jnid=entity_id,
+        "event_enqueued",
+        job_id=payload.job_id,
         event_type=payload.event_type,
     )
 
-    return {"status": "queued", "jnid": entity_id}
+    return {"status": "queued", "job_id": payload.job_id}

@@ -41,6 +41,7 @@ def test_analyze_job_data_success(
         },
     }
     mock_response.text = json.dumps(expected_decision)
+    mock_response.usage_metadata.total_token_count = 100
     mock_client_instance.models.generate_content.return_value = mock_response
     mock_client_class.return_value = mock_client_instance
 
@@ -75,6 +76,7 @@ def test_analyze_job_data_schema_validation_error(
             "total_cost": "A lot"
         }
     })
+    mock_response.usage_metadata.total_token_count = 100
     mock_client_instance.models.generate_content.return_value = mock_response
     mock_client_class.return_value = mock_client_instance
 
@@ -124,6 +126,7 @@ def test_extract_sol_from_pdf_success(
         ],
         overhead_and_profit_included=True
     )
+    mock_response.usage_metadata.total_token_count = 100
     mock_client_instance.models.generate_content.return_value = mock_response
     mock_client_class.return_value = mock_client_instance
 
@@ -197,6 +200,7 @@ def test_extract_sol_symbility_routing(
         ],
         overhead_and_profit_included=True
     )
+    mock_response.usage_metadata.total_token_count = 100
     mock_client_instance.models.generate_content.return_value = mock_response
     mock_client_class.return_value = mock_client_instance
 
@@ -213,3 +217,36 @@ def test_extract_sol_symbility_routing(
     
     # Verify cleanup was called
     mock_client_instance.files.delete.assert_called_once_with(name="files/12345")
+
+
+@patch("app.services.ai_service.get_settings")
+@patch("app.services.ai_service.genai.Client")
+def test_extract_sol_from_pdf_finally_block_on_error(
+    mock_client_class, mock_get_settings, mock_settings
+):
+    """Test that the remote file is cleaned up even if the LLM throws an exception."""
+    mock_get_settings.return_value = mock_settings
+
+    mock_client_instance = MagicMock()
+    
+    # Mock upload
+    mock_file = MagicMock()
+    mock_file.name = "files/leak_test"
+    mock_client_instance.files.upload.return_value = mock_file
+    
+    # Mock file state (ACTIVE)
+    mock_file_info = MagicMock()
+    mock_file_info.state.name = "ACTIVE"
+    mock_client_instance.files.get.return_value = mock_file_info
+    
+    # Mock generation response throwing an error
+    mock_client_instance.models.generate_content.side_effect = Exception("Google API 500 Error")
+    mock_client_class.return_value = mock_client_instance
+
+    service = AIService()
+    with patch.object(service, "classify_carrier", return_value="xactimate"):
+        with pytest.raises(Exception, match="Google API 500 Error"):
+            asyncio.run(service.extract_sol_from_pdf("fake.pdf"))
+
+    # VERIFY: The finally block must execute the cleanup!
+    mock_client_instance.files.delete.assert_called_once_with(name="files/leak_test")

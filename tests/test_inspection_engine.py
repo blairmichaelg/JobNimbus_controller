@@ -91,8 +91,8 @@ class TestCallWithBackoff:
     @patch("app.services.ai_service.time.sleep")
     @patch("app.services.ai_service.get_settings")
     @patch("app.services.ai_service.genai.Client")
-    def test_retries_on_429(self, mock_client_class, mock_get_settings, mock_sleep, mock_settings):
-        """Should retry on 429 RESOURCE_EXHAUSTED and succeed on the 3rd attempt."""
+    def test_retries_on_429_and_503(self, mock_client_class, mock_get_settings, mock_sleep, mock_settings):
+        """Should retry on 429 and 503 and succeed on the 3rd attempt."""
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = MagicMock()
 
@@ -102,7 +102,7 @@ class TestCallWithBackoff:
         mock_func = MagicMock(
             side_effect=[
                 Exception("429 RESOURCE_EXHAUSTED"),
-                Exception("429 RESOURCE_EXHAUSTED"),
+                Exception("503 Service Unavailable"),
                 "success_after_retries",
             ]
         )
@@ -125,7 +125,7 @@ class TestCallWithBackoff:
 
         mock_func = MagicMock(side_effect=Exception("429 RESOURCE_EXHAUSTED"))
 
-        with pytest.raises(RuntimeError, match="rate limit exceeded after 3 retries"):
+        with pytest.raises(RuntimeError, match="transient error exceeded after 3 retries"):
             service._call_with_backoff(mock_func, max_retries=3)
 
         assert mock_func.call_count == 3
@@ -188,6 +188,7 @@ class TestAnalyzeRoofPhoto:
         mock_client_instance = MagicMock()
         mock_response = MagicMock()
         mock_response.parsed = sample_analysis
+        mock_response.usage_metadata.total_token_count = 100
         mock_client_instance.models.generate_content.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
 
@@ -195,7 +196,7 @@ class TestAnalyzeRoofPhoto:
         service = AIService()
 
         mock_file_info = MagicMock()
-        result = service.analyze_roof_photo(mock_file_info)
+        result = asyncio.run(service.analyze_roof_photo(mock_file_info, "test.jpg"))
 
         assert isinstance(result, PhotoAnalysis)
         assert result.damage_detected is True
@@ -217,7 +218,7 @@ class TestInspectionProcessor:
 
     @patch("app.workers.inspection_processor.set_cached_analysis")
     @patch("app.workers.inspection_processor.get_cached_analysis")
-    @patch("app.workers.inspection_processor.time.sleep")
+    @patch("app.workers.inspection_processor.asyncio.sleep")
     @patch("app.workers.inspection_processor.AIService")
     def test_full_lifecycle(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path, sample_analysis):
         """Verify upload → poll → analyze → delete lifecycle for each photo."""
@@ -242,7 +243,8 @@ class TestInspectionProcessor:
         mock_ai.client.files.get.return_value = mock_file_info
 
         # Mock analysis
-        mock_ai._call_with_backoff.return_value = sample_analysis
+        from unittest.mock import AsyncMock
+        mock_ai.analyze_roof_photo = AsyncMock(return_value=sample_analysis)
 
         job = InspectionJob(
             job_id="WR-TEST-001",
@@ -252,13 +254,15 @@ class TestInspectionProcessor:
         )
 
         from app.workers.inspection_processor import process_inspection
-        result = asyncio.run(process_inspection({}, job))
+        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=MagicMock) as mock_get_summary:
+            mock_get_summary.return_value = job
+            result = asyncio.run(process_inspection({"is_test": True}, "WR-TEST-001"))
 
         # Verify lifecycle
         mock_get_cache.assert_called_once_with("WR-TEST-001", "fake_hash")
         mock_ai.client.files.upload.assert_called_once()
         mock_ai.client.files.get.assert_called_with(name="files/test123")
-        mock_ai._call_with_backoff.assert_called_once()
+        mock_ai.analyze_roof_photo.assert_called_once()
         mock_set_cache.assert_called_once()
         mock_ai.client.files.delete.assert_called_once_with(name="files/test123")
 
@@ -267,7 +271,7 @@ class TestInspectionProcessor:
 
     @patch("app.workers.inspection_processor.set_cached_analysis")
     @patch("app.workers.inspection_processor.get_cached_analysis")
-    @patch("app.workers.inspection_processor.time.sleep")
+    @patch("app.workers.inspection_processor.asyncio.sleep")
     @patch("app.workers.inspection_processor.AIService")
     def test_failed_processing_skips_photo(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path):
         """Photos that fail server-side processing should be skipped, not crash."""
@@ -296,7 +300,9 @@ class TestInspectionProcessor:
         )
 
         from app.workers.inspection_processor import process_inspection
-        result = asyncio.run(process_inspection({}, job))
+        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=MagicMock) as mock_get_summary:
+            mock_get_summary.return_value = job
+            result = asyncio.run(process_inspection({"is_test": True}, "WR-TEST-002"))
 
         assert len(result.analyses) == 0
         # Cleanup should still happen
@@ -305,7 +311,7 @@ class TestInspectionProcessor:
 
     @patch("app.workers.inspection_processor.set_cached_analysis")
     @patch("app.workers.inspection_processor.get_cached_analysis")
-    @patch("app.workers.inspection_processor.time.sleep")
+    @patch("app.workers.inspection_processor.asyncio.sleep")
     @patch("app.workers.inspection_processor.AIService")
     def test_multiple_photos_sequential(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path, sample_analysis):
         """Multiple photos should be processed sequentially, not in parallel."""
@@ -328,7 +334,8 @@ class TestInspectionProcessor:
         mock_file_info.state.name = "ACTIVE"
         mock_ai.client.files.get.return_value = mock_file_info
 
-        mock_ai._call_with_backoff.return_value = sample_analysis
+        from unittest.mock import AsyncMock
+        mock_ai.analyze_roof_photo = AsyncMock(return_value=sample_analysis)
 
         job = InspectionJob(
             job_id="WR-TEST-003",
@@ -338,7 +345,9 @@ class TestInspectionProcessor:
         )
 
         from app.workers.inspection_processor import process_inspection
-        result = asyncio.run(process_inspection({}, job))
+        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=MagicMock) as mock_get_summary:
+            mock_get_summary.return_value = job
+            result = asyncio.run(process_inspection({"is_test": True}, "WR-TEST-003"))
 
         assert len(result.analyses) == 3
         assert mock_ai.client.files.upload.call_count == 3
@@ -347,7 +356,7 @@ class TestInspectionProcessor:
 
     @patch("app.workers.inspection_processor.set_cached_analysis")
     @patch("app.workers.inspection_processor.get_cached_analysis")
-    @patch("app.workers.inspection_processor.time.sleep")
+    @patch("app.workers.inspection_processor.asyncio.sleep")
     @patch("app.workers.inspection_processor.AIService")
     def test_cleanup_runs_on_analysis_error(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path):
         """Remote file should be deleted even if analysis throws an exception."""
@@ -377,7 +386,9 @@ class TestInspectionProcessor:
         )
 
         from app.workers.inspection_processor import process_inspection
-        result = asyncio.run(process_inspection({}, job))
+        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=MagicMock) as mock_get_summary:
+            mock_get_summary.return_value = job
+            result = asyncio.run(process_inspection({"is_test": True}, "WR-TEST-004"))
 
         assert len(result.analyses) == 0
         # Cleanup must still happen despite the error
@@ -404,14 +415,15 @@ class TestInspectionProcessor:
         )
         
         from app.workers.inspection_processor import process_inspection
-        result = asyncio.run(process_inspection({}, job))
+        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=MagicMock) as mock_get_summary:
+            mock_get_summary.return_value = job
+            result = asyncio.run(process_inspection({"is_test": True}, "WR-TEST-005"))
         
         assert len(result.analyses) == 1
         assert result.analyses[0] == sample_analysis
         
         # Verify API was bypassed entirely
         mock_ai.client.files.upload.assert_not_called()
-        mock_ai._call_with_backoff.assert_not_called()
 
 
 # ── Image Resizer Tests ───────────────────────────────────────────────────────

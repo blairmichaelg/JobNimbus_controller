@@ -20,7 +20,7 @@ def parse_code_files(directory_path: str = "building_codes") -> dict[str, CodeSe
     Reads all .txt files in the directory and extracts XML tags and their contents.
     Returns a dictionary mapping tag names to their CodeSection models.
     """
-    code_index = {}
+    code_index: dict[str, CodeSection] = {}
     dir_path = Path(directory_path)
     
     if not dir_path.exists():

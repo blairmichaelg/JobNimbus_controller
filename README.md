@@ -60,7 +60,7 @@ The core artificial intelligence layers powering the system's logic.
 | PDF Generation | ReportLab | $0 |
 | PDF Parsing | pdfplumber | $0 |
 | Frontend | Vanilla JS + Tailwind CSS | $0 |
-| Testing | Pytest (122 green tests) | $0 |
+| Testing | Pytest (125 green tests) | $0 |
 
 ## Pre-Flight Operational Safeguards
 
@@ -98,7 +98,7 @@ uvicorn app.main:app --reload
 The system maintains a strict 100% green test baseline to prevent financial calculation errors.
 
 ```bash
-# Execute the full 122-test suite
+# Execute the full 125-test suite
 python -m pytest tests/ -v
 
 # Isolate financial math validation

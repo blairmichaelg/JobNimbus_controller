@@ -26,6 +26,7 @@ from pydantic import BaseModel, ValidationError
 from typing import Literal
 
 from app.config import get_settings
+from app.core.database import log_ai_usage
 from app.core.supplement_models import StatementOfLoss, DiscrepancyReport
 from app.core.inspection_models import PhotoAnalysis
 
@@ -84,20 +85,26 @@ class AIService:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                error_str = str(e)
-                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                error_str = str(e).lower()
+                # Trap 429 Rate Limits and 5xx Transient Network Errors
+                is_transient = any(
+                    err in error_str
+                    for err in ["429", "resource_exhausted", "503", "504", "deadlineexceeded", "timeouterror"]
+                )
+                if is_transient:
                     wait = (2 ** attempt) + random.uniform(0, 1)
                     logger.warning(
-                        "rate_limited_backoff",
+                        "transient_error_backoff",
                         attempt=attempt + 1,
                         max_retries=max_retries,
                         wait_seconds=round(wait, 2),
+                        error_snippet=error_str[:50]
                     )
                     time.sleep(wait)
                 else:
                     raise
         raise RuntimeError(
-            f"Gemini API rate limit exceeded after {max_retries} retries."
+            f"Gemini API transient error exceeded after {max_retries} retries."
         )
 
     async def analyze_job_data(self, payload: dict) -> dict:
@@ -133,6 +140,7 @@ Rules:
         try:
             # Run the synchronous API call in an executor to avoid blocking the event loop
             response = await asyncio.to_thread(
+                self._call_with_backoff,
                 self.client.models.generate_content,
                 model=self.model_name,
                 contents=prompt,
@@ -145,6 +153,10 @@ Rules:
             result_text = response.text
             decision_obj = Decision.model_validate_json(result_text)
             decision = decision_obj.model_dump()
+
+            usage = getattr(response.usage_metadata, "total_token_count", 0)
+            if usage > 0:
+                await asyncio.to_thread(log_ai_usage, payload.get("id"), usage, self.model_name, "analyze_job_data")
 
             log.info(
                 "ai_analysis_complete",
@@ -172,7 +184,7 @@ Rules:
                 "document_data": {},
             }
 
-    def classify_carrier(self, file_info) -> str:
+    def classify_carrier(self, file_info, job_id: str | None = None) -> str:
         """
         Classify the carrier estimating software from the PDF.
         """
@@ -180,7 +192,8 @@ Rules:
             "Analyze the first page or headers of this PDF and identify the estimating software used. "
             "Return ONLY a single string: 'xactimate', 'symbility', or 'unknown'."
         )
-        response = self.client.models.generate_content(
+        response = self._call_with_backoff(
+            self.client.models.generate_content,
             model=self.model_name,
             contents=[file_info, prompt],
             config=genai_types.GenerateContentConfig(
@@ -189,11 +202,14 @@ Rules:
             ),
         )
         result = response.text.strip().lower()
+        usage = getattr(response.usage_metadata, "total_token_count", 0)
+        if usage > 0:
+            log_ai_usage(job_id, usage, self.model_name, "classify_carrier")
         if result in ("xactimate", "symbility"):
             return result
         return "unknown"
 
-    async def extract_sol_from_pdf(self, pdf_path: str) -> StatementOfLoss:
+    async def extract_sol_from_pdf(self, pdf_path: str, job_id: str | None = None) -> StatementOfLoss:
         """
         Multimodal extraction of a Statement of Loss PDF using Gemini File API.
         Enforces structured extraction using the StatementOfLoss Pydantic schema.
@@ -201,22 +217,26 @@ Rules:
         log = logger.bind(pdf_path=str(pdf_path))
         log.info("sol_extraction_started")
 
-        def _extract():
-            import time
-            # 1. Upload file
-            uploaded_file = self.client.files.upload(file=pdf_path)
-            
-            # 2. Wait for processing
-            file_info = self.client.files.get(name=uploaded_file.name)
+        # 1. Upload file
+        uploaded_file = await asyncio.to_thread(self._call_with_backoff, self.client.files.upload, file=pdf_path)
+
+        try:
+            # 2. Native Async Wait for processing
+            file_info = await asyncio.to_thread(self._call_with_backoff, self.client.files.get, name=uploaded_file.name)
+            max_wait = 60
+            elapsed = 0
             while file_info.state.name == "PROCESSING":
-                time.sleep(2)
-                file_info = self.client.files.get(name=uploaded_file.name)
+                if elapsed >= max_wait:
+                    raise TimeoutError("Gemini file processing timed out.")
+                await asyncio.sleep(2)
+                elapsed += 2
+                file_info = await asyncio.to_thread(self._call_with_backoff, self.client.files.get, name=uploaded_file.name)
             
             if file_info.state.name == "FAILED":
                 raise RuntimeError("File processing failed on Gemini servers.")
 
             # 3. Classify the Carrier
-            source_system = self.classify_carrier(file_info)
+            source_system = await asyncio.to_thread(self.classify_carrier, file_info, job_id)
             
             # 4. Set targeted prompt
             if source_system == "xactimate":
@@ -247,7 +267,9 @@ Rules:
                 """
 
             # 5. Generate content with structured output
-            response = self.client.models.generate_content(
+            response = await asyncio.to_thread(
+                self._call_with_backoff,
+                self.client.models.generate_content,
                 model=self.model_name,
                 contents=[file_info, prompt],
                 config=genai_types.GenerateContentConfig(
@@ -258,23 +280,26 @@ Rules:
                 ),
             )
             
-            # 6. Clean up the file (best effort)
-            try:
-                self.client.files.delete(name=uploaded_file.name)
-            except Exception:
-                pass
-                
             parsed = response.parsed
             parsed.source_system = source_system
+
+            usage = getattr(response.usage_metadata, "total_token_count", 0)
+            if usage > 0:
+                await asyncio.to_thread(log_ai_usage, job_id, usage, self.model_name, "sol_extraction")
+
+            log.info("sol_extraction_complete")
             return parsed
 
-        try:
-            result = await asyncio.to_thread(_extract)
-            log.info("sol_extraction_complete")
-            return result
         except Exception as exc:
             log.error("sol_extraction_failed", error=str(exc))
             raise
+
+        finally:
+            # 6. Clean up the file (GUARANTEED)
+            try:
+                await asyncio.to_thread(self.client.files.delete, name=uploaded_file.name)
+            except Exception as exc:
+                log.warning("sol_file_cleanup_failed", error=str(exc))
 
     async def generate_supplement_narrative(self, report: DiscrepancyReport, codes: str) -> str:
         """
@@ -303,6 +328,7 @@ Rules:
 
         try:
             response = await asyncio.to_thread(
+                self._call_with_backoff,
                 self.client.models.generate_content,
                 model=self.model_name,
                 contents=prompt,
@@ -311,13 +337,17 @@ Rules:
                 ),
             )
             
+            usage = getattr(response.usage_metadata, "total_token_count", 0)
+            if usage > 0:
+                await asyncio.to_thread(log_ai_usage, report.job_id, usage, self.model_name, "generate_supplement_narrative")
+            
             log.info("supplement_narrative_complete")
             return response.text
         except Exception as exc:
             log.error("supplement_narrative_failed", error=str(exc))
             raise
 
-    def analyze_roof_photo(self, file_info) -> PhotoAnalysis:
+    async def analyze_roof_photo(self, file_info, original_filename: str, job_id: str | None = None) -> PhotoAnalysis:
         """
         Multimodal damage analysis of a single roof photo using Gemini 2.5 Flash.
 
@@ -330,20 +360,24 @@ Rules:
 
         Args:
             file_info: A Gemini File API file reference (from client.files.get()).
+            original_filename: Original filename of the photo to prevent LLM schema hallucinations.
 
         Returns:
             PhotoAnalysis: Validated forensic damage assessment.
         """
         prompt = (
-            "You are Wickham Roofing's senior forensic inspector. "
-            "Analyze this roof photo for hail impact bruises, wind crease lines, "
-            "granule loss, and exposed fiberglass mat. "
-            "Output the exact damage classifications and a highly technical, "
-            "2-3 sentence forensic narrative designed to definitively prove "
-            "storm damage to an insurance adjuster."
+            f"You are Wickham Roofing's senior forensic inspector. "
+            f"Analyze this roof photo (File: {original_filename}) for hail impact bruises, wind crease lines, "
+            f"granule loss, and exposed fiberglass mat. "
+            f"Output the exact damage classifications and a highly technical, "
+            f"2-3 sentence forensic narrative designed to definitively prove "
+            f"storm damage to an insurance adjuster. "
+            f"For the 'filename' schema field, output exactly: {original_filename}"
         )
 
-        response = self.client.models.generate_content(
+        response = await asyncio.to_thread(
+            self._call_with_backoff,
+            self.client.models.generate_content,
             model=self.model_name,
             contents=[file_info, prompt],
             config=genai_types.GenerateContentConfig(
@@ -352,4 +386,9 @@ Rules:
                 temperature=0.1,
             ),
         )
-        return response.parsed
+
+        usage = getattr(response.usage_metadata, "total_token_count", 0)
+        if usage > 0:
+            await asyncio.to_thread(log_ai_usage, job_id, usage, self.model_name, "photo_analysis")
+
+        return response.parsed # type: ignore

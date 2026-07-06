@@ -26,16 +26,19 @@ class JobStatus(str, Enum):
     LEAD_CAPTURED = "LEAD_CAPTURED"
     PHOTOS_UPLOADED = "PHOTOS_UPLOADED"
     EV_PARSED = "EV_PARSED"
+    SUPPLEMENT_GENERATED = "SUPPLEMENT_GENERATED"
     SUPPLEMENT_SUBMITTED = "SUPPLEMENT_SUBMITTED"
     SCOPE_APPROVED = "SCOPE_APPROVED"
     MATERIAL_ORDERED = "MATERIAL_ORDERED"
     INSTALL_SCHEDULED = "INSTALL_SCHEDULED"
     INSTALL_COMPLETED = "INSTALL_COMPLETED"
+    INSPECTION_COMPLETED = "INSPECTION_COMPLETED"
     FINAL_INSPECTION = "FINAL_INSPECTION"
     INVOICED = "INVOICED"
     PAYMENT_RECEIVED = "PAYMENT_RECEIVED"
     CLOSED = "CLOSED"
     PIPELINE_FAILED = "PIPELINE_FAILED"
+    INSPECTION_FAILED = "INSPECTION_FAILED"
 
 def get_connection() -> sqlite3.Connection:
     """Get a SQLite connection with WAL mode enabled for concurrency."""
@@ -136,8 +139,27 @@ def init_db() -> None:
                 filename TEXT NOT NULL,
                 file_type TEXT NOT NULL,
                 storage_path TEXT NOT NULL,
+                sha256_hash TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(job_id) REFERENCES jobs(id)
+            )
+        ''')
+        
+        # Lightweight migration for job_documents sha256_hash
+        try:
+            conn.execute("ALTER TABLE job_documents ADD COLUMN sha256_hash TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_job_documents_hash ON job_documents(job_id, sha256_hash)")
+        except sqlite3.OperationalError:
+            pass # Column already exists
+            
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS ai_usage_logs (
+                id TEXT PRIMARY KEY,
+                job_id TEXT,
+                tokens_used INTEGER NOT NULL,
+                model_name TEXT NOT NULL,
+                operation_type TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         conn.execute('''
@@ -219,36 +241,51 @@ def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
     conn = get_connection()
     try:
         # Get current status history
-        cursor = conn.execute("SELECT status_history FROM jobs WHERE id = ?", (job_id,))
+        cursor = conn.execute("SELECT status, status_history FROM jobs WHERE id = ?", (job_id,))
         row = cursor.fetchone()
         if not row:
             raise ValueError(f"Job {job_id} not found.")
 
+        current_status = row["status"]
         history_str = row["status_history"]
-        history = json.loads(history_str) if history_str else []
 
-        # Create new history entry
-        entry = {
-            "status": new_status,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "note": note
-        }
-        history.append(entry)
+        # ---------------------------------------------------------
+        # STATE MACHINE ENFORCEMENT
+        # ---------------------------------------------------------
+        if new_status == JobStatus.MATERIAL_ORDERED:
+            fin_cursor = conn.execute("SELECT revenue FROM financials WHERE job_id = ?", (job_id,))
+            if not fin_cursor.fetchone():
+                raise RuntimeError("ILLEGAL TRANSITION: Cannot order materials without calculated financials.")
+        
+        elif new_status == JobStatus.INVOICED:
+            # Ensure the pipeline doesn't invoice a lead that wasn't built
+            valid_priors = [JobStatus.MATERIAL_ORDERED, JobStatus.INSTALL_SCHEDULED, JobStatus.INSTALL_COMPLETED, JobStatus.FINAL_INSPECTION, JobStatus.INVOICED]
+            if current_status not in valid_priors:
+                raise RuntimeError(f"ILLEGAL TRANSITION: Cannot invoice from state {current_status}.")
 
-        # Update DB with Optimistic Concurrency
-        if history_str is None:
-            cursor = conn.execute(
-                "UPDATE jobs SET status = ?, status_history = ? WHERE id = ? AND status_history IS NULL",
-                (new_status, json.dumps(history), job_id)
-            )
-        else:
-            cursor = conn.execute(
-                "UPDATE jobs SET status = ?, status_history = ? WHERE id = ? AND status_history = ?",
-                (new_status, json.dumps(history), job_id, history_str)
-            )
+        elif new_status == JobStatus.CLOSED:
+            if current_status != JobStatus.PAYMENT_RECEIVED:
+                raise RuntimeError("ILLEGAL TRANSITION: Cannot close job before PAYMENT_RECEIVED.")
+        # ---------------------------------------------------------
+
+        # Update DB with atomic JSON append to prevent race conditions
+        timestamp_str = datetime.utcnow().isoformat() + "Z"
+        cursor = conn.execute(
+            """
+            UPDATE jobs 
+            SET status = ?, 
+                status_history = json_insert(
+                    COALESCE(status_history, '[]'), 
+                    '$[#]', 
+                    json_object('status', ?, 'timestamp', ?, 'note', ?)
+                )
+            WHERE id = ?
+            """,
+            (new_status, new_status, timestamp_str, note, job_id)
+        )
             
         if cursor.rowcount == 0:
-            raise RuntimeError("Concurrent status update detected")
+            raise ValueError(f"Job {job_id} not found during update")
             
         conn.commit()
         logger.info("job_status_updated", job_id=job_id, status=new_status)
@@ -360,11 +397,12 @@ async def backup_database() -> None:
     Enforces a backup retention limit based on application settings.
     Runs asynchronously to avoid locking the event loop.
     """
-    def _do_backup():
+    def _do_backup() -> None:
         backup_dir = Path("data/backups")
         backup_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = backup_dir / f"crm_backup_{timestamp}.db"
+        unique_id = uuid.uuid4().hex[:6]
+        backup_path = backup_dir / f"crm_backup_{timestamp}_{unique_id}.db"
         
         conn = get_connection()
         try:
@@ -390,20 +428,33 @@ async def backup_database() -> None:
 
     await asyncio.to_thread(_do_backup)
 
-def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str) -> str:
-    """Insert a new document tracking record into the vault."""
+def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str, sha256_hash: str | None = None) -> None:
+    """Register a generated or uploaded file in the universal document vault."""
     conn = get_connection()
-    doc_id = str(uuid.uuid4())
     try:
+        doc_id = str(uuid.uuid4())
         conn.execute(
-            "INSERT INTO job_documents (id, job_id, filename, file_type, storage_path) VALUES (?, ?, ?, ?, ?)",
-            (doc_id, job_id, filename, file_type, storage_path)
+            "INSERT INTO job_documents (id, job_id, filename, file_type, storage_path, sha256_hash) VALUES (?, ?, ?, ?, ?, ?)",
+            (doc_id, job_id, filename, file_type, storage_path, sha256_hash)
         )
         conn.commit()
-        return doc_id
+        logger.info("job_document_registered", doc_id=doc_id, job_id=job_id, file_type=file_type)
     except Exception as e:
-        logger.error("insert_job_document_failed", error=str(e))
+        logger.error("job_document_registration_failed", error=str(e))
         raise
+    finally:
+        conn.close()
+
+def get_job_document_by_hash(job_id: str, sha256_hash: str) -> dict | None:
+    """Lookup an existing document by its content hash to prevent duplicate processing."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "SELECT * FROM job_documents WHERE job_id = ? AND sha256_hash = ?",
+            (job_id, sha256_hash)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()
 
@@ -454,5 +505,20 @@ def update_job_metadata(job_id: str, inspector_name: str, inspection_date: str, 
     except Exception as e:
         logger.error("update_job_metadata_failed", job_id=job_id, error=str(e))
         raise
+    finally:
+        conn.close()
+
+def log_ai_usage(job_id: str | None, tokens_used: int, model_name: str, operation_type: str) -> None:
+    """Synchronously log AI token consumption to the database."""
+    conn = get_connection()
+    try:
+        log_id = str(uuid.uuid4())
+        conn.execute('''
+            INSERT INTO ai_usage_logs (id, job_id, tokens_used, model_name, operation_type)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (log_id, job_id, tokens_used, model_name, operation_type))
+        conn.commit()
+    except Exception as e:
+        logger.error("failed_to_log_ai_usage", error=str(e))
     finally:
         conn.close()

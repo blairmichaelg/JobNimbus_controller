@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] - 2026-07-06
+### Added
+- **Infrastructure Hardening**: Implemented automated nightly ARQ garbage collection for `.tmp` artifacts.
+- **Cryptographic Deduplication**: Replaced redundant file processing with SHA-256 stream hashing and API short-circuiting.
+- **Atomic Concurrency**: Refactored SQLite state machine to use `json_insert()`, eliminating Optimistic Concurrency crash risks.
+
 ## [0.4.0] - 2026-06-30
 ### Added
 - **V4 Local CRM Pivot (Truck Server)**: Full independent pipeline replacing SaaS CRMs.

@@ -7,7 +7,7 @@ from app.main import app
 from app.core.database import get_connection
 
 client = TestClient(app)
-client.headers.update({"X-Internal-Token": "dev-secret-token"})
+client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def setup_teardown():
@@ -36,7 +36,7 @@ def test_full_job_lifecycle(tmp_path):
     }
     
     # We bypass ngrok header requirement in testing if we mock it, or just send it
-    response = client.post("/api/field/jobs", json=lead_payload, headers={"ngrok-skip-browser-warning": "1"})
+    response = client.post("/api/field/jobs", json=lead_payload, headers={"ngrok-skip-browser-warning": "1", "X-Internal-Token": "field-secret-token"})
     assert response.status_code == 200
     job_id = response.json()["job_id"]
     
@@ -49,6 +49,26 @@ def test_full_job_lifecycle(tmp_path):
         assert row["status"] == "LEAD_CAPTURED"
     finally:
         conn.close()
+        
+    # Satisfy State Machine pre-requisites
+    fin_payload = {
+        "revenue": 15000.0,
+        "carrier_rcv": 15000.0,
+        "materials": 5000.0,
+        "labor": 4000.0,
+        "overhead_pct": 0.25,
+        "commission_pct": 0.10,
+        "permits_fee": 150.0
+    }
+    client.post(f"/api/office/jobs/{job_id}/financials", json=fin_payload, headers={"X-Internal-Token": "office-secret-token"})
+    
+    prod_payload = {
+        "supplier_name": "ABC Supply",
+        "delivery_date": "2026-07-10T12:00:00Z",
+        "crew_name": "Crew Alpha",
+        "install_date": "2026-07-12T08:00:00Z"
+    }
+    client.post(f"/api/office/jobs/{job_id}/production", json=prod_payload, headers={"X-Internal-Token": "office-secret-token"})
         
     # 3. Create a fake EV PDF
     fake_pdf = tmp_path / "fake_eagleview.pdf"
@@ -77,7 +97,8 @@ def test_full_job_lifecycle(tmp_path):
         with open(fake_pdf, "rb") as f:
             upload_resp = client.post(
                 f"/api/office/jobs/{job_id}/eagleview",
-                files={"file": ("fake_eagleview.pdf", f, "application/pdf")}
+                files={"file": ("fake_eagleview.pdf", f, "application/pdf")},
+                headers={"X-Internal-Token": "office-secret-token"}
             )
             
     assert upload_resp.status_code == 200

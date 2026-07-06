@@ -18,16 +18,35 @@ from app.services.ai_service import AIService
 from app.core.reconciliation import reconcile
 from app.core.code_router import parse_code_files, get_relevant_codes
 from app.services.pdf_generator import PDFGenerator
+from app.core.database import get_connection, insert_job_document, update_job_status, JobStatus
 
 logger = structlog.get_logger("app.workers.supplement_processor")
 
 
-async def process_supplement_event(ctx: dict, jnid: str, ev_pdf_path: str, sol_pdf_path: str) -> dict:
+import asyncio
+
+def _fetch_job_context_sync(job_id: str) -> dict:
+    """Synchronously fetch the job context from SQLite."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError(f"Job {job_id} not found in database.")
+        return dict(row)
+    finally:
+        conn.close()
+
+
+async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: str, sol_pdf_path: str) -> dict:
     """
     ARQ Task to handle the complete supplement request flow.
     """
-    log = logger.bind(jnid=jnid)
+    log = logger.bind(job_id=job_id)
     log.info("supplement_processing_started", ev_pdf=ev_pdf_path, sol_pdf=sol_pdf_path)
+
+    # 0. Fetch Job Context (Threaded)
+    job_dict = await asyncio.to_thread(_fetch_job_context_sync, job_id)
 
     temp_pdf_path = None
     try:
@@ -36,51 +55,35 @@ async def process_supplement_event(ctx: dict, jnid: str, ev_pdf_path: str, sol_p
 
         # 2. Extract SoL Data
         ai_service = AIService()
-        sol_data = await ai_service.extract_sol_from_pdf(sol_pdf_path)
+        sol_data = await ai_service.extract_sol_from_pdf(sol_pdf_path, job_id=job_id)
 
         # 3. Reconcile
-        report = reconcile(ev_data, sol_data, job_id=jnid)
+        report = await asyncio.to_thread(reconcile, ev_data, sol_data, job_id=job_id)
 
         # 4. Load Target Building Codes (Zero-Cost RAG)
-        code_index = parse_code_files()
-        codes = get_relevant_codes(report, code_index)
+        code_index = await asyncio.to_thread(parse_code_files)
+        codes = await asyncio.to_thread(get_relevant_codes, report, code_index)
 
         # 5. Generate Narrative
         narrative = await ai_service.generate_supplement_narrative(report, codes)
 
         # 6. Generate PDF
         pdf_gen = PDFGenerator()
-        temp_pdf_path = await pdf_gen.generate_supplement_pdf(report, narrative, jnid=jnid)
+        temp_pdf_path = await pdf_gen.generate_supplement_pdf(report, narrative, job=job_dict)
 
-        # 7. Upload to CRM (mocked in tests, real in production if jn_client exists in ctx)
-        if "jn_client" in ctx:
-            jn_client = ctx["jn_client"]
-            await jn_client.upload_document(
-                jnid=jnid,
-                filepath=temp_pdf_path,
-                description="Wickham Roofing Supplement Request",
-                file_type=1,
-            )
-            
-            # Optional: Update status
-            await jn_client.update_job(jnid, {"status_name": "Supplement Filed"})
-            
+        # 7. Vault Document & Update State (Threaded)
+        if not ctx.get("is_test"):
+            await asyncio.to_thread(insert_job_document, job_id, "Supplement_Request.pdf", "application/pdf", temp_pdf_path)
+            await asyncio.to_thread(update_job_status, job_id, JobStatus.SUPPLEMENT_GENERATED)
+
         log.info("supplement_processing_complete")
         return {"status": "success", "pdf_path": temp_pdf_path}
 
     except Exception as exc:
         log.error("supplement_processing_failed", error=str(exc))
+        if not ctx.get("is_test"):
+            await asyncio.to_thread(update_job_status, job_id, JobStatus.PIPELINE_FAILED, note=str(exc))
         raise
     finally:
         # Cleanup temporary PDF
-        if temp_pdf_path and Path(temp_pdf_path).exists():
-            try:
-                # If we're not running in a standalone test where we want to keep the file, delete it.
-                # Since we want to return it for the test script to see, we won't delete it here 
-                # unless explicitly in a worker cleanup context. But standard behavior is to delete.
-                # We'll leave it up to the caller to clean up in the test script, 
-                # but in production, we should unlink it after upload.
-                if "jn_client" in ctx:
-                    Path(temp_pdf_path).unlink()
-            except Exception as e:
-                log.warning("temp_pdf_cleanup_failed", filepath=temp_pdf_path, error=str(e))
+        pass

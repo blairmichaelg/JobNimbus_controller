@@ -18,30 +18,23 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore"
     )
 
-    # --- JobNimbus CRM ---
-    jobnimbus_api_key: str | None = Field(
-        default=None,
-        description="Legacy SaaS integration. Unused in V4 local mode."
-    )
-    jobnimbus_base_url: str | None = Field(
-        default=None,
-        description="Legacy SaaS integration. Unused in V4 local mode.",
-    )
-    jobnimbus_actor_email: str | None = Field(
-        default=None,
-        description="Legacy SaaS integration. Unused in V4 local mode.",
-    )
+
 
     # --- Webhook Security ---
     webhook_secret: str = Field(
         ...,
         description="Shared secret for x-api-key header validation on inbound webhooks.",
     )
-    internal_api_token: str = Field(
-        default="dev-secret-token",
-        description="Global access token for backend API endpoints.",
+    office_internal_token: str = Field(
+        default="office-secret-token",
+        description="Global access token for backend office endpoints.",
+    )
+    field_internal_token: str = Field(
+        default="field-secret-token",
+        description="Global access token for backend field endpoints.",
     )
 
     # --- Redis ---
@@ -104,7 +97,12 @@ def get_settings() -> Settings:
 
 from fastapi import Header, HTTPException
 
-async def verify_internal_token(x_internal_token: str = Header(...)):
-    """Global dependency to verify internal API routes."""
-    if x_internal_token != get_settings().internal_api_token:
+async def verify_office_token(x_internal_token: str = Header(...)):
+    """Dependency to verify corporate internal routes."""
+    if x_internal_token != get_settings().office_internal_token:
+        raise HTTPException(status_code=401, detail="Invalid internal token")
+
+async def verify_field_token(x_internal_token: str = Header(...)):
+    """Dependency to verify field internal routes."""
+    if x_internal_token != get_settings().field_internal_token:
         raise HTTPException(status_code=401, detail="Invalid internal token")

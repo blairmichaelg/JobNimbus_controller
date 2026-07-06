@@ -22,11 +22,12 @@ from pydantic import BaseModel, Field
 from app.core.inspection_models import get_stable_photos, InspectionJob
 from app.core.cache import get_cached_analyses_for_job
 from app.core.database import get_connection, update_job_status
-from app.config import verify_internal_token
+from app.config import verify_field_token
+from app.core.upload_utils import stream_upload_safely
 
 logger = structlog.get_logger("app.api.field_routes")
 
-router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends(verify_internal_token)])
+router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends(verify_field_token)])
 
 # Base directories (created on startup)
 FIELD_PHOTOS_DIR = Path("field_photos")
@@ -49,7 +50,7 @@ class SignaturePayload(BaseModel):
     signature_base64: str = Field(..., description="Data URI from HTML5 Canvas (data:image/png;base64,...)")
 
 @router.post("/jobs")
-async def create_new_job(payload: LeadIntakePayload):
+def create_new_job(payload: LeadIntakePayload):
     """
     Intake hook for new leads. Replaces JobNimbus lead creation.
     Generates UUID, creates directories, and initializes local SQLite record.
@@ -111,11 +112,8 @@ async def upload_field_photo(job_id: str, file: UploadFile = File(...)):
     file_path = job_dir / safe_name
 
     try:
-        content = await file.read()
-        if len(content) > 10 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="File too large (10MB max).")
-        file_path.write_bytes(content)
-        logger.info("field_photo_uploaded", job_id=job_id, filename=safe_name, bytes=len(content))
+        await stream_upload_safely(file, file_path)
+        logger.info("field_photo_uploaded", job_id=job_id, filename=safe_name, size=getattr(file, "size", 0))
         return {"status": "success", "filename": safe_name}
     except HTTPException:
         raise
@@ -125,7 +123,7 @@ async def upload_field_photo(job_id: str, file: UploadFile = File(...)):
 
 
 @router.get("/jobs/{job_id}/inspection", response_model=InspectionJob)
-async def get_inspection_summary(job_id: str):
+def get_inspection_summary(job_id: str):
     """
     Retrieve the full InspectionJob summary.
     Constructs the job by scanning the local field_photos/{job_id} directory

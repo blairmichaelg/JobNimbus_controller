@@ -139,3 +139,49 @@ def test_qbo_export_unmapped_item_fallback():
         
         # 'custom_fee_xyz' is not in QBO_ITEMS, so it should be output literally
         assert rows[1][4] == "custom_fee_xyz"
+
+
+from unittest.mock import patch
+from app.core.supplement_models import MaterialBOM
+from app.services.qbo_export import generate_qbo_invoice
+
+@patch("app.core.database.get_financials")
+def test_generate_qbo_invoice_includes_op_and_fees(mock_get_financials):
+    """Verify that O&P and Permit Fees are injected from the financials table."""
+    mock_get_financials.return_value = {
+        "overhead_pct": 10.0, 
+        "material_cost": 10000.0,
+        "labor_cost": 5000.0,
+        "permits_fee": 150.00
+    }
+    
+    bom = MaterialBOM(
+        field_shingle_bundles=30,
+        starter_bundles=2,
+        ridge_cap_bundles=3,
+        ice_water_rolls=1,
+        underlayment_rolls=4,
+        drip_edge_pieces=10,
+        vents_count=0,
+        nails_boxes=0,
+        sealant_tubes=0
+    )
+    
+    # We also mock update_job_status and get_pricing_ledger to keep it isolated
+    with patch("app.services.qbo_export.update_job_status"), \
+         patch("app.services.qbo_export.get_pricing_ledger", return_value={"field_shingle_bundles": 100.0}):
+        
+        filepath = generate_qbo_invoice("demo_job_1", bom)
+        
+        with open(filepath, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+            
+            # The last two rows should be O&P and Permit Fees
+            op_row = [r for r in rows if r[5] == "Overhead & Profit"][0]
+            assert op_row[4] == "General:Overhead and Profit"
+            assert op_row[8] == "1500.00"
+            
+            permit_row = [r for r in rows if r[5] == "Permits & Fees"][0]
+            assert permit_row[4] == "General:Permits"
+            assert permit_row[8] == "150.00"

@@ -45,12 +45,12 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
         bom = report.material_bom
         log.info("pipeline_bom_calculated", field_bundles=bom.field_shingle_bundles)
         
-        # 3. Generate QBO CSV with dynamic pricing
-        csv_path = generate_qbo_invoice(job_id, bom, customer_name=customer_name)
+        import asyncio
+        # 3. Generate QBO CSV with dynamic pricing (Threaded)
+        csv_path = await asyncio.to_thread(generate_qbo_invoice, job_id, bom, customer_name)
         log.info("pipeline_qbo_generated", csv_path=csv_path)
         
-        # 4. Transition Status
-        update_job_status(job_id, JobStatus.INVOICED, f"Automated Pipeline Completed. QBO Invoice: {Path(csv_path).name}")
+        # 4. Transition Status (generate_qbo_invoice does INVOICED internally, but we log it)
         log.info("master_pipeline_completed")
         
         return {
@@ -62,5 +62,6 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
         
     except Exception as e:
         log.error("master_pipeline_failed", error=str(e))
-        update_job_status(job_id, JobStatus.PIPELINE_FAILED, f"Pipeline crashed: {str(e)}")
+        import asyncio
+        await asyncio.to_thread(update_job_status, job_id, JobStatus.PIPELINE_FAILED, f"Pipeline crashed: {str(e)}")
         raise

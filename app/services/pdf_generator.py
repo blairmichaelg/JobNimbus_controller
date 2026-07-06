@@ -61,6 +61,9 @@ class PDFGenerator:
             "FinePrint": ParagraphStyle(
                 "FinePrint", parent=base_normal, fontSize=8, textColor=colors.dimgrey, alignment=4
             ),
+            "DocControl": ParagraphStyle(
+                "DocControl", parent=base_normal, fontSize=10, fontName="Helvetica-Oblique", textColor=colors.darkgrey, alignment=2 # 2=TA_RIGHT
+            ),
             "Normal": base_normal,
         }
 
@@ -78,26 +81,38 @@ class PDFGenerator:
         canvas.line(50, 710, 560, 710)
         canvas.restoreState()
 
-    def _build_signature_block(self, title1: str = "Homeowner Signature & Date", title2: str = "Contractor Signature & Date"):
+    def _build_signature_block(self, title1: str = "Homeowner Signature", title2: str = "Contractor Signature"):
         """Returns a KeepTogether flowable for clean signature blocks."""
-        story = []
+        story: list = []
         story.append(Spacer(1, 30))
         
-        # We can use a 2-column table for side-by-side signatures, or stacked.
-        # The prompt asks for Homeowner and Contractor lines. Let's do stacked for simplicity and space.
-        story.append(HRFlowable(width="50%", thickness=1, color=colors.black, hAlign='LEFT'))
-        story.append(Paragraph(title1, self.custom_styles["BodyText"]))
-        story.append(Spacer(1, 40))
-        story.append(HRFlowable(width="50%", thickness=1, color=colors.black, hAlign='LEFT'))
-        story.append(Paragraph(title2, self.custom_styles["BodyText"]))
+        # Two columns: Signature and Date
+        data = [
+            ["", ""],
+            [title1, "Date"],
+            ["", ""],
+            [title2, "Date"]
+        ]
+        
+        # Create physical signature lines using LINEABOVE
+        t = Table(data, colWidths=[250, 100])
+        t.setStyle(TableStyle([
+            ('LINEABOVE', (0,1), (0,1), 1, colors.black),
+            ('LINEABOVE', (1,1), (1,1), 1, colors.black),
+            ('LINEABOVE', (0,3), (0,3), 1, colors.black),
+            ('LINEABOVE', (1,3), (1,3), 1, colors.black),
+            ('PADDING', (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,1), (-1,1), 30), # Space before next signature
+        ]))
+        story.append(t)
         
         return KeepTogether(story)
 
-    def _get_doc_template(self, filepath: str, top_margin: int = 100) -> BaseDocTemplate:
+    def _get_doc_template(self, filepath: str, top_margin: int = 144) -> BaseDocTemplate:
         """Returns a BaseDocTemplate configured with a Frame that prevents overlapping with the header."""
         doc = BaseDocTemplate(filepath, pagesize=letter, leftMargin=50, rightMargin=50, topMargin=top_margin, bottomMargin=50)
         # letter height is 792. Leave space at the top.
-        frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height - top_margin, id='normal')
+        frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='normal')
         template = PageTemplate(id='standard', frames=frame, onPage=self._universal_letterhead)
         doc.addPageTemplates([template])
         return doc
@@ -136,16 +151,16 @@ class PDFGenerator:
         ]))
         return t
 
-    async def generate_estimate_pdf(self, data: dict, jnid: str) -> str:
+    async def generate_estimate_pdf(self, data: dict, job_id: str) -> str:
         """
         Generate a PDF estimate from AI-structured data and return the absolute filepath.
         Uses a secure temporary file that the caller should clean up when done.
         """
-        log = logger.bind(jnid=jnid)
+        log = logger.bind(job_id=job_id)
         log.info("pdf_generation_started")
 
         # Create a secure temporary file that persists until manually deleted
-        job_dir = FIELD_DOCS_DIR / jnid
+        job_dir = FIELD_DOCS_DIR / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
         filepath = str(job_dir / "estimate.pdf")  # Close so ReportLab can write to it
 
@@ -166,30 +181,63 @@ class PDFGenerator:
                 textColor=colors.dimgrey,
             )
             
-            # --- 1. Company Header Block ---
-            story.append(Paragraph("<b>Wickham Roofing LLC</b>", header_style))
-            story.append(Paragraph("3074 Ellen St., Ochlocknee, GA, 31773", normal_style))
-            story.append(Spacer(1, 6))
-            story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceBefore=0, spaceAfter=12))
-            
-            # --- 2. Metadata ---
+            # --- 1. Metadata ---
             story.append(Paragraph("<b>Roofing Estimate</b>", self.styles["Heading2"]))
-            story.append(Paragraph(f"<b>Job ID:</b> {jnid}", normal_style))
+            story.append(Paragraph(f"<b>Job ID:</b> {job_id}", normal_style))
             story.append(Spacer(1, 12))
             
             # --- 3. Materials ---
             story.append(Paragraph("<b>Scope of Work / Materials:</b>", normal_style))
+            story.append(Spacer(1, 6))
             materials = data.get("materials", [])
+            
+            mat_map = {
+                "field_shingle_bundles": "Field Shingles (Bundles)",
+                "starter_bundles": "Starter Shingles (Bundles)",
+                "ridge_cap_bundles": "Ridge Cap (Bundles)",
+                "ice_water_rolls": "Ice & Water Shield (Rolls)",
+                "underlayment_rolls": "Synthetic Underlayment (Rolls)",
+                "drip_edge_pieces": "Drip Edge (Pieces)",
+                "vents_count": "Roof Vents (Count)",
+                "nails_boxes": "Nails (Boxes)",
+                "sealant_tubes": "Sealant (Tubes)"
+            }
+            
             if materials:
-                bullet_items = [ListItem(Paragraph(str(m), normal_style)) for m in materials]
-                story.append(ListFlowable(bullet_items, bulletType='bullet'))
+                clean_materials = []
+                for m in materials:
+                    m_str = str(m)
+                    if ":" in m_str:
+                        key, val = m_str.split(":", 1)
+                        clean_key = mat_map.get(key.strip(), key.strip().replace("_", " ").title())
+                        clean_materials.append([clean_key, val.strip()])
+                    else:
+                        clean_materials.append([m_str, "1"])
+                        
+                t_data = [["Material", "Quantity"]] + clean_materials
+                t = Table(t_data, colWidths=[350, 100])
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                    ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
+                    ('PADDING', (0,0), (-1,-1), 6)
+                ]))
+                story.append(t)
             else:
                 story.append(Paragraph("No materials specified.", normal_style))
             story.append(Spacer(1, 12))
             
             # --- 4. Total Cost ---
             total_cost = data.get("total_cost", 0.0)
-            story.append(Paragraph(f"<b>Total Cost:</b> ${total_cost:,.2f}", normal_style))
+            total_style = ParagraphStyle(
+                name="TotalCost",
+                parent=normal_style,
+                fontSize=14,
+                fontName="Helvetica-Bold",
+                alignment=2 # 2=TA_RIGHT
+            )
+            story.append(Paragraph(f"Total Cost: ${total_cost:,.2f}", total_style))
             story.append(Spacer(1, 40))
             
             # --- 5. Legal Terms & Disclaimers Boilerplate ---
@@ -214,17 +262,18 @@ class PDFGenerator:
             log.error("pdf_generation_failed", error=str(exc))
             raise
 
-    async def generate_supplement_pdf(self, report: DiscrepancyReport, narrative: str, jnid: str) -> str:
+    async def generate_supplement_pdf(self, report: DiscrepancyReport, narrative: str, job: dict) -> str:
         """
         Generate a Supplement Request PDF including the discrepancy summary and AI narrative.
         Returns the absolute filepath to the temporary PDF.
         """
-        log = logger.bind(jnid=jnid)
+        job_id = job.get("id", "UNKNOWN")
+        log = logger.bind(job_id=job_id)
         log.info("supplement_pdf_generation_started")
 
         job_dir = FIELD_DOCS_DIR / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
-        filepath = str(job_dir / "line_item_grid.pdf")
+        filepath = str(job_dir / "Supplement_Request.pdf")
 
         def build_pdf():
             doc = self._get_doc_template(filepath)
@@ -247,15 +296,12 @@ class PDFGenerator:
                 textColor=colors.dimgrey,
             )
             
-            # --- 1. Company Header Block ---
-            story.append(Paragraph("<b>Wickham Roofing LLC</b>", header_style))
-            story.append(Paragraph("3074 Ellen St., Ochlocknee, GA, 31773", normal_style))
-            story.append(Spacer(1, 6))
-            story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceBefore=0, spaceAfter=12))
-            
-            # --- 2. Title ---
+            # --- 1. Title ---
             story.append(Paragraph("<b>SUPPLEMENT REQUEST</b>", self.styles["Heading2"]))
-            story.append(Paragraph(f"<b>Job ID:</b> {jnid}", normal_style))
+            story.append(Spacer(1, 12))
+            
+            # --- 2. Metadata ---
+            story.append(self._build_metadata_table(job))
             story.append(Spacer(1, 12))
             
             # --- 3. Discrepancy Table ---
@@ -266,9 +312,9 @@ class PDFGenerator:
             for d in report.discrepancies:
                 table_data.append([
                     d.category,
-                    str(d.ev_value) if d.ev_value is not None else "N/A",
-                    str(d.sol_value) if d.sol_value is not None else "N/A",
-                    str(d.variance) if d.variance is not None else "N/A",
+                    f"{d.ev_value:.2f}" if isinstance(d.ev_value, (int, float)) else str(d.ev_value) if d.ev_value is not None else "N/A",
+                    f"{d.sol_value:.2f}" if isinstance(d.sol_value, (int, float)) else str(d.sol_value) if d.sol_value is not None else "N/A",
+                    f"{d.variance:.2f}" if isinstance(d.variance, (int, float)) else str(d.variance) if d.variance is not None else "N/A",
                 ])
                 
             if len(table_data) > 1:
@@ -372,8 +418,13 @@ class PDFGenerator:
                     continue
                 
                 try:
-                    # Render image with proportional constraint (max width 300 to fit half page)
-                    img = Image(str(photo_record.filepath), width=300, height=200, kind='proportional')
+                    # Render image safely with proportional constraint (max width 300 to fit half page)
+                    # FIX: Prevent catastrophic ReportLab OOM crashes by downsampling first
+                    from app.workers.inspection_processor import resize_for_pdf
+                    from reportlab.lib.utils import ImageReader
+                    
+                    safe_image_buffer = resize_for_pdf(photo_record.filepath, max_width=800)
+                    img = Image(ImageReader(safe_image_buffer), width=300, height=200, kind='proportional')
                     
                     # Create data box table
                     data_rows = [
@@ -583,7 +634,7 @@ class PDFGenerator:
             story = []
             
             for copy_type in ["Customer Copy", "Contractor Copy"]:
-                story.append(Paragraph(copy_type, self.custom_styles["FinePrint"]))
+                story.append(Paragraph(copy_type, self.custom_styles["DocControl"]))
                 story.append(Spacer(1, 10))
                 
                 story.append(Paragraph("NOTICE OF CANCELLATION", self.custom_styles["Title"]))
@@ -608,7 +659,7 @@ class PDFGenerator:
                 story.append(Spacer(1, 40))
                 
                 # Use standard signature block but with specific Homeowner Signature text
-                story.append(self._build_signature_block(title1="Homeowner Signature", title2="Date"))
+                story.append(self._build_signature_block(title1="Homeowner Signature", title2="Contractor Signature"))
                 
                 if copy_type == "Customer Copy":
                     story.append(PageBreak())
@@ -666,7 +717,7 @@ class PDFGenerator:
             story.append(self._box_warning("Warranty Disclaimer", warranty_text, colors.lightgrey))
             story.append(Spacer(1, 20))
             
-            story.append(self._build_signature_block(title1="Homeowner Signature & Date", title2="Wickham Roofing LLC Representative & Date"))
+            story.append(self._build_signature_block(title1="Homeowner Signature", title2="Wickham Roofing LLC Representative"))
             
             doc.build(story)
 
@@ -760,7 +811,8 @@ class PDFGenerator:
                 ('BACKGROUND', (0,0), (-1,0), colors.grey),
                 ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
                 ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('ALIGN', (2,0), (-1,-1), 'RIGHT'),
+                ('ALIGN', (0,0), (1,-1), 'LEFT'),
+                ('ALIGN', (2,0), (-1,-1), 'RIGHT'), # explicit right-align Revenue, Costs, Margin
                 ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
                 ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
                 ('PADDING', (0,0), (-1,-1), 6)
@@ -793,8 +845,8 @@ class PDFGenerator:
                 ["Job ID:", job.get("id", "N/A")],
                 ["Homeowner:", job.get("homeowner_name", "N/A")],
                 ["Property Address:", address],
-                ["Inspector:", job.get("inspector_name", "N/A")],
-                ["Inspection Date:", job.get("inspection_date", "N/A")]
+                ["Inspector:", job.get("inspector_name") or "Pending Assignment"],
+                ["Inspection Date:", job.get("inspection_date") or "TBD"]
             ]
             
             t = Table(meta_data, colWidths=[120, 380])
@@ -813,16 +865,45 @@ class PDFGenerator:
             ridge = ev_data.get("ridges", "N/A")
             valleys = ev_data.get("valleys", "N/A")
             eaves = ev_data.get("eaves", "N/A")
-            meas_text = f"Total Squares: {sq} SQ<br/>Ridges: {ridge} LF<br/>Valleys: {valleys} LF<br/>Eaves (Drip Edge): {eaves} LF"
-            story.append(Paragraph(meas_text, self.custom_styles["BodyText"]))
+            
+            meas_data = [
+                ["Measurement Type", "Value"],
+                ["Total Squares", f"{sq} SQ"],
+                ["Ridges", f"{ridge} LF"],
+                ["Valleys", f"{valleys} LF"],
+                ["Eaves (Drip Edge)", f"{eaves} LF"]
+            ]
+            meas_table = Table(meas_data, colWidths=[250, 150])
+            meas_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
+                ('PADDING', (0,0), (-1,-1), 6)
+            ]))
+            story.append(meas_table)
             story.append(Spacer(1, 15))
             
             story.append(Paragraph("Photo Evidence Summary", self.custom_styles["SectionHeading"]))
             damage_count = inspection_summary.get("damage_count", 0)
             predominant = inspection_summary.get("predominant_damage_type", "None detected")
             severity = inspection_summary.get("severity", "Unknown")
-            photo_text = f"Detected Damage Count: {damage_count}<br/>Predominant Damage Type: {predominant}<br/>Overall Severity: {severity}"
-            story.append(Paragraph(photo_text, self.custom_styles["BodyText"]))
+            
+            photo_data = [
+                ["Metric", "Assessment"],
+                ["Detected Damage Count", str(damage_count)],
+                ["Predominant Damage Type", str(predominant)],
+                ["Overall Severity", str(severity)]
+            ]
+            photo_table = Table(photo_data, colWidths=[250, 150])
+            photo_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
+                ('PADDING', (0,0), (-1,-1), 6)
+            ]))
+            story.append(photo_table)
             story.append(Spacer(1, 15))
             
             if "notes" in inspection_summary:
@@ -841,7 +922,7 @@ class PDFGenerator:
             story.append(self._box_warning("Disclaimer", legal_text, colors.darkred))
             story.append(Spacer(1, 20))
             
-            story.append(self._build_signature_block(title1="Inspector Signature & Date", title2="Homeowner Acknowledgment & Date"))
+            story.append(self._build_signature_block(title1="Inspector Signature", title2="Homeowner Acknowledgment"))
             
             doc.build(story)
             

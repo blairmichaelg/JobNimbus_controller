@@ -14,7 +14,7 @@ from app.core.cache import set_cached_analysis, init_db
 from app.core.inspection_models import PhotoAnalysis, DamageType, Severity
 
 client = TestClient(app)
-client.headers.update({"X-Internal-Token": "dev-secret-token"})
+client.headers.update({"X-Internal-Token": "field-secret-token"})
 
 @pytest.fixture(autouse=True)
 def setup_dirs(tmp_path, monkeypatch):
@@ -39,6 +39,12 @@ def setup_dirs(tmp_path, monkeypatch):
     yield
     
     # Cleanup handled by tmp_path
+
+def test_field_routes_deny_office_token():
+    """Should return 401 Unauthorized if using an office token."""
+    response = client.get("/api/field/jobs/TEST-123/inspection", headers={"X-Internal-Token": "office-secret-token"})
+    assert response.status_code == 401
+    assert "Invalid internal token" in response.json()["detail"]
 
 def test_create_new_job_lead_intake():
     """POST /api/field/jobs should insert a DB row and create directories."""

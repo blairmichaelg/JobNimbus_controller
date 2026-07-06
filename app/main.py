@@ -26,7 +26,6 @@ from app.api.office_routes import router as office_router
 from app.config import get_settings
 from app.core.cache import init_db as init_cache_db
 from app.core.database import init_db as init_crm_db
-from legacy_jobnimbus.jobnimbus_client import JobNimbusClient
 import os
 
 
@@ -88,11 +87,6 @@ async def lifespan(app: FastAPI):
         dry_run=settings.dry_run,
         quarantine_status=settings.quarantine_status,
     )
-
-    # Initialize the shared JobNimbus API client (Phase 2)
-    jn_client = JobNimbusClient(settings)
-    app.state.jn_client = jn_client
-    logger.info("jobnimbus_client_attached_to_app_state")
 
     # Initialize V3 Cache and Directories (Epic 1 & 2)
     init_cache_db()
@@ -193,14 +187,14 @@ async def health_check():
 @app.get("/app", tags=["frontend"])
 async def serve_frontend(request: Request):
     """Serve the Truck Server mobile web interface."""
-    return templates.TemplateResponse("field_app.html", {"request": request})
+    return templates.TemplateResponse(request, "field_app.html", {"request": request})
 
 @app.get("/office", tags=["frontend"])
 async def serve_office_dashboard(request: Request):
     """Serve the Office Control Center desktop dashboard."""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse(request, "dashboard.html", {"request": request})
 
 @app.get("/office/jobs/{job_id}", tags=["frontend"])
 async def serve_job_detail(request: Request, job_id: str):
     """Serve the unified Job Overview dashboard."""
-    return templates.TemplateResponse("job_detail.html", {"request": request, "job_id": job_id})
+    return templates.TemplateResponse(request, "job_detail.html", {"request": request, "job_id": job_id})

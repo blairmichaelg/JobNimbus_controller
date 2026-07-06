@@ -10,10 +10,12 @@ discover tasks, configure Redis connections, and set job defaults.
 """
 
 import structlog
+import asyncio
 from arq.connections import RedisSettings
+from arq.cron import cron
 
 from app.config import get_settings
-from legacy_jobnimbus.jobnimbus_client import JobNimbusClient
+from app.core.cleanup import cleanup_orphaned_artifacts
 
 logger = structlog.get_logger("app.workers.settings")
 
@@ -45,7 +47,6 @@ def get_redis_settings() -> RedisSettings:
         from urllib.parse import urlparse
 
         parsed = urlparse(url)
-        parsed = urlparse(url)
         return RedisSettings(
             host=parsed.hostname or "localhost",
             port=parsed.port or 6379,
@@ -56,28 +57,25 @@ def get_redis_settings() -> RedisSettings:
 async def startup(ctx: dict) -> None:
     """
     ARQ worker startup hook.
-
-    Initializes shared resources (like the JobNimbus API client) and
-    injects them into the worker context so tasks can use them.
     """
     logger.info("worker_starting_up")
-    settings = get_settings()
-    jn_client = JobNimbusClient(settings)
-    ctx["jn_client"] = jn_client
-    logger.info("worker_injected_jobnimbus_client")
 
 
 async def shutdown(ctx: dict) -> None:
     """
     ARQ worker shutdown hook.
-
-    Cleanly closes shared resources to prevent resource leaks.
     """
     logger.info("worker_shutting_down")
-    jn_client: JobNimbusClient | None = ctx.get("jn_client")
-    if jn_client:
-        await jn_client.close()
     logger.info("worker_stopped")
+
+
+async def run_cleanup(ctx: dict) -> None:
+    """
+    Nightly cron job to clean up orphaned temporary files.
+    """
+    logger.info("cron_cleanup_started")
+    await asyncio.to_thread(cleanup_orphaned_artifacts)
+    logger.info("cron_cleanup_finished")
 
 
 class WorkerSettings:
@@ -91,7 +89,8 @@ class WorkerSettings:
     # Task functions registered with the worker
     # ARQ matches enqueued job names to these function references
     functions = [
-        "app.workers.job_processor.process_jobnimbus_event",
+        "app.workers.supplement_processor.process_supplement_event",
+        "app.workers.inspection_processor.process_inspection",
     ]
 
     # Redis connection
@@ -99,10 +98,15 @@ class WorkerSettings:
 
     # Job defaults
     max_jobs = 10  # Max concurrent jobs per worker
-    job_timeout = 300  # 5 minutes per job
+    job_timeout = 1800  # 30 minutes per job to support large commercial inspections
     max_tries = 3  # Retry failed jobs up to 3 times
     health_check_interval = 60  # Seconds between health check pings
 
     # Lifecycle hooks
     on_startup = startup
     on_shutdown = shutdown
+
+    # Cron jobs
+    cron_jobs = [
+        cron(run_cleanup, hour=2, minute=0)
+    ]
