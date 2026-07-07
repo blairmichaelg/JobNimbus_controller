@@ -224,7 +224,7 @@ def _fetch_active_jobs_sync():
     finally:
         conn.close()
 
-@app.get("/office", tags=["frontend"], dependencies=[Depends(verify_office_token)])
+@app.get("/office", tags=["frontend"])
 async def serve_office_dashboard(request: Request):
     """Serve the Office Control Center desktop dashboard."""
     jobs = await asyncio.to_thread(_fetch_active_jobs_sync)
@@ -236,14 +236,19 @@ async def serve_office_dashboard(request: Request):
         "jobs": jobs,
         "active_jobs": active_jobs,
         "recent_leads": recent_leads,
-        "ready_to_invoice": ready_to_invoice
+        "ready_to_invoice": ready_to_invoice,
+        "office_token": get_settings().office_internal_token
     })
 
-@app.get("/office/jobs/{job_id}", tags=["frontend"], dependencies=[Depends(verify_office_token)])
+@app.get("/office/jobs/{job_id}", tags=["frontend"])
 async def serve_job_detail(request: Request, job_id: str):
     """Serve the unified Job Overview dashboard."""
     from fastapi import HTTPException
     job = await asyncio.to_thread(_fetch_job_sync, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return templates.TemplateResponse(request, "job_detail.html", {"request": request, "job": job})
+    return templates.TemplateResponse(request, "job_detail.html", {
+        "request": request, 
+        "job": job,
+        "office_token": get_settings().office_internal_token
+    })
