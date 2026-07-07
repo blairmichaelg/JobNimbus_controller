@@ -204,8 +204,8 @@ async def process_office_login(request: Request, access_code: str = Form(...)):
         response.set_cookie(
             key="office_auth",
             value=access_code,
-            httponly=False,
-            secure=True,
+            httponly=True,
+            secure=False,
             samesite="lax"
         )
         return response
