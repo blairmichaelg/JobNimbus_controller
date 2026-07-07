@@ -14,7 +14,8 @@ from contextlib import asynccontextmanager
 
 import structlog
 from arq import create_pool
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, Form, Depends
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,11 +23,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.webhooks import router as webhook_router
 from app.api.field_routes import router as field_router
-from app.api.office_routes import router as office_router
-from app.config import get_settings
+from app.api.office_routes import router as office_router, _fetch_job_sync
+from app.config import get_settings, verify_office_token
 from app.core.cache import init_db as init_cache_db
-from app.core.database import init_db as init_crm_db
+from app.core.database import init_db as init_crm_db, get_connection
 import os
+import asyncio
 
 
 def configure_logging(log_level: str) -> None:
@@ -189,12 +191,59 @@ async def serve_frontend(request: Request):
     """Serve the Truck Server mobile web interface."""
     return templates.TemplateResponse(request, "field_app.html", {"request": request})
 
-@app.get("/office", tags=["frontend"])
+@app.get("/office/login", tags=["frontend"])
+async def serve_office_login(request: Request):
+    """Serve the office login page."""
+    return templates.TemplateResponse(request, "login.html", {"request": request})
+
+@app.post("/office/login", tags=["frontend"])
+async def process_office_login(request: Request, access_code: str = Form(...)):
+    """Process office login."""
+    if access_code == get_settings().office_internal_token:
+        response = RedirectResponse(url="/office", status_code=303)
+        response.set_cookie(
+            key="office_auth",
+            value=access_code,
+            httponly=False,
+            secure=True,
+            samesite="lax"
+        )
+        return response
+    return templates.TemplateResponse(request, "login.html", {"request": request, "error": "Invalid Access Code"})
+
+def _fetch_active_jobs_sync():
+    conn = get_connection()
+    try:
+        cursor = conn.execute('''
+            SELECT id, homeowner_name, address_line1, city, state, status, created_at
+            FROM jobs
+            WHERE status != 'CLOSED'
+            ORDER BY created_at DESC
+        ''')
+        return [dict(r) for r in cursor]
+    finally:
+        conn.close()
+
+@app.get("/office", tags=["frontend"], dependencies=[Depends(verify_office_token)])
 async def serve_office_dashboard(request: Request):
     """Serve the Office Control Center desktop dashboard."""
-    return templates.TemplateResponse(request, "dashboard.html", {"request": request})
+    jobs = await asyncio.to_thread(_fetch_active_jobs_sync)
+    active_jobs = len(jobs)
+    ready_to_invoice = sum(1 for j in jobs if j["status"] in ("INSPECTION_COMPLETED", "FINAL_INSPECTION"))
+    recent_leads = sum(1 for j in jobs if j["status"] == "LEAD_CAPTURED")
+    return templates.TemplateResponse(request, "dashboard.html", {
+        "request": request, 
+        "jobs": jobs,
+        "active_jobs": active_jobs,
+        "recent_leads": recent_leads,
+        "ready_to_invoice": ready_to_invoice
+    })
 
-@app.get("/office/jobs/{job_id}", tags=["frontend"])
+@app.get("/office/jobs/{job_id}", tags=["frontend"], dependencies=[Depends(verify_office_token)])
 async def serve_job_detail(request: Request, job_id: str):
     """Serve the unified Job Overview dashboard."""
-    return templates.TemplateResponse(request, "job_detail.html", {"request": request, "job_id": job_id})
+    from fastapi import HTTPException
+    job = await asyncio.to_thread(_fetch_job_sync, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return templates.TemplateResponse(request, "job_detail.html", {"request": request, "job": job})

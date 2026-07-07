@@ -95,12 +95,17 @@ def get_settings() -> Settings:
     """
     return Settings() # type: ignore
 
-from fastapi import Header, HTTPException
+from fastapi import Header, Cookie, HTTPException
 
-async def verify_office_token(x_internal_token: str = Header(...)):
+async def verify_office_token(
+    x_internal_token: str | None = Header(None, alias="x-internal-token"),
+    office_auth: str | None = Cookie(None)
+):
     """Dependency to verify corporate internal routes."""
-    if x_internal_token != get_settings().office_internal_token:
-        raise HTTPException(status_code=401, detail="Invalid internal token")
+    valid_token = get_settings().office_internal_token
+    if x_internal_token == valid_token or office_auth == valid_token:
+        return
+    raise HTTPException(status_code=401, detail="Invalid internal token")
 
 async def verify_field_token(x_internal_token: str = Header(...)):
     """Dependency to verify field internal routes."""

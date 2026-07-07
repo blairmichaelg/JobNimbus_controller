@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Office Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 flex items-center justify-center h-screen">
+    <div class="bg-gray-800 p-8 rounded-lg shadow-lg w-96">
+        <h2 class="text-white text-2xl font-bold mb-6 text-center">Office Access</h2>
+        {% if error %}
+        <div class="bg-red-500 text-white p-2 rounded mb-4 text-sm text-center">
+            {{ error }}
+        </div>
+        {% endif %}
+        <form method="POST" action="/office/login">
+            <div class="mb-4">
+                <label class="block text-gray-400 mb-2" for="access_code">Access Code</label>
+                <input type="password" id="access_code" name="access_code" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 focus:outline-none focus:border-blue-500" required>
+            </div>
+            <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold">Log In</button>
+        </form>
+    </div>
+</body>
+</html>

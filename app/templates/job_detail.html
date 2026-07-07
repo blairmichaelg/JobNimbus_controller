@@ -3,323 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Job Overview - Wickham Roofing</title>
+    <title>Manage Job - {{ job.id[:8] }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .card {
-            background-color: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            padding: 1.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-        .card-header {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #1e293b;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 0.5rem;
-        }
-    </style>
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800 font-sans p-6">
-    
-    <div class="max-w-6xl mx-auto">
-        
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-8">
-            <div>
-                <h1 class="text-3xl font-bold tracking-tight text-slate-900">Job Overview</h1>
-                <p class="text-slate-500 mt-1" id="job-id-display">Loading...</p>
-            </div>
-            <a href="/office" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
-                &larr; Back to Dashboard
-            </a>
+<body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden">
+
+    <!-- Sidebar -->
+    <div class="w-64 bg-gray-800 h-full flex flex-col border-r border-gray-700">
+        <div class="p-6 text-2xl font-bold text-white border-b border-gray-700">
+            Truck Server
         </div>
+        <nav class="flex-1 p-4 space-y-2">
+            <a href="/office" class="block py-2 px-4 rounded hover:bg-gray-700 text-gray-400 hover:text-white">Dashboard</a>
+        </nav>
+    </div>
 
-        <!-- Margin Warning Banner -->
-        <div id="margin-warning" class="hidden mb-6 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-sm" role="alert">
-            <p class="font-bold">Low Profitability Alert</p>
-            <p>The gross margin for this job is below the 35% threshold. Please review the material and labor costs.</p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <!-- Metadata & Status Card -->
-            <div class="card">
-                <h2 class="card-header">Metadata & Status</h2>
-                <div class="space-y-3">
-                    <p><span class="font-semibold text-slate-600">Homeowner:</span> <span id="meta-homeowner">...</span></p>
-                    <p><span class="font-semibold text-slate-600">Address:</span> <span id="meta-address">...</span></p>
-                    <p><span class="font-semibold text-slate-600">Phone:</span> <span id="meta-phone">...</span></p>
-                    <p><span class="font-semibold text-slate-600">Email:</span> <span id="meta-email">...</span></p>
-                    <p><span class="font-semibold text-slate-600">Claim #:</span> <span id="meta-claim">...</span></p>
-                    <p><span class="font-semibold text-slate-600">Insurer:</span> <span id="meta-insurer">...</span></p>
-                    <div class="mt-4 pt-4 border-t border-slate-200">
-                        <span class="font-semibold text-slate-600">Current Status:</span> 
-                        <span id="meta-status" class="ml-2 inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">...</span>
-                    </div>
-                </div>
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col h-full overflow-y-auto bg-gray-900">
+        <div class="p-8 space-y-6">
+            <div class="flex justify-between items-center">
+                <h1 class="text-3xl font-bold text-white">Job Overview</h1>
+                <a href="/office" class="text-gray-400 hover:text-white">&larr; Back to Dashboard</a>
             </div>
 
-            <!-- Financials Card -->
-            <div class="card">
-                <h2 class="card-header">Financials</h2>
-                <div class="space-y-4" id="financials-content">
-                    <p class="text-slate-500 italic">No financials recorded yet.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Left Column: Job Info -->
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
+                    <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Client Details</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-sm text-gray-400">Homeowner</p>
+                            <p class="text-lg font-medium text-white">{{ job.homeowner_name }}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-400">Address</p>
+                            <p class="text-white">{{ job.address_line1 }}</p>
+                            <p class="text-white">{{ job.city }}, {{ job.state }} {{ job.postal_code }}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-400">Current Status</p>
+                            <span class="mt-1 px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-blue-900 text-blue-200">
+                                {{ job.status }}
+                            </span>
+                        </div>
+                    </div>
                 </div>
-                
-                <form id="financials-form" class="mt-4 pt-4 border-t border-slate-200 space-y-3" onsubmit="submitFinancials(event)">
-                    <h3 class="font-semibold text-slate-800">Update Financials</h3>
+
+                <!-- Right Column: Control Panel -->
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
+                    <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Control Panel</h2>
+                    
+                    <!-- Upload Section -->
+                    <div class="mb-6">
+                        <h3 class="text-md font-medium text-gray-300 mb-3">Upload Documents</h3>
+                        <form id="uploadForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">EagleView PDF</label>
+                                <input type="file" id="ev_file" name="ev_file" accept=".pdf" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Statement of Loss PDF</label>
+                                <input type="file" id="sol_file" name="sol_file" accept=".pdf" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer" required>
+                            </div>
+                            <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold disabled:opacity-50">Upload & Trigger Pipeline</button>
+                        </form>
+                    </div>
+
+                    <!-- Download Section -->
                     <div>
-                        <label class="block text-sm text-slate-600 mb-1">Total Revenue / Contract Price</label>
-                        <input type="number" id="fin-revenue" class="w-full border border-slate-300 rounded px-3 py-2" step="0.01" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-slate-600 mb-1">Carrier RCV</label>
-                        <input type="number" id="fin-carrier-rcv" class="w-full border border-slate-300 rounded px-3 py-2" step="0.01" required>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Materials</label>
-                            <input type="number" id="fin-materials" class="w-full border border-slate-300 rounded px-3 py-2" step="0.01" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Labor</label>
-                            <input type="number" id="fin-labor" class="w-full border border-slate-300 rounded px-3 py-2" step="0.01" required>
-                        </div>
-                    </div>
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium w-full mt-2">Save Financials</button>
-                </form>
-            </div>
-
-            <!-- Production Card -->
-            <div class="card">
-                <h2 class="card-header">Production Details</h2>
-                <div class="space-y-4">
-                    <div>
-                        <h3 class="font-semibold text-slate-800 mb-2">Material Order & Schedule</h3>
-                        <div id="production-materials">
-                            <p class="text-slate-500 italic">No materials ordered yet.</p>
-                        </div>
-                        <div id="production-schedule" class="mt-2">
-                            <p class="text-slate-500 italic">Not scheduled yet.</p>
+                        <h3 class="text-md font-medium text-gray-300 mb-3">Artifacts</h3>
+                        <div class="flex flex-col space-y-2">
+                            <a href="/api/office/download/INV-{{ job.id[:8].upper() }}_QBO.csv" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Download QBO CSV</a>
+                            <a href="/api/office/jobs/{{ job.id }}/docs/cancellation" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Notice of Cancellation (PDF)</a>
+                            <a href="/api/office/jobs/{{ job.id }}/evidence_grid" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Evidence Grid (PDF)</a>
                         </div>
                     </div>
                 </div>
-                
-                <form id="production-form" class="mt-4 pt-4 border-t border-slate-200 space-y-3" onsubmit="submitProduction(event)">
-                    <h3 class="font-semibold text-slate-800">Schedule Production</h3>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Supplier</label>
-                            <input type="text" id="prod-supplier" class="w-full border border-slate-300 rounded px-3 py-2" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Delivery Date</label>
-                            <input type="date" id="prod-delivery" class="w-full border border-slate-300 rounded px-3 py-2" required>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Crew Name</label>
-                            <input type="text" id="prod-crew" class="w-full border border-slate-300 rounded px-3 py-2" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Install Date</label>
-                            <input type="date" id="prod-install" class="w-full border border-slate-300 rounded px-3 py-2" required>
-                        </div>
-                    </div>
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium w-full mt-2">Set Schedule</button>
-                </form>
             </div>
-
-            <!-- Documents Card -->
-            <div class="card">
-                <h2 class="card-header">Compliance & Documents</h2>
-                <div class="grid grid-cols-1 gap-3" id="documents-content">
-                    <!-- Injected by JS -->
-                </div>
-            </div>
-
         </div>
     </div>
 
+    <!-- Vanilla JS API Bridge -->
     <script>
-        const JOB_ID = "{{ job_id }}";
-
-        async function init() {
-            try {
-                const response = await fetch(`/api/office/jobs/${JOB_ID}`);
-                if (!response.ok) throw new Error("Failed to fetch job details");
-                const data = await response.json();
-                
-                populateMetadata(data.job);
-                if (data.financials) populateFinancials(data.financials);
-                populateProduction(data.material_order, data.schedule);
-                populateDocuments(data);
-                
-            } catch (err) {
-                console.error(err);
-                alert("Failed to load job details. Check console.");
-            }
-        }
-
-        function populateMetadata(job) {
-            document.getElementById('job-id-display').textContent = `ID: ${job.id}`;
-            document.getElementById('meta-homeowner').textContent = job.homeowner_name;
-            document.getElementById('meta-address').textContent = `${job.address_line1}, ${job.city}, ${job.state} ${job.postal_code}`;
-            document.getElementById('meta-phone').textContent = job.phone;
-            document.getElementById('meta-email').textContent = job.email || 'N/A';
-            document.getElementById('meta-claim').textContent = job.claim_number || 'N/A';
-            document.getElementById('meta-insurer').textContent = job.insurer_name || 'N/A';
-            document.getElementById('meta-status').textContent = job.status.replace(/_/g, ' ');
-        }
-
-        function populateFinancials(fin) {
-            const container = document.getElementById('financials-content');
-            
-            const revenue = fin.revenue || fin.carrier_rcv;
-            let grossMargin = 0;
-            let netProfit = 0;
-            let commission = 0;
-
-            if (fin.computed_margins) {
-                grossMargin = fin.computed_margins.gross_margin;
-                netProfit = fin.computed_margins.net_profit;
-                commission = fin.computed_margins.commission_pool;
-            } else {
-                const directCosts = fin.material_cost + fin.labor_cost;
-                const grossProfit = revenue - directCosts;
-                grossMargin = revenue > 0 ? (grossProfit / revenue) : 0;
-                const overhead = revenue * fin.overhead_pct;
-                netProfit = grossProfit - overhead;
-                commission = grossProfit * fin.canvasser_commission_pct;
-            }
-
-            if (grossMargin < 0.35) {
-                document.getElementById('margin-warning').classList.remove('hidden');
-            }
-
-            container.innerHTML = `
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-sm text-slate-500">Revenue</p>
-                        <p class="font-medium text-lg">$${revenue.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-slate-500">Gross Margin</p>
-                        <p class="font-bold text-lg ${grossMargin < 0.35 ? 'text-red-600' : 'text-emerald-600'}">${(grossMargin * 100).toFixed(1)}%</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-slate-500">Net Profit</p>
-                        <p class="font-medium text-lg">$${netProfit.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-slate-500">Commission Pool</p>
-                        <p class="font-medium text-lg">$${commission.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                    </div>
-                </div>
-            `;
-            
-            // Pre-fill form
-            document.getElementById('fin-revenue').value = fin.revenue;
-            document.getElementById('fin-carrier-rcv').value = fin.carrier_rcv;
-            document.getElementById('fin-materials').value = fin.material_cost;
-            document.getElementById('fin-labor').value = fin.labor_cost;
-        }
-
-        function populateProduction(mat, sched) {
-            if (mat) {
-                document.getElementById('production-materials').innerHTML = `
-                    <p><span class="font-semibold text-slate-600">Supplier:</span> ${mat.supplier_name}</p>
-                    <p><span class="font-semibold text-slate-600">Delivery Date:</span> ${mat.delivery_date || 'TBD'}</p>
-                `;
-            }
-            if (sched) {
-                document.getElementById('production-schedule').innerHTML = `
-                    <p><span class="font-semibold text-slate-600">Crew:</span> ${sched.crew_name}</p>
-                    <p><span class="font-semibold text-slate-600">Install Date:</span> ${sched.install_date}</p>
-                    <p><span class="font-semibold text-slate-600">Status:</span> ${sched.status}</p>
-                `;
-            }
-        }
-
-        function populateDocuments(data) {
-            const container = document.getElementById('documents-content');
-            let linksHTML = '';
-
-            const linkClass = "flex items-center justify-between p-3 rounded-md bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-colors";
-            
-            // These always exist if they were hit, but we'll show the links regardless as the endpoints exist.
-            linksHTML += `<a href="/api/office/jobs/${JOB_ID}/docs/contingency" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">Contingency Agreement</span><span class="text-blue-600 text-sm">Generate</span></a>`;
-            linksHTML += `<a href="/api/office/jobs/${JOB_ID}/evidence_grid" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">1. Evidence Grid</span><span class="text-blue-600 text-sm">Download</span></a>`;
-            linksHTML += `<a href="/api/office/jobs/${JOB_ID}/qbo_export" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">2. QBO Invoice (CSV)</span><span class="text-blue-600 text-sm">Download</span></a>`;
-            
-            if (data.material_order) {
-                linksHTML += `<a href="/api/office/jobs/${JOB_ID}/docs/po?supplier_name=${encodeURIComponent(data.material_order.supplier_name)}" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">3. Material PO</span><span class="text-blue-600 text-sm">Download</span></a>`;
-            }
-
-            linksHTML += `<a href="/api/office/jobs/${JOB_ID}/docs/cancellation" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">Notice of Cancellation</span><span class="text-blue-600 text-sm">Generate</span></a>`;
-            
-            // For Certificate of Completion, we need a date. We'll default to today for generation preview.
-            const today = new Date().toISOString().split('T')[0];
-            linksHTML += `<a href="/api/office/jobs/${JOB_ID}/docs/completion?completion_date=${today}" target="_blank" class="${linkClass}"><span class="font-medium text-slate-700">Certificate of Completion</span><span class="text-blue-600 text-sm">Generate</span></a>`;
-
-            container.innerHTML = linksHTML;
-        }
-
-        document.addEventListener('DOMContentLoaded', init);
-
-        async function submitFinancials(e) {
+        document.getElementById('uploadForm').onsubmit = async function(e) {
             e.preventDefault();
-            const payload = {
-                revenue: parseFloat(document.getElementById('fin-revenue').value),
-                carrier_rcv: parseFloat(document.getElementById('fin-carrier-rcv').value),
-                materials: parseFloat(document.getElementById('fin-materials').value),
-                labor: parseFloat(document.getElementById('fin-labor').value),
-                overhead_pct: 0.25,
-                commission_pct: 0.10
-            };
             
-            try {
-                const response = await fetch(`/api/office/jobs/${JOB_ID}/financials`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
-                });
-                if (!response.ok) throw new Error("Failed to save financials");
-                window.location.reload();
-            } catch (err) {
-                console.error(err);
-                alert("Error saving financials");
-            }
-        }
+            const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.innerText;
+            submitBtn.innerText = 'Uploading...';
+            submitBtn.disabled = true;
 
-        async function submitProduction(e) {
-            e.preventDefault();
-            const payload = {
-                supplier_name: document.getElementById('prod-supplier').value,
-                delivery_date: document.getElementById('prod-delivery').value,
-                crew_name: document.getElementById('prod-crew').value,
-                install_date: document.getElementById('prod-install').value
-            };
-            
             try {
-                const response = await fetch(`/api/office/jobs/${JOB_ID}/production`, {
+                // Get office_auth cookie
+                const cookies = document.cookie.split(';');
+                let officeAuth = '';
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.startsWith('office_auth=')) {
+                        officeAuth = cookie.substring('office_auth='.length, cookie.length);
+                        break;
+                    }
+                }
+
+                if (!officeAuth) {
+                    throw new Error('Authentication cookie not found. Please log in again.');
+                }
+
+                // Build FormData
+                const formData = new FormData();
+                const evFile = document.getElementById('ev_file').files[0];
+                const solFile = document.getElementById('sol_file').files[0];
+                formData.append('ev_file', evFile);
+                formData.append('sol_file', solFile);
+
+                // Send Fetch Request
+                const response = await fetch('/api/office/jobs/{{ job.id }}/supplement_docs', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
+                    headers: {
+                        'x-internal-token': officeAuth
+                    },
+                    body: formData
                 });
-                if (!response.ok) throw new Error("Failed to schedule production");
-                window.location.reload();
-            } catch (err) {
-                console.error(err);
-                alert("Error scheduling production");
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const errText = await response.text();
+                    throw new Error(`Upload failed: ${errText}`);
+                }
+            } catch (error) {
+                alert(error.message);
+            } finally {
+                submitBtn.innerText = originalText;
+                submitBtn.disabled = false;
             }
-        }
+        };
     </script>
 </body>
 </html>

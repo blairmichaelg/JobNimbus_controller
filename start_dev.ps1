@@ -54,7 +54,7 @@ if ($portOpen) {
         wsl -l -v >$null 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Host "[INFO] WSL detected. Booting redis-server daemon as root..." -ForegroundColor Magenta
-            wsl -u root -e service redis-server start >$null
+            wsl -u root -- /usr/bin/redis-server --bind 0.0.0.0 --daemonize yes >$null
         } else {
             Write-Host "[ERROR] Neither Docker nor WSL is available. Cannot auto-boot Redis!" -ForegroundColor Red
             exit 1
