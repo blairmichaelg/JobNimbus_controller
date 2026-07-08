@@ -111,13 +111,22 @@
 
                 const leadData = await leadResponse.json();
                 const jobId = leadData.job_id;
+                
+                if (!jobId) {
+                    throw new Error('Failed to retrieve a valid Job ID from the server.');
+                }
 
                 // 2. Submit Photo if exists
                 const photoInput = document.getElementById('photo');
                 if (photoInput.files && photoInput.files.length > 0) {
+                    const photoFile = photoInput.files[0];
+                    if (photoFile.type !== 'image/jpeg' && photoFile.type !== 'image/png') {
+                        throw new Error('Photo must be a JPEG or PNG image.');
+                    }
+                
                     submitBtn.innerText = 'Uploading Photo...';
                     const photoData = new FormData();
-                    photoData.append('file', photoInput.files[0]);
+                    photoData.append('file', photoFile);
 
                     const photoResponse = await fetch(`/api/field/jobs/${jobId}/photos`, {
                         method: 'POST',

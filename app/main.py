@@ -138,7 +138,7 @@ app.add_middleware(
         "http://localhost:8000",
         "http://127.0.0.1:8000"
     ],
-    allow_origin_regex=r"https://.*\.ngrok-free\.app",
+    allow_origin_regex=r"https://.*\.ngrok-free\.app|https://.*\.trycloudflare\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -202,13 +202,14 @@ async def serve_office_login(request: Request):
 @app.post("/office/login", tags=["frontend"])
 async def process_office_login(request: Request, access_code: str = Form(...)):
     """Process office login."""
-    if access_code == get_settings().office_internal_token:
+    settings = get_settings()
+    if access_code == settings.office_internal_token:
         response = RedirectResponse(url="/office", status_code=303)
         response.set_cookie(
             key="office_auth",
             value=access_code,
             httponly=True,
-            secure=False,
+            secure=(settings.app_env == "production"),
             samesite="lax"
         )
         return response

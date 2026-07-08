@@ -101,9 +101,17 @@
                 }
 
                 // Build FormData
-                const formData = new FormData();
                 const evFile = document.getElementById('ev_file').files[0];
                 const solFile = document.getElementById('sol_file').files[0];
+
+                if (!evFile || !solFile) {
+                    throw new Error('Both EagleView and Statement of Loss PDFs are required.');
+                }
+                if (evFile.type !== 'application/pdf' || solFile.type !== 'application/pdf') {
+                    throw new Error('Both files must be valid PDF documents.');
+                }
+
+                const formData = new FormData();
                 formData.append('ev_file', evFile);
                 formData.append('sol_file', solFile);
 
@@ -119,17 +127,30 @@
                 if (response.ok) {
                     submitBtn.innerText = 'AI Workers Processing Pipeline...';
                     
+                    let attempts = 0;
+                    const maxAttempts = 24;
+
                     const pollInterval = setInterval(async () => {
+                        attempts++;
                         try {
                             const checkResponse = await fetch(`/api/office/jobs/{{ job.id }}`, {
                                 headers: { 'x-internal-token': OFFICE_TOKEN }
                             });
                             if (checkResponse.ok) {
                                 const data = await checkResponse.json();
-                                if (data.status === 'SUPPLEMENT_GENERATED' || data.status === 'PIPELINE_FAILED') {
+                                const jobStatus = data.job?.status || data.status; // Support both nested and flat responses
+                                
+                                if (jobStatus === 'SUPPLEMENT_GENERATED' || jobStatus === 'PIPELINE_FAILED') {
                                     clearInterval(pollInterval);
                                     window.location.reload();
                                 }
+                            }
+                            
+                            if (attempts >= maxAttempts) {
+                                clearInterval(pollInterval);
+                                submitBtn.innerText = originalText;
+                                submitBtn.disabled = false;
+                                alert('The pipeline is taking longer than expected. Please check back later.');
                             }
                         } catch (pollErr) {
                             console.error('Polling error:', pollErr);

@@ -21,8 +21,6 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-
-
     # --- Webhook Security ---
     webhook_secret: str = Field(
         ...,
