@@ -3,147 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Wickham Roofing - Field App</title>
+    <title>Field Intake</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
     <style>
-        body {
-            /* Prevent pull-to-refresh on mobile */
-            overscroll-behavior-y: contain;
-            background-color: #0f172a; /* Tailwind slate-900 */
-            color: #f8fafc; /* Tailwind slate-50 */
-        }
-        #signature-pad {
-            /* Critical for drawing without scrolling the page */
-            touch-action: none;
-        }
+        /* Hide scrollbar for a native app feel */
+        ::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
-
-    <!-- Header -->
-    <header class="bg-slate-800 shadow-md py-4 px-6 flex justify-between items-center sticky top-0 z-50">
-        <h1 class="text-xl font-bold tracking-tight text-blue-400">Truck Server</h1>
-        <div id="status-indicator" class="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]"></div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="flex-grow flex flex-col p-4 space-y-6 overflow-y-auto">
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <div class="max-w-md mx-auto p-6 pb-24">
+        <h1 class="text-3xl font-bold text-white mb-8 border-b border-gray-700 pb-4">New Lead</h1>
         
-        <!-- Intake Form Container -->
-        <section id="intake-form-container" class="bg-slate-800 rounded-xl p-5 shadow-lg border border-slate-700">
-            <h2 class="text-xl font-bold text-slate-100 mb-4 border-b border-slate-700 pb-2">New Lead Intake</h2>
-            <form id="intake-form" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-1">Homeowner Name *</label>
-                    <input type="text" id="intake-name" required class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-1">Address Line 1 *</label>
-                    <input type="text" id="intake-address" required class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-300 mb-1">City *</label>
-                        <input type="text" id="intake-city" required class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-300 mb-1">State *</label>
-                        <input type="text" id="intake-state" required class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-300 mb-1">Postal Code *</label>
-                        <input type="text" id="intake-zip" required class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-300 mb-1">Phone *</label>
-                        <input type="tel" id="intake-phone" required class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-1">Email</label>
-                    <input type="email" id="intake-email" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-300 mb-1">Insurer Name</label>
-                        <input type="text" id="intake-insurer" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-300 mb-1">Claim Number</label>
-                        <input type="text" id="intake-claim" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                </div>
-                <button type="submit" id="intake-submit-btn" class="w-full mt-4 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-colors">
-                    Create Lead & Start Intake
-                </button>
-            </form>
-        </section>
-
-        <!-- SPA Actions Container (Hidden initially) -->
-        <div id="job-actions-container" class="hidden space-y-6">
-            
-            <!-- Active Job Banner -->
-            <div class="bg-indigo-900/50 border border-indigo-500/50 rounded-xl p-4 flex justify-between items-center">
-                <div>
-                    <p class="text-xs text-indigo-300 uppercase tracking-wide font-bold">Active Lead</p>
-                    <p id="active-homeowner-name" class="text-lg font-bold text-white">...</p>
-                </div>
-                <p id="active-job-id" class="text-xs text-indigo-200 font-mono hidden md:block">...</p>
-            </div>
-
-            <!-- Camera Upload -->
-        <section class="bg-slate-800 rounded-xl p-5 shadow-lg border border-slate-700 flex flex-col items-center">
-            <div class="w-full flex justify-between items-end mb-4">
-                <div>
-                    <h2 class="text-lg font-bold text-slate-100">Photo Ingestion</h2>
-                    <p class="text-sm text-slate-400">Queue: <span id="queue-count" class="font-mono font-bold text-blue-400">0</span> remaining</p>
-                </div>
-                <div id="upload-spinner" class="hidden animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+        <form id="intakeForm" class="space-y-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Homeowner Name</label>
+                <input type="text" id="homeowner_name" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
             </div>
             
-            <input type="file" id="camera-input" accept="image/*" capture="environment" multiple class="hidden">
-            <button id="camera-btn" class="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg flex justify-center items-center space-x-2 transition-colors">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                </svg>
-                <span class="text-lg">Open Camera</span>
-            </button>
-        </section>
-
-        <!-- Signature Pad -->
-        <section class="bg-slate-800 rounded-xl p-5 shadow-lg border border-slate-700">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-bold text-slate-100">Homeowner Signature</h2>
-                <button id="clear-sig-btn" class="text-sm text-slate-400 hover:text-red-400 transition-colors">Clear</button>
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Address Line 1</label>
+                <input type="text" id="address_line1" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
             </div>
             
-            <div class="bg-slate-50 rounded-lg overflow-hidden border-2 border-slate-600 relative">
-                <!-- Canvas dimension set by JS for retina scaling -->
-                <canvas id="signature-pad" class="w-full h-48 cursor-crosshair"></canvas>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-2">City</label>
+                    <input type="text" id="city" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-2">State</label>
+                    <input type="text" id="state" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
+                </div>
             </div>
             
-            <button id="submit-sig-btn" class="mt-4 w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg flex justify-center items-center space-x-2 transition-colors">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <span class="text-lg">Submit Agreement</span>
-            </button>
-        </section>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-2">Zip</label>
+                    <input type="text" id="postal_code" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-2">Phone</label>
+                    <input type="tel" id="phone" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
+                </div>
+            </div>
+            
+            <div class="pt-4 border-t border-gray-700">
+                <label class="block text-sm font-medium text-gray-400 mb-2">Property Photo (Optional)</label>
+                <input type="file" id="photo" accept="image/jpeg, image/png" class="w-full text-lg text-gray-400 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer">
+            </div>
 
-        </div> <!-- End SPA Actions Container -->
-
-    </main>
-
-    <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-slate-800 border border-slate-600 text-white px-6 py-3 rounded-full shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none z-50">
-        <span id="toast-msg">Message</span>
+            <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white p-4 rounded-lg font-bold text-xl mt-8 active:bg-blue-800 transition-colors shadow-lg">Submit Lead</button>
+        </form>
     </div>
 
-    <!-- Application Logic -->
-    <script src="/static/js/app.js"></script>
+    <!-- Success Modal -->
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center p-4">
+        <div class="bg-gray-800 p-8 rounded-xl max-w-sm w-full text-center border border-gray-700 shadow-2xl">
+            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-900 mb-4">
+                <svg class="h-10 w-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-white mb-2">Lead Captured</h3>
+            <p class="text-gray-400 mb-6">The office has been notified.</p>
+            <button onclick="window.location.reload()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-blue-700">Add Another</button>
+        </div>
+    </div>
+
+    <script>
+        const FIELD_TOKEN = "{{ field_token }}";
+
+        document.getElementById('intakeForm').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.innerText;
+            submitBtn.innerText = 'Sending...';
+            submitBtn.disabled = true;
+
+            try {
+                // 1. Submit Lead Data
+                const payload = {
+                    homeowner_name: document.getElementById('homeowner_name').value,
+                    address_line1: document.getElementById('address_line1').value,
+                    city: document.getElementById('city').value,
+                    state: document.getElementById('state').value,
+                    postal_code: document.getElementById('postal_code').value,
+                    phone: document.getElementById('phone').value,
+                    email: null,
+                    claim_number: null,
+                    insurer_name: null
+                };
+
+                const leadResponse = await fetch('/api/field/jobs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-internal-token': FIELD_TOKEN
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!leadResponse.ok) {
+                    const err = await leadResponse.text();
+                    throw new Error(`Lead submission failed: ${err}`);
+                }
+
+                const leadData = await leadResponse.json();
+                const jobId = leadData.job_id;
+
+                // 2. Submit Photo if exists
+                const photoInput = document.getElementById('photo');
+                if (photoInput.files && photoInput.files.length > 0) {
+                    submitBtn.innerText = 'Uploading Photo...';
+                    const photoData = new FormData();
+                    photoData.append('file', photoInput.files[0]);
+
+                    const photoResponse = await fetch(`/api/field/jobs/${jobId}/photos`, {
+                        method: 'POST',
+                        headers: {
+                            'x-internal-token': FIELD_TOKEN
+                        },
+                        body: photoData
+                    });
+
+                    if (!photoResponse.ok) {
+                        const err = await photoResponse.text();
+                        // Non-fatal, but we should alert
+                        console.warn(`Photo upload failed: ${err}`);
+                    }
+                }
+
+                // Show Success
+                document.getElementById('successModal').classList.remove('hidden');
+
+            } catch (error) {
+                alert(error.message);
+                submitBtn.innerText = originalText;
+                submitBtn.disabled = false;
+            }
+        };
+    </script>
 </body>
 </html>

@@ -186,10 +186,13 @@ async def health_check():
 
 
 # --- Frontend ---
-@app.get("/app", tags=["frontend"])
-async def serve_frontend(request: Request):
+@app.get("/field", tags=["frontend"])
+async def serve_field_app(request: Request):
     """Serve the Truck Server mobile web interface."""
-    return templates.TemplateResponse(request, "field_app.html", {"request": request})
+    return templates.TemplateResponse(request, "field_app.html", {
+        "request": request,
+        "field_token": get_settings().field_internal_token
+    })
 
 @app.get("/office/login", tags=["frontend"])
 async def serve_office_login(request: Request):

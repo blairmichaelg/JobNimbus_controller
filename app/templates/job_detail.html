@@ -55,13 +55,17 @@
                     
                     <!-- Upload Section -->
                     <div class="mb-6">
-                        <h3 class="text-md font-medium text-gray-300 mb-3">Upload EagleView</h3>
+                        <h3 class="text-md font-medium text-gray-300 mb-3">Upload Documents</h3>
                         <form id="uploadForm" class="space-y-4">
                             <div>
                                 <label class="block text-sm text-gray-400 mb-1">EagleView PDF</label>
-                                <input type="file" id="file" name="file" accept=".pdf" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer" required>
+                                <input type="file" id="ev_file" name="ev_file" accept=".pdf" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer" required>
                             </div>
-                            <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold disabled:opacity-50">Upload & Analyze</button>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Statement of Loss PDF</label>
+                                <input type="file" id="sol_file" name="sol_file" accept=".pdf" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer" required>
+                            </div>
+                            <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold disabled:opacity-50">Upload & Trigger Pipeline</button>
                         </form>
                     </div>
 
@@ -88,7 +92,7 @@
             
             const submitBtn = document.getElementById('submitBtn');
             const originalText = submitBtn.innerText;
-            submitBtn.innerText = 'Uploading & Analyzing...';
+            submitBtn.innerText = 'Enqueueing...';
             submitBtn.disabled = true;
 
             try {
@@ -96,13 +100,15 @@
                     throw new Error('Authentication token missing from context.');
                 }
 
-                // Build FormData (EagleView Only)
+                // Build FormData
                 const formData = new FormData();
-                const file = document.getElementById('file').files[0];
-                formData.append('file', file);
+                const evFile = document.getElementById('ev_file').files[0];
+                const solFile = document.getElementById('sol_file').files[0];
+                formData.append('ev_file', evFile);
+                formData.append('sol_file', solFile);
 
-                // Send Fetch Request to Hero Path
-                const response = await fetch(`/api/office/jobs/{{ job.id }}/eagleview`, {
+                // Send Fetch Request to Async Path
+                const response = await fetch(`/api/office/jobs/{{ job.id }}/supplement_docs`, {
                     method: 'POST',
                     headers: {
                         'x-internal-token': OFFICE_TOKEN
@@ -111,14 +117,32 @@
                 });
 
                 if (response.ok) {
-                    window.location.reload();
+                    submitBtn.innerText = 'AI Workers Processing Pipeline...';
+                    
+                    const pollInterval = setInterval(async () => {
+                        try {
+                            const checkResponse = await fetch(`/api/office/jobs/{{ job.id }}`, {
+                                headers: { 'x-internal-token': OFFICE_TOKEN }
+                            });
+                            if (checkResponse.ok) {
+                                const data = await checkResponse.json();
+                                if (data.status === 'SUPPLEMENT_GENERATED' || data.status === 'PIPELINE_FAILED') {
+                                    clearInterval(pollInterval);
+                                    window.location.reload();
+                                }
+                            }
+                        } catch (pollErr) {
+                            console.error('Polling error:', pollErr);
+                        }
+                    }, 5000);
                 } else {
                     const errText = await response.text();
                     throw new Error(`Upload failed: ${errText}`);
+                    submitBtn.innerText = originalText;
+                    submitBtn.disabled = false;
                 }
             } catch (error) {
                 alert(error.message);
-            } finally {
                 submitBtn.innerText = originalText;
                 submitBtn.disabled = false;
             }
