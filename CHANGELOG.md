@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1] - 2026-07-10
+### Added & Fixed
+- **Security Hardening**: Patched UUID path traversal vulnerabilities across all `field_routes.py` mutation endpoints.
+- **Backup Environment Targeting**: Scoped the SQLite hot backup system to only execute in production (`APP_ENV=production`), protecting production data from local development pollution.
+- **Deterministic Math Engine**: Wired the pure mathematical `calculate_ice_and_water_rolls` function into the orchestrator pipeline for climate-gated calculations.
+- **Fail-Loud Pipeline Resume**: Built the `PENDING_MANUAL_REVIEW` halting flow and a manual flag resolution `PATCH` endpoint, complete with IDOR defenses and an immutable audit trail.
+
 ## [0.5.0] - 2026-07-06
 ### Added
 - **Infrastructure Hardening**: Implemented automated nightly ARQ garbage collection for `.tmp` artifacts.

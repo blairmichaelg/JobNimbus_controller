@@ -50,9 +50,14 @@ generated_exports/
 # === Linter Cache ===
 .ruff_cache/
 
-# === Cache / Temp ===
-cache.db
-truck_server.db
+# === Cache / Temp / Databases ===
+*.db
+*.db-shm
+*.db-wal
+dump.rdb
+
+# === Binaries ===
+*.exe
 
 # === Google Drive Sync (local photos) ===
 drive_photos/

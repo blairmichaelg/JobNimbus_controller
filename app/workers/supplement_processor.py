@@ -10,7 +10,6 @@ This coordinates the entire Zero-Cost InsurTech Supplement pipeline:
 """
 
 import asyncio
-import sqlite3
 from typing import Optional
 import structlog
 

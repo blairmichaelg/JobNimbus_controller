@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from app.core.inspection_models import get_stable_photos, InspectionJob
 from app.core.cache import get_cached_analyses_for_job
-from app.core.database import get_connection, update_job_status, JobStatus
+from app.core.database import get_connection, update_job_status
 from app.config import verify_field_token
 from app.core.upload_utils import stream_upload_safely
 

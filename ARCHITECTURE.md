@@ -1,92 +1,67 @@
-# 🤖 SYSTEM INITIALIZATION DIRECTIVE: WICKHAM ROOFING AI ORCHESTRATOR
+# SYSTEM ARCHITECTURE: WICKHAM ROOFING "TRUCK SERVER" (V4)
 
 ## 1. PROJECT OVERVIEW
 
-You are an autonomous AI coding agent tasked with building an asynchronous, AI-driven middleware controller for a roofing enterprise. This middleware bridges a proprietary CRM (JobNimbus) and Google's Gemini AI models.
-Your goal is to build a robust, queue-driven Python backend that intercepts webhooks, hydrates flat data, translates obfuscated database fields, processes cognitive tasks via LLMs, and injects data/documents back into the CRM—all without human intervention.
+The Wickham Roofing AI Controller has evolved from a JobNimbus webhook middleware (V1) into a fully standalone local CRM and AI-driven workflow engine (V4 "Truck Server"). The system runs entirely locally on a field office laptop, executing the complete roofing lifecycle—from lead intake and document extraction to strict climate-based mathematical estimating and legally binding PDF generation—with zero reliance on external SaaS CRMs.
 
-## 2. TECHNOLOGY STACK (The "$0 Tier")
+## 2. TECHNOLOGY STACK
 
 * **Language:** Python 3.11+
-* **Framework:** FastAPI (for high-concurrency webhook ingestion)
-* **Message Broker / Queue:** Redis (Upstash free tier) + Celery (or RQ/Redis-Queue)
-* **AI Provider:** `google-generativeai` (Gemini 1.5 Pro/Flash)
-* **PDF Generation:** `ReportLab` or `WeasyPrint`
-* **Hosting Target:** Render or Railway (must be containerized/Procfile ready)
+* **Framework:** FastAPI (high-concurrency async web server)
+* **Local State Machine:** SQLite running in Write-Ahead Logging (WAL) mode
+* **Task Queue:** ARQ (Async Redis Queue) + Local Redis
+* **AI Provider:** Google Gemini 2.5 Flash via `google-genai`
+* **PDF Extraction & Generation:** `pdfplumber` + `ReportLab`
+* **Frontend:** Vanilla JS Single Page Application (SPA) + Tailwind CSS
+* **Tunneling:** Cloudflare / Ngrok for remote canvasser access
 
-## 3. STRICT SYSTEMIC CONSTRAINTS & "LANDMINES"
+## 3. CORE ARCHITECTURAL PIPELINES
 
-You must design the codebase to navigate the following confirmed JobNimbus API quirks. Failure to account for these will cause catastrophic systemic loops or data corruption.
+### A. The Office Dashboard & Field Intake
+The web interface is served directly from FastAPI using Jinja2 templates.
+- **Intake Form:** A resilient, `localStorage`-backed form used by canvassers in the field. It enforces a 2-hour Time-to-Live (TTL) cache to prevent cross-customer data corruption in low-connectivity areas.
+- **Office Dashboard:** Displays active jobs, pipeline statuses, margin calculations, and outstanding tasks.
 
-1. **The Webhook "Payload Trap":** Webhook payloads from JobNimbus are shallow and flat (scalar data only). You **must not** rely on webhook payload data for logic. Webhooks must be treated solely as a "ping" containing an Entity ID.
-2. **Missing HMAC Security:** JobNimbus does not cryptographically sign webhooks. You must enforce a custom `x-api-key` header in the FastAPI route and reject unauthorized requests.
-3. **The Infinite Loop (CRITICAL):** Every state-changing outbound API call (POST/PUT) must append `?skip=automation,notification` to the URL. If omitted, our API calls will trigger CRM automations, firing another webhook back to us, causing an infinite rate-limit crash loop.
-4. **Impersonation Auditing:** Every outbound API call must append `?actor=scott@wickhamroofing.com` (or configurable email) to ensure actions are logged under a human user, not the API key.
-5. **Custom Field Obfuscation:** Custom CRM fields are returned as `cf_string_1`, `cf_boolean_4`, etc. You must build a bi-directional translation dictionary to map these to human-readable keys before passing them to the LLM, and map them back before sending `PUT` requests.
-6. **ElasticSearch JSON Escaping & Eventual Consistency:** Outbound JSON payloads must have special characters strictly escaped. Do NOT use `?bulk=true` parameter as it causes read-after-write eventual consistency failures.
-7. **Rate Limits (429s):** Outbound API requests must be wrapped in a resilient retry loop using Exponential Backoff and Jitter.
+### B. The Forensic Supplement Pipeline
+The system automates the creation of complex insurance supplements by comparing EagleView roof measurements against adjuster Statements of Loss (SoL), cross-referencing local building codes, and applying deterministic math.
 
-## 4. ARCHITECTURAL DATA FLOW
+This pipeline is strictly bifurcated for safety and testability:
+1. **`SupplementEngine` (The Pure Math Core):** Located in `app/services/supplement_engine.py`. This class is purely deterministic. It takes raw inputs (e.g., eave lengths, ridge lengths, squares) and returns exact material counts (e.g., Ice & Water Shield rolls) based on physical dimensions and climate-zone gates. It has no knowledge of databases, queues, or web requests.
+2. **`SupplementProcessor` (The Orchestrator):** Located in `app/workers/supplement_processor.py`. This class runs in the background ARQ worker. It orchestrates the pipeline: extracting PDFs, generating rule-based discrepancies, catching errors, updating the database, and triggering the final ReportLab PDF build.
 
-Implement the following asynchronous pipeline:
+### C. The Fail-Loud / Resume Lifecycle
+Because the supplement pipeline handles legally binding financial outputs, it implements a strict "fail-loud" mechanism.
+- If the `SupplementProcessor` encounters malformed PDF data or invalid mathematical inputs (e.g., zero-length eaves), it immediately traps the exception.
+- It writes a `MANUAL REVIEW REQUIRED: <error>` note to the `supplement_flags` database table and transitions the job to `JobStatus.PENDING_MANUAL_REVIEW`.
+- **Flag Resolution:** The office administrator uses the `PATCH /api/field/jobs/{job_id}/flags/{flag_id}` endpoint to manually correct the discrepancy. This endpoint leaves an immutable audit trail (`RESOLVED: <note>`).
+- **Resumption:** Once all flags are resolved, the `POST /api/field/jobs/{job_id}/resume-supplement` endpoint re-queues the job. The ARQ worker detects the `resume=True` flag, bypasses the extraction/gating phases, and immediately proceeds to generate the AI narrative and the final PDF document.
 
-* **Step 1: Ingestion & Ack:** FastAPI receives a webhook `POST`. Validates `x-api-key`. Extracts `jnid` (JobNimbus ID) and `event_type`. Pushes to Redis queue. Instantly returns `HTTP 200 OK`.
-* **Step 2: Hydration (Reach-Back):** Celery/RQ worker picks up the job. Executes authenticated `GET /api1/jobs/{jnid}` or `/contacts/{jnid}` to pull the deeply nested, canonical JSON object.
-* **Step 3: Translation:** Worker passes JSON through the Custom Field Dictionary to map `cf_*` keys to readable English keys.
-* **Step 4: Cognitive Processing:** Data is packaged into a strict prompt and sent to the Gemini API (e.g., "Extract material list," "Draft customer SMS," "Determine next pipeline stage").
-* **Step 5: Document Generation (If applicable):** If the AI generates an itemized material breakdown, bypass JobNimbus templates. Use `ReportLab` to render a physical PDF locally.
-* **Step 6: Egress / Execution:** Worker executes JobNimbus commands:
-* `PUT /api1/jobs/{jnid}?skip=automation,notification&actor=...` (Update statuses)
-* `POST /api1/tasks?skip=automation,notification&actor=...` (Assign crew tasks)
-* `POST /files/v1/uploads/url` -> `PUT` to AWS S3 -> `POST /files/fromUrl` (Attach generated PDFs).
+### D. The Paperwork Matrix
+The system uses `ReportLab` to programmatically generate:
+- **Statutory Compliance:** Georgia Notice of Cancellation, Certificate of Completion.
+- **Material Orders:** Supplier Purchase Orders (POs) generated directly from the deterministic math engine.
+- **Contingency Agreements:** Captures HTML5 canvas signatures from the field app and permanently vaults them on the local file system.
 
+## 4. DATA INTEGRITY & SECURITY BOUNDARIES
 
+1. **SQLite WAL & Backups:** To prevent catastrophic data loss on a local laptop, SQLite operates in WAL mode for concurrent read/writes. The `app.core.backup` module executes scheduled hot `VACUUM INTO` backups, enforcing a strict 10-file retention limit to prevent disk bloat.
+2. **Environment Isolation:** A strict Dev vs. Prod separation is enforced via the `APP_ENV` variable. Backups and database operations dynamically switch scopes based on this flag.
+3. **Path Traversal Defense:** All endpoints manipulating job data or flags enforce strict `uuid.UUID` validation, preventing malicious path injection.
+4. **IDOR Defense:** The flag resolution endpoint uses combined `WHERE id = ? AND job_id = ?` queries to ensure operators cannot tamper with flags belonging to cross-tenant jobs.
 
-## 5. THE "ZERO-RISK" TESTING PROTOCOL
+## 5. REPOSITORY STRUCTURE
 
-We are testing in a live production environment. You must strictly adhere to this safety protocol:
-
-* **The Quarantine Filter:** The FastAPI webhook ingestion route must check the payload for `status_name == "API TEST LAB"`. If it does not match, instantly drop the request and return `200 OK`. Do not queue it.
-* **Read-Only Mode:** In the initial build, all Step 6 (Egress/Execution) functions must be mocked. Print the intended JSON payloads to the console/logger instead of firing them at the JobNimbus API.
-
-## 6. AUTONOMOUS AGENT EXECUTION ROADMAP
-
-*Agent: Please execute the following phases sequentially. Ask for human input ONLY for API keys or clarification on business logic.*
-
-### PHASE 1: Scaffolding & Environment Setup
-
-1. Initialize a Python environment (`venv`).
-2. Generate `requirements.txt` (fastapi, uvicorn, redis, rq/celery, httpx, google-generativeai, reportlab, python-dotenv).
-3. Create a clean folder structure (`/app/api/`, `/app/core/`, `/app/services/`, `/app/workers/`).
-4. Set up `.env` scaffolding for `JOBNIMBUS_API_KEY`, `GEMINI_API_KEY`, `WEBHOOK_SECRET`, and `REDIS_URL`.
-
-### PHASE 2: The Resilient API Client
-
-1. Build `app/services/jobnimbus_client.py`.
-2. Create an asynchronous HTTP client (using `httpx`) wrapper.
-3. Automatically inject the `Authorization: Bearer` header.
-4. Create decorator/middleware for the client that automatically handles `429 Too Many Requests` with exponential backoff.
-5. Create helper methods: `get_job(jnid)`, `update_job(jnid, payload)`, `upload_document(jnid, filepath)`. Ensure `skip` and `actor` parameters are hardcoded into the mutation helpers.
-
-### PHASE 3: Webhook Ingestion & Queue
-
-1. Build `app/api/webhooks.py`. Create a `POST` route.
-2. Implement header validation for `x-api-key`.
-3. Implement the Quarantine Filter (only process jobs with status "API TEST LAB").
-4. Integrate Redis/RQ. Push the `jnid` and `event` to the queue and return `200 OK`.
-
-### PHASE 4: The Hydration & Translation Layer
-
-1. Build `app/workers/job_processor.py`.
-2. Write the queue consumer function.
-3. Build `app/core/field_mapper.py`. Create a bi-directional dictionary that can translate a payload from `cf_string_1` to `date_of_loss` and vice versa.
-
-### PHASE 5: AI Integration & PDF Generator
-
-1. Build `app/services/ai_service.py` to wrap the Gemini API. Create a prompt template that accepts the translated JSON and outputs structured decisions.
-2. Build `app/services/pdf_generator.py` using `ReportLab` to take AI JSON output (like a material list) and render a clean, branded PDF locally.
-3. Link the generated PDF to the JobNimbus API client's `upload_document` method.
-
----
-
-**END OF DIRECTIVE**
+```
+JobNimbus_controller/
+├── app/
+│   ├── api/            # FastAPI Routers (field_routes, office_routes)
+│   ├── core/           # Database, Models, Pipeline Config
+│   ├── services/       # AI logic, PDF Parsing, Pure Math (SupplementEngine)
+│   ├── workers/        # ARQ Queue Consumers (SupplementProcessor)
+│   ├── templates/      # Jinja2 HTML Views
+│   └── static/         # CSS/JS Assets
+├── scripts/            # Bootstrap, backup, and CLI utilities
+├── tests/              # 130+ passing Pytest assertions
+├── field_docs/         # Generated PDFs (Git-ignored)
+└── field_photos/       # Uploaded Images (Git-ignored)
+```
