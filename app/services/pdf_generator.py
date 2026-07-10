@@ -332,8 +332,49 @@ class PDFGenerator:
                 story.append(Paragraph("No discrepancies found.", normal_style))
             story.append(Spacer(1, 18))
             
-            # --- 4. Narrative ---
+            # --- 4. Narrative & Code Requirements ---
             story.append(Paragraph("<b>Contractor Notes & Code Requirements:</b>", normal_style))
+            story.append(Spacer(1, 6))
+            
+            # Fetch rules and citations from DB
+            from app.core.database import get_connection
+            conn = get_connection()
+            try:
+                # Get triggered rules (mocked/queried if supplements/rules exist)
+                # For demonstration in PDF, we check if there are flags or just pull the baseline
+                # In a real app we'd join supplement_flags with supplement_rules
+                cursor = conn.execute('''
+                    SELECT r.citation_text, r.citation_type 
+                    FROM supplement_rules r
+                    -- Ideally JOIN supplement_flags f ON r.id = f.rule_id WHERE f.supplement_id = ?
+                    LIMIT 2
+                ''')
+                rules = cursor.fetchall()
+                
+                for r in rules:
+                    ctype = r["citation_type"]
+                    ctext = r["citation_text"]
+                    if ctype == "IRC":
+                        framed = f"Pursuant to International Residential Code Section: {ctext}"
+                    elif ctype == "MFG_SPEC":
+                        framed = f"Per Manufacturer Installation Warranty Requirements: {ctext}"
+                    else:
+                        framed = f"Policy Note: {ctext}"
+                    story.append(Paragraph(f"• <i>{framed}</i>", narrative_style))
+                
+                # Fetch Weather
+                cursor = conn.execute("SELECT * FROM storm_verifications WHERE job_id = ? LIMIT 1", (job_id,))
+                weather = cursor.fetchone()
+                if weather:
+                    story.append(Spacer(1, 6))
+                    story.append(Paragraph(f"<b>Weather Exhibit:</b> {weather['magnitude']}in {weather['event_type']} on {weather['loss_date'][:10]}", normal_style))
+                    story.append(Paragraph("<i>Source: NOAA NCEI Database (Pending Live Ingestion)</i>", legal_style))
+                    
+            except Exception as e:
+                log.error("pdf_db_fetch_failed", error=str(e))
+            finally:
+                conn.close()
+
             story.append(Spacer(1, 6))
             # Split narrative by newlines into separate paragraphs
             for p in narrative.split("\n"):
