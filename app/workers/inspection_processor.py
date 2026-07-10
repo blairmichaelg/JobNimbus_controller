@@ -13,7 +13,6 @@ This worker follows the same async-to-thread pattern as supplement_processor.py.
 """
 
 import io
-import time
 import asyncio
 import structlog
 from pathlib import Path

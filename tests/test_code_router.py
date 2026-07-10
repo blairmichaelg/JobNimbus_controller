@@ -2,8 +2,6 @@
 Unit tests for the Smart Code Router (Zero-Cost RAG).
 """
 
-import pytest
-import os
 from unittest.mock import patch, MagicMock
 from app.core.code_router import parse_code_files, get_relevant_codes
 from app.core.supplement_models import DiscrepancyReport, Discrepancy, MaterialBOM, CodeSection

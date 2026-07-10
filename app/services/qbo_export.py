@@ -156,7 +156,7 @@ def generate_qbo_invoice(job_id: str, bom: MaterialBOM, customer_name: str = "Un
             lines.append(
                 InvoiceLine(
                     item="o_and_p",
-                    description=f"Overhead & Profit",
+                    description="Overhead & Profit",
                     quantity=1.0,
                     rate=oh_amt,
                     amount=oh_amt

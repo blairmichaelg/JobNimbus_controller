@@ -6,7 +6,6 @@ Manages the SQLite connection and state machine for the local pipeline.
 from __future__ import annotations
 
 import sqlite3
-import json
 import structlog
 import uuid
 from typing import Optional

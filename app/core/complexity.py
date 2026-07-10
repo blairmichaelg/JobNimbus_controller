@@ -5,7 +5,6 @@ Replaces the static 15% assumption with a deterministic algorithm based
 on EagleView measurements (facets, pitch, and valleys).
 """
 
-import math
 from app.core.supplement_models import EagleViewData
 
 

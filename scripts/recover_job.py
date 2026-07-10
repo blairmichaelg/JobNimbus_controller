@@ -7,9 +7,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from app.core.database import update_job_status, JobStatus
 
 def recover_job(job_id: str, target_status: str):
-    print(f"===========================================================")
+    print("===========================================================")
     print(f"Emergency Database Mutator: {job_id}")
-    print(f"===========================================================")
+    print("===========================================================")
     
     try:
         # Validate status enum manually so we fail fast before mutating

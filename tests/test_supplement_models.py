@@ -5,7 +5,6 @@ Tests the computed fields, null handling, and data validation
 for the InsurTech Supplement Engine's data contracts.
 """
 
-import pytest
 from app.core.supplement_models import (
     EagleViewData,
     LineItem,

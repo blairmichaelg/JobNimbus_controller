@@ -9,8 +9,6 @@ This coordinates the entire Zero-Cost InsurTech Supplement pipeline:
 5. Render the final PDF via ReportLab.
 """
 
-import os
-from pathlib import Path
 import structlog
 
 from app.services.pdf_extractor import extract_eagleview_data

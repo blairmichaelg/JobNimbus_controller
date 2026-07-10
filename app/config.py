@@ -71,17 +71,6 @@ class Settings(BaseSettings):
         default=10,
         description="Number of hot SQLite WAL backups to retain before pruning."
     )
-    
-    # --- QuickBooks Online ---
-    qbo_client_id: str = Field(
-        default="", description="Intuit Developer App Client ID"
-    )
-    qbo_client_secret: str = Field(
-        default="", description="Intuit Developer App Client Secret"
-    )
-    qbo_environment: str = Field(
-        default="sandbox", description="QBO environment: sandbox or production"
-    )
 
     @field_validator("log_level")
     @classmethod

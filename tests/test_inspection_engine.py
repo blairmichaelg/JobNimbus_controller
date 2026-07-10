@@ -11,7 +11,7 @@ import io
 import asyncio
 from pathlib import Path
 from datetime import datetime
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
 import pytest
 from PIL import Image as PILImage

@@ -2,9 +2,7 @@
 Unit tests for the SQLite-backed V3 PhotoAnalysis cache layer.
 """
 
-import sqlite3
 import pytest
-from pathlib import Path
 
 from app.core.cache import (
     init_db,

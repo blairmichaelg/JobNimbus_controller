@@ -15,12 +15,6 @@ from app.core.supplement_models import (
     DiscrepancyReport,
     MaterialBOM
 )
-from app.core.complexity import (
-    compute_complexity_score,
-    calculate_dynamic_waste,
-    build_waste_explanation
-)
-import app.core.coverage_constants as constants
 
 
 def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor: float = 0.15) -> DiscrepancyReport:

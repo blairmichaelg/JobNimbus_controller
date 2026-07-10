@@ -20,7 +20,6 @@ from app.core.inspection_models import (
     InspectionJob,
     get_stable_photos,
     _compute_sha256,
-    ALLOWED_IMAGE_EXTENSIONS,
 )
 
 

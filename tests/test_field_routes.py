@@ -3,13 +3,10 @@ Unit tests for the Field UX FastApi endpoints (Epic 2).
 """
 
 import io
-import base64
 import pytest
-from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.api.field_routes import FIELD_PHOTOS_DIR, SIGNED_AGREEMENTS_DIR
 from app.core.cache import set_cached_analysis, init_db
 from app.core.inspection_models import PhotoAnalysis, DamageType, Severity
 
@@ -178,7 +175,6 @@ def test_capture_signature():
     assert expected_path.exists()
     
     from PIL import Image
-    import io
     file_bytes = expected_path.read_bytes()
     # Verify the saved image is valid
     saved_img = Image.open(io.BytesIO(file_bytes))
@@ -187,7 +183,7 @@ def test_capture_signature():
 
 
 def test_capture_signature_bad_payload():
-    """Invalid base64 should return a 500 error due to PDF/Image failure."""
+    """Invalid base64 should return a 400 error due to PDF/Image failure."""
     from app.core.database import get_connection
     conn = get_connection()
     conn.execute(
@@ -200,8 +196,22 @@ def test_capture_signature_bad_payload():
     response = client.post(
         "/api/field/jobs/TEST-SIG-004/contingency-sign",
         json={
-            "signature_base64": "not_base64!@#",
+            "signature_base64": "data:image/png;base64,not_base64!@#",
             "signer_name": "Test Homeowner"
         }
     )
     assert response.status_code == 400
+    assert "Invalid or corrupt image data" in response.json()["detail"]
+
+def test_capture_signature_payload_too_large():
+    """Payload > 2MB should return 413."""
+    large_payload = "data:image/png;base64," + ("A" * 2_000_001)
+    response = client.post(
+        "/api/field/jobs/TEST-SIG-004/contingency-sign",
+        json={
+            "signature_base64": large_payload,
+            "signer_name": "Test Homeowner"
+        }
+    )
+    assert response.status_code == 413
+    assert "Payload too large" in response.json()["detail"]

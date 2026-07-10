@@ -8,11 +8,10 @@ templates for full layout control.
 Implementation: Phase 5
 """
 
-import tempfile
 import asyncio
 import structlog
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, ListFlowable, ListItem, KeepTogether
+from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, KeepTogether
 from reportlab.platypus.flowables import HRFlowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors

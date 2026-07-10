@@ -1,7 +1,6 @@
 import sys
 import os
 import uuid
-import sqlite3
 
 # Ensure project root is in sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

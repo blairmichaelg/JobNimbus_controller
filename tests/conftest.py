@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 
 from app.core.database import init_db
 

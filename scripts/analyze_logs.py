@@ -1,5 +1,4 @@
 import json
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -11,9 +10,9 @@ def analyze_logs(log_file="data/logs/truck_server.log", hours=1):
 
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
-    print(f"===========================================================")
+    print("===========================================================")
     print(f"Dry Run Diagnostics: Scanning for ERROR/CRITICAL (Last {hours}h)")
-    print(f"===========================================================\n")
+    print("===========================================================\n")
     
     count = 0
     with open(log_path, "r", encoding="utf-8") as f:

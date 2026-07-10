@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from arq import create_pool
-from fastapi import FastAPI, Request, Response, Form, Depends
+from fastapi import FastAPI, Request, Response, Form
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -24,7 +24,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.webhooks import router as webhook_router
 from app.api.field_routes import router as field_router
 from app.api.office_routes import router as office_router, _fetch_job_sync
-from app.config import get_settings, verify_office_token
+from app.config import get_settings
 from app.core.cache import init_db as init_cache_db
 from app.core.database import init_db as init_crm_db, get_connection
 import os

@@ -4,7 +4,6 @@ Unit tests for the Artifact Garbage Collection (cleanup.py) logic.
 
 import time
 import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from app.core.cleanup import cleanup_orphaned_artifacts, DIRECTORIES_TO_SCAN

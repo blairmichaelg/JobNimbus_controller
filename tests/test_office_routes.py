@@ -2,7 +2,6 @@
 Unit tests for the Office Control Center API routes.
 """
 
-import pytest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 

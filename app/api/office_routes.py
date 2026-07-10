@@ -7,7 +7,7 @@ import json
 import asyncio
 from pathlib import Path
 import structlog
-from typing import List, Dict, Any
+from typing import List, Dict, Optional, Union
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks
 from fastapi.responses import FileResponse
@@ -17,7 +17,6 @@ from app.core.database import get_connection, update_job_status
 from app.services.pdf_extractor import extract_eagleview_data
 from app.core.reconciliation import reconcile
 from app.core.supplement_models import StatementOfLoss
-from app.services.qbo_export import generate_qbo_invoice
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
@@ -25,7 +24,6 @@ from app.core.database import insert_material_order, insert_schedule, JobStatus,
 from app.core.pipeline import run_full_office_pipeline
 from app.config import verify_office_token
 from app.core.upload_utils import stream_upload_safely
-from app.core.qbo_client import QBOClient
 
 logger = structlog.get_logger("app.api.office_routes")
 
@@ -35,15 +33,33 @@ FIELD_DOCS_DIR = Path("field_docs")
 EXPORT_DIR = Path("generated_exports")
 
 def _fetch_homeowner_name_sync(job_id: str) -> str:
+    """
+    Fetch the homeowner's name for a given job synchronously.
+
+    Args:
+        job_id (str): The unique identifier of the job.
+
+    Returns:
+        str: The homeowner's name or 'Unknown Customer' if not found.
+    """
     conn = get_connection()
     try:
         cursor = conn.execute("SELECT homeowner_name FROM jobs WHERE id = ?", (job_id,))
         row = cursor.fetchone()
-        return row["homeowner_name"] if row else "Unknown Customer"
+        return str(row["homeowner_name"]) if row else "Unknown Customer"
     finally:
         conn.close()
 
-def _fetch_job_sync(job_id: str) -> Dict[str, Any] | None:
+def _fetch_job_sync(job_id: str) -> Optional[Dict[str, Union[str, float, int, None]]]:
+    """
+    Fetch a complete job record synchronously.
+
+    Args:
+        job_id (str): The unique identifier of the job.
+
+    Returns:
+        Optional[Dict[str, Union[str, float, int, None]]]: A dictionary representing the job record, or None.
+    """
     conn = get_connection()
     try:
         cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
@@ -71,42 +87,14 @@ class MaterialOrderPayload(BaseModel):
     supplier_name: str
     delivery_date: str
 
-# --- QBO Routes ---
-@router.get("/qbo/connect")
-def qbo_connect(request: Request):
-    client = QBOClient()
-    # The frontend needs to pass its origin or we construct a redirect URI
-    # For now, let's construct it based on request URL
-    redirect_uri = str(request.base_url) + "api/office/qbo/callback"
-    url = client.get_authorization_url(redirect_uri)
-    return {"auth_url": url}
-
-@router.get("/qbo/callback")
-async def qbo_callback(request: Request, code: str, realmId: str, state: str):
-    client = QBOClient()
-    redirect_uri = str(request.base_url) + "api/office/qbo/callback"
-    try:
-        await client.exchange_code(code, realmId, redirect_uri)
-        return {"status": "success", "message": "QBO Connected successfully"}
-    except Exception as e:
-        logger.error("qbo_callback_failed", error=str(e))
-        raise HTTPException(status_code=500, detail="QBO Connection failed")
-
-@router.get("/qbo/status")
-async def qbo_status():
-    client = QBOClient()
-    status = await client.get_status()
-    return status
-
-@router.post("/qbo/disconnect")
-async def qbo_disconnect():
-    client = QBOClient()
-    await client.disconnect()
-    return {"status": "success", "message": "QBO Disconnected"}
-
 @router.get("/jobs")
-def get_all_jobs() -> List[Dict[str, Any]]:
-    """Retrieve all jobs from the local CRM ordered by creation date."""
+def get_all_jobs() -> List[Dict[str, Union[str, float, int, list, None]]]:
+    """
+    Retrieve all jobs from the local CRM ordered by creation date.
+    
+    Returns:
+        List[Dict[str, Union[str, float, int, list, None]]]: A list of job records.
+    """
     conn = get_connection()
     try:
         cursor = conn.execute('''
@@ -131,8 +119,16 @@ def get_all_jobs() -> List[Dict[str, Any]]:
         conn.close()
 
 @router.get("/jobs/{job_id}")
-def get_job_details(job_id: str) -> Dict[str, Any]:
-    """Retrieve unified job details across all production tables."""
+def get_job_details(job_id: str) -> Dict[str, Union[Dict[str, Union[str, float, int, list, None]], List[Dict[str, Union[str, float, int, None]]], None]]:
+    """
+    Retrieve unified job details across all production tables.
+    
+    Args:
+        job_id (str): The unique identifier of the job.
+        
+    Returns:
+        Dict[str, Union[Dict, List, None]]: Aggregated job data including financials, schedule, and docs.
+    """
     conn = get_connection()
     try:
         # Get Job Metadata

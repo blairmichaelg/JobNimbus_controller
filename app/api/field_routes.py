@@ -12,8 +12,6 @@ import io
 import structlog
 import uuid
 import json
-import os
-import io
 from pathlib import Path
 from datetime import datetime
 from PIL import Image
@@ -186,10 +184,10 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
         
     try:
         header, encoded = payload.signature_base64.split(",", 1)
-        image_bytes = base64.b64decode(encoded)
         
         # Verify and sanitize the image using Pillow before saving to disk
         try:
+            image_bytes = base64.b64decode(encoded)
             image = Image.open(io.BytesIO(image_bytes))
             image.verify()  # Verify it's a valid image
             

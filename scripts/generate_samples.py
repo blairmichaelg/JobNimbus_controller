@@ -10,7 +10,7 @@ root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(root_dir)
 from app.core.supplement_models import MaterialBOM
 from app.services.pdf_generator import PDFGenerator
-from app.core.database import insert_job_document, init_db, upsert_financials, get_connection
+from app.core.database import init_db, upsert_financials, get_connection
 from app.services.ai_service import AIService
 from app.services.pdf_extractor import extract_eagleview_data
 from app.core.reconciliation import reconcile
