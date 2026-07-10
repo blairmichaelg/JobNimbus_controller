@@ -61,6 +61,11 @@ async def startup(ctx: dict) -> None:
     """
     ARQ worker startup hook.
     """
+    settings = get_settings()
+    if settings.app_env.lower() == "prod":
+        logger.info(f"[PROD MODE] Worker connected to Redis DB 0")
+    else:
+        logger.info(f"[DEV MODE] Worker connected to Redis DB 1")
     logger.info("worker_starting_up")
 
 
