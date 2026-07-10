@@ -183,6 +183,13 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
     Handle E-Signature for Contingency Agreements.
     Saves PNG, generates PDF, logs agreement, and updates status.
     """
+    # Strictly validate job_id format to prevent path traversal
+    try:
+        uuid_obj = uuid.UUID(job_id)
+        job_id = str(uuid_obj)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format. Must be a valid UUID.")
+
     if len(payload.signature_base64) > 2_000_000:
         raise HTTPException(status_code=413, detail="Payload too large. Maximum size is 2MB.")
         

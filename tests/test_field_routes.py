@@ -147,7 +147,7 @@ def test_capture_signature():
     conn = get_connection()
     conn.execute(
         "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ("TEST-SIG-003", "Test Homeowner", "123 Test St", "City", "State", "00000", "555-5555")
+        ("99999999-9999-9999-9999-999999999993", "Test Homeowner", "123 Test St", "City", "State", "00000", "555-5555")
     )
     conn.commit()
     conn.close()
@@ -156,7 +156,7 @@ def test_capture_signature():
     data_uri = f"data:image/png;base64,{tiny_png_base64}"
     
     response = client.post(
-        "/api/field/jobs/TEST-SIG-003/contingency-sign",
+        "/api/field/jobs/99999999-9999-9999-9999-999999999993/contingency-sign",
         json={
             "signature_base64": data_uri,
             "signer_name": "Test Homeowner",
@@ -171,7 +171,7 @@ def test_capture_signature():
     assert "pdf_path" in data
     
     import app.api.field_routes as fr
-    expected_path = fr.SIGNED_AGREEMENTS_DIR / "TEST-SIG-003_contingency_sig.png"
+    expected_path = fr.SIGNED_AGREEMENTS_DIR / "99999999-9999-9999-9999-999999999993_contingency_sig.png"
     assert expected_path.exists()
     
     from PIL import Image
@@ -188,13 +188,13 @@ def test_capture_signature_bad_payload():
     conn = get_connection()
     conn.execute(
         "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ("TEST-SIG-004", "Test Homeowner", "123 Test St", "City", "State", "00000", "555-5555")
+        ("99999999-9999-9999-9999-999999999994", "Test Homeowner", "123 Test St", "City", "State", "00000", "555-5555")
     )
     conn.commit()
     conn.close()
     
     response = client.post(
-        "/api/field/jobs/TEST-SIG-004/contingency-sign",
+        "/api/field/jobs/99999999-9999-9999-9999-999999999994/contingency-sign",
         json={
             "signature_base64": "data:image/png;base64,not_base64!@#",
             "signer_name": "Test Homeowner"
@@ -207,7 +207,7 @@ def test_capture_signature_payload_too_large():
     """Payload > 2MB should return 413."""
     large_payload = "data:image/png;base64," + ("A" * 2_000_001)
     response = client.post(
-        "/api/field/jobs/TEST-SIG-004/contingency-sign",
+        "/api/field/jobs/99999999-9999-9999-9999-999999999994/contingency-sign",
         json={
             "signature_base64": large_payload,
             "signer_name": "Test Homeowner"
