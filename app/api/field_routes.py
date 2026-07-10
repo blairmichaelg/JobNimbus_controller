@@ -190,6 +190,16 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
         raise HTTPException(status_code=400, detail="Invalid signature format. Must be a PNG data URI.")
         
     try:
+        conn = get_connection()
+        try:
+            cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+            job_row = cursor.fetchone()
+            if not job_row:
+                raise HTTPException(status_code=404, detail="Job not found")
+            job_dict = dict(job_row)
+        finally:
+            conn.close()
+
         header, encoded = payload.signature_base64.split(",", 1)
         
         # Verify and sanitize the image using Pillow before saving to disk
@@ -214,16 +224,6 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
         except Exception as e:
             logger.error("signature_image_verification_failed", error=str(e))
             raise HTTPException(status_code=400, detail="Invalid or corrupt image data")
-        
-        conn = get_connection()
-        try:
-            cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
-            job_row = cursor.fetchone()
-            if not job_row:
-                raise HTTPException(status_code=404, detail="Job not found")
-            job_dict = dict(job_row)
-        finally:
-            conn.close()
 
         from app.services.pdf_generator import PDFGenerator
         pdf_gen = PDFGenerator()

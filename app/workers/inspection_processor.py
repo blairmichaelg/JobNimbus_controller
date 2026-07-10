@@ -26,6 +26,7 @@ from app.core.temp_manager import create_temp_file
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.services.pdf_generator import PDFGenerator
 from app.core.database import insert_job_document, update_job_status, JobStatus
+from app.config import get_settings
 
 logger = structlog.get_logger("app.workers.inspection_processor")
 
@@ -46,6 +47,9 @@ def resize_for_pdf(src: Path, max_width: int = 800) -> io.BytesIO:
     Returns:
         A BytesIO buffer containing the resized PNG image, seeked to 0.
     """
+    if max_width == 800:
+        max_width = get_settings().pdf_image_max_width
+
     with PILImage.open(src) as img:
         # Convert HEIC/other modes to RGB for PNG compatibility
         if img.mode not in ("RGB", "RGBA"):
@@ -80,6 +84,9 @@ def resize_for_ai(src: Path, max_width: int = 1600) -> str:
     Returns:
         Absolute filepath to the downscaled temporary JPEG file.
     """
+    if max_width == 1600:
+        max_width = get_settings().ai_image_max_width
+        
     with PILImage.open(src) as img:
         if img.mode not in ("RGB", "RGBA"):
             img = img.convert("RGB")
@@ -190,13 +197,13 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
                 try:
                     await asyncio.to_thread(ai.client.files.delete, name=uploaded_name)
                     photo_log.debug("remote_file_deleted", remote_name=uploaded_name)
-                except Exception:
-                    photo_log.warning("remote_file_cleanup_failed", remote_name=uploaded_name)
+                except Exception as e:
+                    photo_log.warning("remote_file_cleanup_failed", remote_name=uploaded_name, error=str(e))
             if ai_file_path:
                 try:
                     Path(ai_file_path).unlink(missing_ok=True)
-                except Exception:
-                    photo_log.warning("local_temp_cleanup_failed", path=ai_file_path)
+                except Exception as e:
+                    photo_log.warning("local_temp_cleanup_failed", path=ai_file_path, error=str(e))
 
     try:
 

@@ -30,6 +30,12 @@ def backup_database(retention_days: int = 14) -> None:
         dst.close()
         src.close()
         logger.info("backup_completed", target=str(backup_file))
+    except sqlite3.Error as e:
+        logger.error("backup_sqlite_error", error=str(e))
+        raise
+    except OSError as e:
+        logger.error("backup_os_error", error=str(e), details="Possible disk full or permissions issue")
+        raise
     except Exception as e:
         logger.error("backup_failed", error=str(e))
         raise

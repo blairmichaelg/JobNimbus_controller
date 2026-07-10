@@ -168,7 +168,6 @@ class PDFGenerator:
             story = []
             
             # Styles
-            header_style = self.styles["Heading1"]
             normal_style = self.styles["Normal"]
             
             # Custom Legal Style
@@ -279,7 +278,6 @@ class PDFGenerator:
             story = []
             
             # Styles
-            header_style = self.styles["Heading1"]
             normal_style = self.styles["Normal"]
             narrative_style = ParagraphStyle(
                 name="Narrative",
@@ -357,7 +355,6 @@ class PDFGenerator:
                 for r in rules:
                     ctype = r["citation_type"]
                     ctext = r["citation_text"]
-                    child_code = r["required_child_code"]
                     climate_dependent = bool(r["climate_dependent"])
                     
                     # CLIMATE GATE: Defensive second layer. If the rule is marked climate_dependent 

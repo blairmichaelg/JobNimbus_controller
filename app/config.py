@@ -45,6 +45,16 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field(
         ..., description="API key for the Google Gemini generative AI service."
     )
+    
+    # --- Image Processing Constraints ---
+    ai_image_max_width: int = Field(
+        default=1600,
+        description="Maximum pixel width for AI photo uploads.",
+    )
+    pdf_image_max_width: int = Field(
+        default=800,
+        description="Maximum pixel width for embedded PDF photos.",
+    )
 
     # --- Application ---
     app_env: str = Field(

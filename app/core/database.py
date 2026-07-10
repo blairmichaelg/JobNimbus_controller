@@ -376,7 +376,6 @@ def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
             raise ValueError(f"Job {job_id} not found.")
 
         current_status = row["status"]
-        history_str = row["status_history"]
 
         # ---------------------------------------------------------
         # STATE MACHINE ENFORCEMENT
