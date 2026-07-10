@@ -42,6 +42,7 @@ def get_redis_settings() -> RedisSettings:
             port=parsed.port or 6380,
             password=parsed.password,
             ssl=True,
+            database=0 if settings.app_env.lower() == "prod" else 1,
         )
     else:
         # Standard connection (Render internal KV, local dev)
@@ -52,6 +53,7 @@ def get_redis_settings() -> RedisSettings:
             host=parsed.hostname or "localhost",
             port=parsed.port or 6379,
             password=parsed.password,
+            database=0 if settings.app_env.lower() == "prod" else 1,
         )
 
 

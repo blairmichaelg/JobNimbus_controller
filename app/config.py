@@ -48,8 +48,8 @@ class Settings(BaseSettings):
 
     # --- Application ---
     app_env: str = Field(
-        default="development",
-        description="Runtime environment: development, staging, production.",
+        default="dev",
+        description="Runtime environment: dev or prod.",
     )
     log_level: str = Field(
         default="DEBUG",
@@ -63,10 +63,13 @@ class Settings(BaseSettings):
         default=True,
         description="When true, outbound CRM mutations are logged but NOT executed.",
     )
-    DB_PATH: str = Field(
-        default="data/truck_server.db",
-        description="Path to the local SQLite WAL database."
-    )
+    
+    @property
+    def get_db_path(self) -> str:
+        if self.app_env.lower() == "prod":
+            return "data/jobnimbus.db"
+        return "data/jobnimbus_dev.db"
+
     BACKUP_RETENTION_LIMIT: int = Field(
         default=10,
         description="Number of hot SQLite WAL backups to retain before pruning."

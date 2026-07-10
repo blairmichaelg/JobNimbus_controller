@@ -91,11 +91,11 @@ if ($LASTEXITCODE -ne 0) {
 # ---------------------------------------------------------------------
 Write-Host "`n[4/4] Spawning persistent terminal windows..." -ForegroundColor Yellow
 
-Write-Host "-> Booting FastAPI Server (Port 8001)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", ".\venv\Scripts\activate; `$env:APP_ENV='dev'; uvicorn app.main:app --reload --host 127.0.0.1 --port 8001"
+Write-Host "-> Booting FastAPI Server (PROD on Port 8000)..." -ForegroundColor Yellow
+Start-Process powershell -ArgumentList "-NoExit", "-Command", ".\venv\Scripts\activate; `$env:APP_ENV='prod'; uvicorn app.main:app --host 127.0.0.1 --port 8000"
 
-Write-Host "-> Booting ARQ Background Worker (Dev)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", ".\venv\Scripts\activate; `$env:APP_ENV='dev'; arq app.workers.settings.WorkerSettings"
+Write-Host "-> Booting ARQ Background Worker (PROD)..." -ForegroundColor Yellow
+Start-Process powershell -ArgumentList "-NoExit", "-Command", ".\venv\Scripts\activate; `$env:APP_ENV='prod'; arq app.workers.settings.WorkerSettings"
 
 Write-Host "`n=========================================================" -ForegroundColor Green
 Write-Host "SUCCESS: The One-Click CRM stack is fully operational!" -ForegroundColor Green

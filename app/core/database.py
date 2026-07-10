@@ -19,7 +19,7 @@ from app.config import get_settings
 logger = structlog.get_logger("app.core.database")
 
 def get_db_path() -> Path:
-    return Path(get_settings().DB_PATH)
+    return Path(get_settings().get_db_path)
 
 class JobStatus(str, Enum):
     LEAD_CAPTURED = "LEAD_CAPTURED"

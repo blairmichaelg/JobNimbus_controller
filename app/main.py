@@ -89,6 +89,12 @@ async def lifespan(app: FastAPI):
         dry_run=settings.dry_run,
         quarantine_status=settings.quarantine_status,
     )
+    
+    # Stark visibility for Dev/Prod split
+    if settings.app_env.lower() == "prod":
+        logger.info("[PROD MODE] Using data/jobnimbus.db on port 8000")
+    else:
+        logger.info("[DEV MODE] Using data/jobnimbus_dev.db on port 8001")
 
     # Initialize V3 Cache and Directories (Epic 1 & 2)
     init_cache_db()
