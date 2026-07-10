@@ -252,9 +252,51 @@ def test_resolve_flag_success():
     assert row["notes"] == "RESOLVED: Found the right measurement"
 
 def test_resolve_flag_invalid_uuid():
-    """Test path traversal defense."""
+    """Test path traversal defense on job_id."""
     response = client.patch(
         "/api/field/jobs/invalid-job/flags/123",
         json={"quantity_delta": 1.0, "resolution_note": "test"}
     )
     assert response.status_code == 400
+
+def test_resolve_flag_invalid_flag_uuid():
+    """Test path traversal defense on flag_id."""
+    import uuid
+    job_id = str(uuid.uuid4())
+    response = client.patch(
+        f"/api/field/jobs/{job_id}/flags/invalid_flag",
+        json={"quantity_delta": 1.0, "resolution_note": "test"}
+    )
+    assert response.status_code == 400
+
+def test_resolve_flag_idor():
+    """Test IDOR defense: a valid flag_id but wrong job_id returns 404."""
+    from app.core.database import get_connection
+    import uuid
+    conn = get_connection()
+    job_id_1 = str(uuid.uuid4())
+    job_id_2 = str(uuid.uuid4())
+    flag_id = str(uuid.uuid4())
+    rule_id = str(uuid.uuid4())
+    
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (job_id_1, "Homeowner 1", "123 Test St", "City", "State", "00000", "555-5555")
+    )
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (job_id_2, "Homeowner 2", "123 Test St", "City", "State", "00000", "555-5555")
+    )
+    conn.execute("INSERT INTO supplement_rules (id, parent_code, required_child_code, citation_text, citation_type, trigger_logic_name, climate_dependent) VALUES (?, 'RFG', 'RFG DRIP', 'Rule', 'IRC', 'calc', 0)", (rule_id,))
+    # Flag belongs to job_id_1
+    conn.execute("INSERT INTO supplement_flags (id, job_id, rule_id, triggered, quantity_delta, notes) VALUES (?, ?, ?, 1, 0.0, 'MANUAL REVIEW REQUIRED')", (flag_id, job_id_1, rule_id))
+    conn.commit()
+    conn.close()
+    
+    # Try to resolve flag using job_id_2
+    response = client.patch(
+        f"/api/field/jobs/{job_id_2}/flags/{flag_id}",
+        json={"quantity_delta": 10.0, "resolution_note": "Stealing flag"}
+    )
+    assert response.status_code == 404
+    assert "Flag not found or does not belong to this job" in response.json()["detail"]
