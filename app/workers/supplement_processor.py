@@ -36,6 +36,42 @@ def _fetch_job_context_sync(job_id: str) -> dict:
         conn.close()
 
 
+def generate_and_gate_flags(job_id: str, ice_barrier_required: bool) -> None:
+    """
+    Evaluates DB rules and persists them to supplement_flags if the climate gate permits it.
+    """
+    conn = get_connection()
+    import uuid
+    try:
+        # Fetch all seeded rules
+        cursor = conn.execute("SELECT * FROM supplement_rules")
+        rules = cursor.fetchall()
+        flags_to_insert = []
+        for rule in rules:
+            # CLIMATE GATE: If rule is climate dependent but job doesn't require it, SKIP.
+            if bool(rule["climate_dependent"]) and not ice_barrier_required:
+                continue
+            
+            # For demonstration, we simply insert a flag for all valid rules
+            # In a real app, you'd execute rule["trigger_logic_name"] against the `report` or `ev_data`
+            flags_to_insert.append((
+                str(uuid.uuid4()),
+                job_id,
+                rule["id"],
+                1,
+                0.0,
+                "Triggered via deterministic pipeline"
+            ))
+        
+        if flags_to_insert:
+            conn.executemany('''
+                INSERT INTO supplement_flags (id, job_id, rule_id, triggered, quantity_delta, notes)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', flags_to_insert)
+            conn.commit()
+    finally:
+        conn.close()
+
 async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: str, sol_pdf_path: str) -> dict:
     """
     ARQ Task to handle the complete supplement request flow.
@@ -64,41 +100,7 @@ async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: str, sol
 
         # 4.5. Generate and Gate Supplement Flags
         ice_barrier_required = bool(job_dict.get("ice_barrier_required")) if job_dict.get("ice_barrier_required") is not None else False
-        
-        def _persist_flags():
-            conn = get_connection()
-            import uuid
-            try:
-                # Fetch all seeded rules
-                cursor = conn.execute("SELECT * FROM supplement_rules")
-                rules = cursor.fetchall()
-                flags_to_insert = []
-                for rule in rules:
-                    # CLIMATE GATE: If rule is climate dependent but job doesn't require it, SKIP.
-                    if bool(rule["climate_dependent"]) and not ice_barrier_required:
-                        continue
-                    
-                    # For demonstration, we simply insert a flag for all valid rules
-                    # In a real app, you'd execute rule["trigger_logic_name"] against the `report` or `ev_data`
-                    flags_to_insert.append((
-                        str(uuid.uuid4()),
-                        job_id,
-                        rule["id"],
-                        1,
-                        0.0,
-                        "Triggered via deterministic pipeline"
-                    ))
-                
-                if flags_to_insert:
-                    conn.executemany('''
-                        INSERT INTO supplement_flags (id, job_id, rule_id, triggered, quantity_delta, notes)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', flags_to_insert)
-                    conn.commit()
-            finally:
-                conn.close()
-
-        await asyncio.to_thread(_persist_flags)
+        await asyncio.to_thread(generate_and_gate_flags, job_id, ice_barrier_required)
 
         # 5. Generate Narrative
         narrative = await ai_service.generate_supplement_narrative(report, codes)
