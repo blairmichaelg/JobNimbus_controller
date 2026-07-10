@@ -16,6 +16,7 @@ from arq.cron import cron
 
 from app.config import get_settings
 from app.core.cleanup import cleanup_orphaned_artifacts
+from app.core.backup import backup_database
 
 logger = structlog.get_logger("app.workers.settings")
 
@@ -77,6 +78,14 @@ async def run_cleanup(ctx: dict) -> None:
     await asyncio.to_thread(cleanup_orphaned_artifacts)
     logger.info("cron_cleanup_finished")
 
+async def run_backup(ctx: dict) -> None:
+    """
+    Cron job to backup the SQLite database safely using the native backup API.
+    """
+    logger.info("cron_backup_started")
+    await asyncio.to_thread(backup_database, 14)
+    logger.info("cron_backup_finished")
+
 
 class WorkerSettings:
     """
@@ -108,5 +117,6 @@ class WorkerSettings:
 
     # Cron jobs
     cron_jobs = [
-        cron(run_cleanup, hour=2, minute=0)
+        cron(run_cleanup, hour=2, minute=0),
+        cron(run_backup, hour={0, 4, 8, 12, 16, 20}, minute=0)
     ]
