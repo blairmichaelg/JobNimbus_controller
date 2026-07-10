@@ -59,6 +59,10 @@ class ContingencySignaturePayload(BaseModel):
     ip_address: str | None = Field(None, description="IP address of the device capturing the signature")
     user_agent: str | None = Field(None, description="User Agent of the device capturing the signature")
 
+class FlagResolutionPayload(BaseModel):
+    quantity_delta: float = Field(..., description="The corrected, manually determined quantity")
+    resolution_note: str = Field(..., description="Audit note explaining the manual override")
+
 from app.core.climate_lookup import is_ice_barrier_required
 
 @router.post("/jobs")
@@ -193,6 +197,38 @@ async def resume_supplement(job_id: str, request: Request, background_tasks: Bac
     await redis.enqueue_job("process_supplement_event", job_id, None, None, resume=True)
     
     return {"status": "accepted", "job_id": job_id, "message": "Supplement resume processing started."}
+
+@router.patch("/jobs/{job_id}/flags/{flag_id}", status_code=200)
+async def resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload):
+    """
+    Resolves a flag that was marked for manual review.
+    Updates the quantity and adds a resolution note.
+    """
+    try:
+        uuid.UUID(job_id)
+        uuid.UUID(flag_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id or flag_id format. Must be a valid UUID.")
+
+    conn = get_connection()
+    try:
+        # Verify the flag exists and belongs to the job
+        cursor = conn.execute("SELECT id FROM supplement_flags WHERE id = ? AND job_id = ?", (flag_id, job_id))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Flag not found or does not belong to this job.")
+        
+        # Update the flag
+        audit_note = f"RESOLVED: {payload.resolution_note}"
+        conn.execute('''
+            UPDATE supplement_flags
+            SET quantity_delta = ?, notes = ?
+            WHERE id = ?
+        ''', (payload.quantity_delta, audit_note, flag_id))
+        conn.commit()
+    finally:
+        conn.close()
+        
+    return {"status": "success", "flag_id": flag_id, "message": "Flag resolved successfully."}
 
 
 @router.post("/jobs/{job_id}/contingency-sign")

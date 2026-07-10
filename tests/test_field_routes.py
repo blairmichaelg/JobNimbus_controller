@@ -215,3 +215,46 @@ def test_capture_signature_payload_too_large():
     )
     assert response.status_code == 413
     assert "Payload too large" in response.json()["detail"]
+
+
+def test_resolve_flag_success():
+    """Test that a flag is successfully updated and resolved."""
+    from app.core.database import get_connection
+    import uuid
+    conn = get_connection()
+    job_id = str(uuid.uuid4())
+    flag_id = str(uuid.uuid4())
+    rule_id = str(uuid.uuid4())
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (job_id, "Test Homeowner", "123 Test St", "City", "State", "00000", "555-5555")
+    )
+    conn.execute("INSERT INTO supplement_rules (id, parent_code, required_child_code, citation_text, citation_type, trigger_logic_name, climate_dependent) VALUES (?, 'RFG', 'RFG IWS', 'Fake Rule', 'IRC', 'calc', 1)", (rule_id,))
+    conn.execute("INSERT INTO supplement_flags (id, job_id, rule_id, triggered, quantity_delta, notes) VALUES (?, ?, ?, 1, 0.0, 'MANUAL REVIEW REQUIRED: Error')", (flag_id, job_id, rule_id))
+    conn.commit()
+    conn.close()
+    
+    response = client.patch(
+        f"/api/field/jobs/{job_id}/flags/{flag_id}",
+        json={
+            "quantity_delta": 5.5,
+            "resolution_note": "Found the right measurement"
+        }
+    )
+    assert response.status_code == 200
+    
+    conn = get_connection()
+    cursor = conn.execute("SELECT quantity_delta, notes FROM supplement_flags WHERE id = ?", (flag_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    assert row["quantity_delta"] == 5.5
+    assert row["notes"] == "RESOLVED: Found the right measurement"
+
+def test_resolve_flag_invalid_uuid():
+    """Test path traversal defense."""
+    response = client.patch(
+        "/api/field/jobs/invalid-job/flags/123",
+        json={"quantity_delta": 1.0, "resolution_note": "test"}
+    )
+    assert response.status_code == 400
