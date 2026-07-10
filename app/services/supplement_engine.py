@@ -72,6 +72,10 @@ class SupplementEngine:
         Calculates IWS rolls required based on 2021/2024 IRC R905.1.2.
         Barrier must extend 24" horizontally inside the interior wall line.
         """
+        eave_length_ft = max(0.0, float(eave_length_ft))
+        valley_length_ft = max(0.0, float(valley_length_ft))
+        pitch = max(0.0, float(pitch))
+        
         # Horizontal distance required in inches: overhang + wall + 24" inside
         total_horizontal_in = overhang_in + wall_thickness_in + 24.0
         
