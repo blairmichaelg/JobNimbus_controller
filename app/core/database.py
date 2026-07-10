@@ -24,10 +24,16 @@ def get_db_path() -> Path:
 
 class JobStatus(str, Enum):
     LEAD_CAPTURED = "LEAD_CAPTURED"
+    CONTINGENCY_SIGNED = "CONTINGENCY_SIGNED"
+    CLAIM_FILED = "CLAIM_FILED"
+    ADJUSTER_MEETING_COMPLETED = "ADJUSTER_MEETING_COMPLETED"
     PHOTOS_UPLOADED = "PHOTOS_UPLOADED"
     EV_PARSED = "EV_PARSED"
+    STATEMENT_OF_LOSS_RECEIVED = "STATEMENT_OF_LOSS_RECEIVED"
     SUPPLEMENT_GENERATED = "SUPPLEMENT_GENERATED"
     SUPPLEMENT_SUBMITTED = "SUPPLEMENT_SUBMITTED"
+    SUPPLEMENT_DENIED = "SUPPLEMENT_DENIED"
+    SUPPLEMENT_APPROVED = "SUPPLEMENT_APPROVED"
     SCOPE_APPROVED = "SCOPE_APPROVED"
     MATERIAL_ORDERED = "MATERIAL_ORDERED"
     INSTALL_SCHEDULED = "INSTALL_SCHEDULED"
@@ -42,7 +48,7 @@ class JobStatus(str, Enum):
 
 def get_connection() -> sqlite3.Connection:
     """Get a SQLite connection with WAL mode enabled for concurrency."""
-    conn = sqlite3.connect(get_db_path(), check_same_thread=False)
+    conn = sqlite3.connect(get_db_path(), check_same_thread=False, timeout=15.0)
     conn.row_factory = sqlite3.Row
     # Enable Write-Ahead Logging to allow concurrent read/writes between FastAPI and ARQ
     conn.execute("PRAGMA journal_mode=WAL;")
@@ -83,7 +89,9 @@ def init_db() -> None:
         ''')
         
         # Lightweight migration if jobs existed before inspection fields
-        for col in ["inspector_name TEXT", "inspection_date TIMESTAMP", "inspection_notes TEXT"]:
+        for col in ["inspector_name TEXT", "inspection_date TIMESTAMP", "inspection_notes TEXT",
+                    "job_type TEXT DEFAULT 'INSURANCE'", "policy_type TEXT", "adjuster_name TEXT", "adjuster_phone TEXT",
+                    "adjuster_email TEXT", "canvasser_name TEXT", "qbo_customer_id TEXT"]:
             try:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
             except sqlite3.OperationalError:
@@ -126,11 +134,61 @@ def init_db() -> None:
             )
         ''')
         
-        # Lightweight migration if financials existed before permits_fee
-        try:
-            conn.execute("ALTER TABLE financials ADD COLUMN permits_fee REAL NOT NULL DEFAULT 0.0")
-        except sqlite3.OperationalError:
-            pass # Column already exists
+        # Lightweight migration if financials existed before permits_fee and others
+        for col in ["permits_fee REAL NOT NULL DEFAULT 0.0", "deductible REAL DEFAULT 0.0",
+                    "acv_payment REAL DEFAULT 0.0", "recoverable_depreciation REAL DEFAULT 0.0",
+                    "qbo_invoice_id TEXT"]:
+            try:
+                conn.execute(f"ALTER TABLE financials ADD COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass # Column already exists
+            
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS qbo_credentials (
+                realm_id TEXT PRIMARY KEY,
+                access_token TEXT NOT NULL,
+                refresh_token TEXT NOT NULL,
+                token_expires_at TIMESTAMP NOT NULL,
+                refresh_expires_at TIMESTAMP NOT NULL
+            )
+        ''')
+
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS job_agreements (
+                id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                type TEXT NOT NULL,
+                pdf_path TEXT,
+                signature_image_path TEXT,
+                signed_at TIMESTAMP NOT NULL,
+                signed_by_name TEXT,
+                signed_by_ip TEXT,
+                user_agent TEXT,
+                FOREIGN KEY(job_id) REFERENCES jobs(id)
+            )
+        ''')
+            
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS supplements (
+                id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                round_number INTEGER NOT NULL,
+                pdf_path TEXT,
+                submitted_at TIMESTAMP,
+                status TEXT,
+                FOREIGN KEY(job_id) REFERENCES jobs(id)
+            )
+        ''')
+            
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS qbo_mappings (
+                id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                qbo_customer_id TEXT,
+                qbo_invoice_id TEXT,
+                FOREIGN KEY(job_id) REFERENCES jobs(id)
+            )
+        ''')
             
         conn.execute('''
             CREATE TABLE IF NOT EXISTS job_documents (

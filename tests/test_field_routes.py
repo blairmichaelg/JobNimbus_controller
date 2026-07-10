@@ -145,33 +145,58 @@ def test_get_inspection_summary():
 
 
 def test_capture_signature():
-    """POST /api/field/sign should decode base64 and save to disk."""
-    # Create a tiny 1x1 base64 transparent PNG
+    """POST /api/field/jobs/{job_id}/contingency-sign should decode base64, save PNG, and generate PDF."""
+    from app.core.database import get_connection
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("TEST-SIG-003", "Test Homeowner", "123 Test St", "City", "State", "00000", "555-5555")
+    )
+    conn.commit()
+    conn.close()
+
     tiny_png_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
     data_uri = f"data:image/png;base64,{tiny_png_base64}"
     
     response = client.post(
-        "/api/field/sign",
-        json={"job_id": "TEST-SIG-003", "signature_base64": data_uri}
+        "/api/field/jobs/TEST-SIG-003/contingency-sign",
+        json={
+            "signature_base64": data_uri,
+            "signer_name": "Test Homeowner",
+            "ip_address": "127.0.0.1",
+            "user_agent": "Pytest"
+        }
     )
     
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "success"
+    assert "pdf_path" in data
     
     import app.api.field_routes as fr
-    expected_path = fr.SIGNED_AGREEMENTS_DIR / "TEST-SIG-003_signature.png"
+    expected_path = fr.SIGNED_AGREEMENTS_DIR / "TEST-SIG-003_contingency_sig.png"
     assert expected_path.exists()
     
-    # Decode and verify physical file bytes
     file_bytes = expected_path.read_bytes()
     assert file_bytes == base64.b64decode(tiny_png_base64)
 
 
 def test_capture_signature_bad_payload():
-    """Invalid base64 should return a 400 error."""
-    response = client.post(
-        "/api/field/sign",
-        json={"job_id": "TEST-SIG-004", "signature_base64": "not_base64!@#"}
+    """Invalid base64 should return a 500 error due to PDF/Image failure."""
+    from app.core.database import get_connection
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("TEST-SIG-004", "Test Homeowner", "123 Test St", "City", "State", "00000", "555-5555")
     )
-    assert response.status_code == 400
+    conn.commit()
+    conn.close()
+    
+    response = client.post(
+        "/api/field/jobs/TEST-SIG-004/contingency-sign",
+        json={
+            "signature_base64": "not_base64!@#",
+            "signer_name": "Test Homeowner"
+        }
+    )
+    assert response.status_code == 500

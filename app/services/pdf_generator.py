@@ -621,6 +621,59 @@ class PDFGenerator:
 
         await asyncio.to_thread(build_pdf)
         return filepath
+
+    async def generate_contingency_pdf(self, job: dict, signature_path: str, signer_name: str, ip_address: str) -> str:
+        """Generate a basic Legal Contingency document with embedded signature and legal footer."""
+        job_id = job.get("id", "UNKNOWN")
+        log = logger.bind(job_id=job_id)
+        log.info("contingency_pdf_generation_started")
+
+        job_dir = FIELD_DOCS_DIR / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "contingency_agreement_signed.pdf")
+
+        def build_pdf():
+            doc = self._get_doc_template(filepath)
+            story = []
+            
+            story.append(Paragraph("INSURANCE CONTINGENCY AGREEMENT", self.custom_styles["Title"]))
+            story.append(Spacer(1, 20))
+            
+            # --- Metadata Table ---
+            story.append(self._build_metadata_table(job))
+            story.append(Spacer(1, 15))
+            
+            story.append(Paragraph("Scope of Work & Payment", self.custom_styles["SectionHeading"]))
+            scope_text = "Contractor agrees to repair or replace the roof at the above address. The final scope of work and price shall be strictly determined by the insurance carrier's approved estimate. Any additional work or upgrades require a signed change order."
+            story.append(Paragraph(scope_text, self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 10))
+            
+            warning_text = "WARNING: It is a violation of Georgia law (O.C.G.A. § 33-24-59.27) for a contractor to pay, waive, rebate, or promise to pay or rebate all or part of an insurance deductible. The homeowner is strictly responsible for the payment of the deductible."
+            story.append(self._box_warning("HB 423 Deductible & Inducement Clause", warning_text, colors.darkred))
+            story.append(Spacer(1, 20))
+            
+            # --- Signature ---
+            story.append(Paragraph("<b>Homeowner Authorization</b>", self.styles["Heading2"]))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey, spaceAfter=12))
+            
+            try:
+                sig_img = Image(str(signature_path), width=300, height=100, kind='proportional')
+                story.append(sig_img)
+            except Exception as e:
+                log.error("signature_render_failed", error=str(e))
+                
+            story.append(Spacer(1, 10))
+            story.append(Paragraph(f"Digitally signed by {signer_name} from IP {ip_address}", self.custom_styles["FinePrint"]))
+            
+            doc.build(story)
+
+        try:
+            await asyncio.to_thread(build_pdf)
+            log.info("contingency_pdf_generation_complete", filepath=filepath)
+            return filepath
+        except Exception as exc:
+            log.error("contingency_pdf_generation_failed", error=str(exc))
+            raise
     async def generate_notice_of_cancellation(self, job: dict) -> str:
         """
         Generate Georgia statutory Notice of Cancellation.

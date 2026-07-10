@@ -44,10 +44,20 @@ class LeadIntakePayload(BaseModel):
     email: str | None = None
     claim_number: str | None = None
     insurer_name: str | None = None
+    job_type: str = Field(default="INSURANCE")
 
 class SignaturePayload(BaseModel):
     job_id: str = Field(..., description="JobNimbus entity ID")
     signature_base64: str = Field(..., description="Data URI from HTML5 Canvas (data:image/png;base64,...)")
+    ip_address: str | None = Field(None, description="IP address of the device capturing the signature")
+    timestamp: str | None = Field(None, description="ISO8601 timestamp of signature capture")
+    user_agent: str | None = Field(None, description="User Agent of the device capturing the signature")
+
+class ContingencySignaturePayload(BaseModel):
+    signature_base64: str = Field(..., description="Data URI from HTML5 Canvas")
+    signer_name: str = Field(..., description="Name of the person signing")
+    ip_address: str | None = Field(None, description="IP address of the device capturing the signature")
+    user_agent: str | None = Field(None, description="User Agent of the device capturing the signature")
 
 @router.post("/jobs")
 def create_new_job(payload: LeadIntakePayload):
@@ -69,13 +79,13 @@ def create_new_job(payload: LeadIntakePayload):
         conn.execute('''
             INSERT INTO jobs (
                 id, homeowner_name, address_line1, city, state, postal_code, 
-                phone, email, claim_number, insurer_name, status, status_history
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                phone, email, claim_number, insurer_name, status, status_history, job_type
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             job_id, payload.homeowner_name, payload.address_line1, payload.city,
             payload.state, payload.postal_code, payload.phone, payload.email,
             payload.claim_number, payload.insurer_name, "LEAD_CAPTURED",
-            json.dumps(initial_history)
+            json.dumps(initial_history), payload.job_type
         ))
         conn.commit()
     except Exception as e:
@@ -157,25 +167,60 @@ def get_inspection_summary(job_id: str):
     return job
 
 
-@router.post("/sign")
-async def capture_signature(payload: SignaturePayload):
+
+
+
+@router.post("/jobs/{job_id}/contingency-sign")
+async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
     """
-    Accept a base64 HTML5 canvas signature and save it as a physical PNG.
-    Used later by the ReportLab Evidence Grid for contract attachment.
+    Handle E-Signature for Contingency Agreements.
+    Saves PNG, generates PDF, logs agreement, and updates status.
     """
     try:
-        # Strip the Data URI scheme prefix if present
         header, encoded = payload.signature_base64.split(",", 1) if "," in payload.signature_base64 else ("", payload.signature_base64)
-        
         image_bytes = base64.b64decode(encoded)
         
         SIGNED_AGREEMENTS_DIR.mkdir(parents=True, exist_ok=True)
-        file_path = SIGNED_AGREEMENTS_DIR / f"{payload.job_id}_signature.png"
+        sig_file_path = SIGNED_AGREEMENTS_DIR / f"{job_id}_contingency_sig.png"
+        sig_file_path.write_bytes(image_bytes)
         
-        file_path.write_bytes(image_bytes)
+        conn = get_connection()
+        try:
+            cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+            job_row = cursor.fetchone()
+            if not job_row:
+                raise HTTPException(status_code=404, detail="Job not found")
+            job_dict = dict(job_row)
+        finally:
+            conn.close()
+
+        from app.services.pdf_generator import PDFGenerator
+        pdf_gen = PDFGenerator()
+        pdf_path = await pdf_gen.generate_contingency_pdf(
+            job_dict, 
+            str(sig_file_path), 
+            payload.signer_name, 
+            payload.ip_address or "Unknown IP"
+        )
         
-        logger.info("signature_captured", job_id=payload.job_id, path=str(file_path))
-        return {"status": "success", "file": file_path.name}
+        conn = get_connection()
+        try:
+            agreement_id = str(uuid.uuid4())
+            ts = datetime.utcnow().isoformat() + "Z"
+            conn.execute('''
+                INSERT INTO job_agreements (id, job_id, type, pdf_path, signature_image_path, signed_at, signed_by_name, signed_by_ip, user_agent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (agreement_id, job_id, "CONTINGENCY", pdf_path, str(sig_file_path), ts, payload.signer_name, payload.ip_address, payload.user_agent))
+            conn.commit()
+        finally:
+            conn.close()
+            
+        update_job_status(job_id, "CONTINGENCY_SIGNED", f"Contingency signed by {payload.signer_name}")
+        
+        logger.info("contingency_signed_and_generated", job_id=job_id, agreement_id=agreement_id)
+        return {"status": "success", "pdf_path": Path(pdf_path).name}
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("signature_capture_failed", job_id=payload.job_id, error=str(e))
-        raise HTTPException(status_code=400, detail="Invalid signature payload")
+        logger.error("contingency_sign_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to process contingency signature")

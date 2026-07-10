@@ -16,6 +16,14 @@
         
         <form id="intakeForm" class="space-y-6">
             <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Job Type</label>
+                <select id="job_type" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
+                    <option value="INSURANCE">Insurance Restoration (Contingency)</option>
+                    <option value="RETAIL">Retail Cash</option>
+                </select>
+            </div>
+
+            <div>
                 <label class="block text-sm font-medium text-gray-400 mb-2">Homeowner Name</label>
                 <input type="text" id="homeowner_name" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
             </div>
@@ -52,6 +60,14 @@
                 <input type="file" id="photo" accept="image/jpeg, image/png" class="w-full text-lg text-gray-400 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer">
             </div>
 
+            <div id="signatureSection" class="pt-4 border-t border-gray-700">
+                <label class="block text-sm font-medium text-gray-400 mb-2">Homeowner Signature (Contingency Agreement)</label>
+                <div class="bg-white rounded-lg p-1 border border-gray-600 mb-2 relative">
+                    <canvas id="signaturePad" width="380" height="150" class="w-full border-none touch-none rounded bg-white"></canvas>
+                </div>
+                <button type="button" id="clearBtn" class="text-sm text-red-400 hover:text-red-300 font-semibold">Clear Signature</button>
+            </div>
+
             <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white p-4 rounded-lg font-bold text-xl mt-8 active:bg-blue-800 transition-colors shadow-lg">Submit Lead</button>
         </form>
     </div>
@@ -73,6 +89,65 @@
     <script>
         const FIELD_TOKEN = "{{ field_token }}";
 
+        const canvas = document.getElementById('signaturePad');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        const startDrawing = (e) => {
+            isDrawing = true;
+            const pos = getPos(e);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            e.preventDefault();
+        };
+
+        const draw = (e) => {
+            if (!isDrawing) return;
+            const pos = getPos(e);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+            e.preventDefault();
+        };
+
+        const stopDrawing = () => { isDrawing = false; };
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+        
+        canvas.addEventListener('touchstart', startDrawing);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchend', stopDrawing);
+        
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        const jobTypeSelect = document.getElementById('job_type');
+        const signatureSection = document.getElementById('signatureSection');
+        
+        jobTypeSelect.addEventListener('change', (e) => {
+            if(e.target.value === 'INSURANCE') {
+                signatureSection.classList.remove('hidden');
+            } else {
+                signatureSection.classList.add('hidden');
+            }
+        });
+        
+        // Trigger initial state
+        jobTypeSelect.dispatchEvent(new Event('change'));
+
         document.getElementById('intakeForm').onsubmit = async function(e) {
             e.preventDefault();
             
@@ -92,7 +167,8 @@
                     phone: document.getElementById('phone').value,
                     email: null,
                     claim_number: null,
-                    insurer_name: null
+                    insurer_name: null,
+                    job_type: document.getElementById('job_type').value
                 };
 
                 const leadResponse = await fetch('/api/field/jobs', {
@@ -140,6 +216,31 @@
                         const err = await photoResponse.text();
                         // Non-fatal, but we should alert
                         console.warn(`Photo upload failed: ${err}`);
+                    }
+                }
+
+                // 3. Submit Contingency Signature (if applicable)
+                if (document.getElementById('job_type').value === 'INSURANCE') {
+                    submitBtn.innerText = 'Generating Contract...';
+                    const signatureBase64 = canvas.toDataURL('image/png');
+                    const sigPayload = {
+                        signature_base64: signatureBase64,
+                        signer_name: document.getElementById('homeowner_name').value,
+                        user_agent: navigator.userAgent
+                    };
+                    
+                    const sigResponse = await fetch(`/api/field/jobs/${jobId}/contingency-sign`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-internal-token': FIELD_TOKEN
+                        },
+                        body: JSON.stringify(sigPayload)
+                    });
+                    
+                    if (!sigResponse.ok) {
+                        const err = await sigResponse.text();
+                        throw new Error(`Signature upload failed: ${err}`);
                     }
                 }
 
