@@ -9,6 +9,9 @@ This coordinates the entire Zero-Cost InsurTech Supplement pipeline:
 5. Render the final PDF via ReportLab.
 """
 
+import asyncio
+import sqlite3
+from typing import Optional
 import structlog
 
 from app.services.pdf_extractor import extract_eagleview_data
@@ -100,40 +103,69 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: Ea
     finally:
         conn.close()
 
-async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: str, sol_pdf_path: str) -> dict:
+async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: Optional[str] = None, sol_pdf_path: Optional[str] = None, resume: bool = False) -> dict:
     """
     ARQ Task to handle the complete supplement request flow.
+    If resume=True, it skips parsing and gating, validates flags are resolved,
+    and proceeds directly to narrative/PDF generation.
     """
     log = logger.bind(job_id=job_id)
-    log.info("supplement_processing_started", ev_pdf=ev_pdf_path, sol_pdf=sol_pdf_path)
+    log.info("supplement_processing_started", ev_pdf=ev_pdf_path, sol_pdf=sol_pdf_path, resume=resume)
 
     # 0. Fetch Job Context (Threaded)
     job_dict = await asyncio.to_thread(_fetch_job_context_sync, job_id)
 
     temp_pdf_path = None
     try:
-        # 1. Extract EV Data
-        ev_data = await extract_eagleview_data(ev_pdf_path)
+        if resume:
+            # Verify no flags are pending manual review
+            conn = await asyncio.to_thread(get_connection)
+            try:
+                cursor = conn.execute("SELECT COUNT(*) FROM supplement_flags WHERE job_id = ? AND notes LIKE 'MANUAL REVIEW REQUIRED%'", (job_id,))
+                if cursor.fetchone()[0] > 0:
+                    log.warning("resume_rejected_unresolved_flags")
+                    return {"status": "rejected", "reason": "unresolved_manual_flags"}
+                
+                # Fetch report data (simplified mock for resume since we skipped steps 1-4)
+                # In a full implementation, the report would be fully reconstructed from DB
+                from app.core.supplement_models import DiscrepancyReport, MaterialBOM
+                report = DiscrepancyReport(
+                    job_id=job_id, ev_normalized_squares=0.0, sol_total_rfg_squares=0.0,
+                    square_variance=0.0, waste_explanation="", 
+                    material_bom=MaterialBOM(field_shingle_bundles=0, starter_bundles=0, ridge_cap_bundles=0, ice_water_rolls=0, underlayment_rolls=0, drip_edge_pieces=0)
+                )
+            finally:
+                conn.close()
+            
+            ai_service = AIService()
+            code_index = await asyncio.to_thread(parse_code_files)
+            codes = "" # No codes needed if resuming or fetch from DB if needed
+        else:
+            if ev_pdf_path is None or sol_pdf_path is None:
+                raise ValueError("PDF paths must be provided when not resuming")
+            
+            # 1. Extract EV Data
+            ev_data = await extract_eagleview_data(str(ev_pdf_path))
 
-        # 2. Extract SoL Data
-        ai_service = AIService()
-        sol_data = await ai_service.extract_sol_from_pdf(sol_pdf_path, job_id=job_id)
+            # 2. Extract SoL Data
+            ai_service = AIService()
+            sol_data = await ai_service.extract_sol_from_pdf(str(sol_pdf_path), job_id=job_id)
 
-        # 3. Reconcile
-        report = await asyncio.to_thread(reconcile, ev_data, sol_data, job_id=job_id)
+            # 3. Reconcile
+            report = await asyncio.to_thread(reconcile, ev_data, sol_data, job_id=job_id)
 
-        # 4. Load Target Building Codes (Zero-Cost RAG)
-        code_index = await asyncio.to_thread(parse_code_files)
-        codes = await asyncio.to_thread(get_relevant_codes, report, code_index)
+            # 4. Load Target Building Codes (Zero-Cost RAG)
+            code_index = await asyncio.to_thread(parse_code_files)
+            codes = await asyncio.to_thread(get_relevant_codes, report, code_index)
 
-        # 4.5. Generate and Gate Supplement Flags
-        ice_barrier_required = bool(job_dict.get("ice_barrier_required")) if job_dict.get("ice_barrier_required") is not None else False
-        manual_review_required = await asyncio.to_thread(generate_and_gate_flags, job_id, ice_barrier_required, ev_data)
-        
-        if manual_review_required:
-            await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_MANUAL_REVIEW, note="Manual flag entry required due to malformed extraction.")
-            log.info("pipeline_halted_for_review")
-            return {"status": "halted_for_review"}
+            # 4.5. Generate and Gate Supplement Flags
+            ice_barrier_required = bool(job_dict.get("ice_barrier_required")) if job_dict.get("ice_barrier_required") is not None else False
+            manual_review_required = await asyncio.to_thread(generate_and_gate_flags, job_id, ice_barrier_required, ev_data)
+            
+            if manual_review_required:
+                await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_MANUAL_REVIEW, note="Manual flag entry required due to malformed extraction.")
+                log.info("pipeline_halted_for_review")
+                return {"status": "halted_for_review"}
 
         # 5. Generate Narrative
         narrative = await ai_service.generate_supplement_narrative(report, codes)

@@ -124,6 +124,47 @@ def test_climate_gate_blocks_iws_when_ambiguous(setup_test_jobs):
             WHERE f.job_id = ? AND r.climate_dependent = 1
         ''', ("TEST-VA-JOB",))
         iws_flags = cursor.fetchall()
-        assert len(iws_flags) == 0, "Ambiguous job (Virginia) incorrectly generated a climate-dependent flag (IWS)"
+        assert len(iws_flags) == 0, "Ambiguous job incorrectly generated a climate-dependent flag (IWS)"
+    finally:
+        conn.close()
+
+def test_generate_and_gate_flags_multi_failure_scoping(setup_test_jobs):
+    """
+    Proves that if multiple rules trigger ValueError, the loop catches them independently,
+    flags them for manual review, and successfully batch-inserts everything.
+    """
+    from app.core.supplement_models import EagleViewData
+    import uuid
+    # Negative pitch will cause ValueError in IWS calculation
+    ev_data = EagleViewData(
+        total_area_sf=1000.0, rake_lf=0.0, valley_lf=20.0, ridge_lf=0.0,
+        hip_lf=0.0, eaves_lf=50.0, drip_edge_lf=0.0, flashing_lf=0.0,
+        step_flashing_lf=0.0, total_facets=2, predominant_pitch="-6/12"
+    )
+    
+    conn = get_connection()
+    try:
+        # Insert a duplicate RFG IWS rule to simulate two separate math failures
+        conn.execute('''
+            INSERT INTO supplement_rules (id, parent_code, required_child_code, citation_text, citation_type, trigger_logic_name, climate_dependent)
+            VALUES (?, 'RFG', 'RFG IWS', 'Fake Rule 2', 'IRC', 'calculate_ice_and_water_rolls', 1)
+        ''', (str(uuid.uuid4()),))
+        conn.commit()
+        
+        # Trigger generation. Minnesota job has ice_barrier_required=True
+        # This should process two RFG IWS rules, both should ValueError.
+        manual_review = generate_and_gate_flags("TEST-MN-JOB", ice_barrier_required=True, ev_data=ev_data)
+        
+        assert manual_review is True
+        
+        cursor = conn.execute("SELECT * FROM supplement_flags WHERE job_id = ?", ("TEST-MN-JOB",))
+        flags = cursor.fetchall()
+        
+        # We should have multiple flags inserted (DRIP, plus two IWS flags)
+        assert len(flags) >= 2
+        
+        iws_flags = [f for f in flags if "MANUAL REVIEW REQUIRED" in str(f["notes"])]
+        assert len(iws_flags) == 2, "Loop did not correctly catch and insert multiple independent failures."
+        
     finally:
         conn.close()

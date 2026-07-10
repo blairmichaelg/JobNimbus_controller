@@ -16,12 +16,12 @@ from pathlib import Path
 from datetime import datetime
 from PIL import Image
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Request, BackgroundTasks
 from pydantic import BaseModel, Field
 
 from app.core.inspection_models import get_stable_photos, InspectionJob
 from app.core.cache import get_cached_analyses_for_job
-from app.core.database import get_connection, update_job_status
+from app.core.database import get_connection, update_job_status, JobStatus
 from app.config import verify_field_token
 from app.core.upload_utils import stream_upload_safely
 
@@ -174,7 +174,25 @@ def get_inspection_summary(job_id: str):
     return job
 
 
+@router.post("/jobs/{job_id}/resume-supplement", status_code=202)
+async def resume_supplement(job_id: str, request: Request, background_tasks: BackgroundTasks):
+    """
+    Resumes a halted supplement pipeline (e.g. from PENDING_MANUAL_REVIEW).
+    Skips parsing and gating, and goes straight to Narrative/PDF generation.
+    """
+    try:
+        uuid.UUID(job_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format. Must be a valid UUID.")
 
+    redis = request.app.state.redis
+    if not redis:
+        raise HTTPException(status_code=503, detail="Redis connection unavailable")
+
+    # Enqueue ARQ task with resume=True
+    await redis.enqueue_job("process_supplement_event", job_id, None, None, resume=True)
+    
+    return {"status": "accepted", "job_id": job_id, "message": "Supplement resume processing started."}
 
 
 @router.post("/jobs/{job_id}/contingency-sign")
