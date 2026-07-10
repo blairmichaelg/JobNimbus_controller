@@ -44,6 +44,7 @@ class JobStatus(str, Enum):
     CLOSED = "CLOSED"
     PIPELINE_FAILED = "PIPELINE_FAILED"
     INSPECTION_FAILED = "INSPECTION_FAILED"
+    PENDING_MANUAL_REVIEW = "PENDING_MANUAL_REVIEW"
 
 def get_connection() -> sqlite3.Connection:
     """Get a SQLite connection with WAL mode enabled for concurrency."""

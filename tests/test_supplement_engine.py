@@ -31,14 +31,13 @@ def test_iws_zero_pitch():
     assert rolls == 3
 
 def test_iws_negative_lengths_clamped():
-    """Edge case: negative lengths or pitch should be clamped to 0."""
-    rolls = SupplementEngine.calculate_ice_and_water_rolls(
-        pitch=-4.0,
-        eave_length_ft=-100.0,
-        valley_length_ft=-50.0
-    )
-    # All clamped to 0. total_sqft = 0.
-    assert rolls == 0
+    """Edge case: negative lengths or pitch should raise ValueError."""
+    with pytest.raises(ValueError, match="Malformed EagleView inputs"):
+        SupplementEngine.calculate_ice_and_water_rolls(
+            pitch=-4.0,
+            eave_length_ft=-100.0,
+            valley_length_ft=-50.0
+        )
 
 def test_iws_missing_or_zero_lengths():
     """Edge case: completely missing lengths (e.g. gable only, no eaves/valleys)."""

@@ -72,9 +72,15 @@ class SupplementEngine:
         Calculates IWS rolls required based on 2021/2024 IRC R905.1.2.
         Barrier must extend 24" horizontally inside the interior wall line.
         """
-        eave_length_ft = max(0.0, float(eave_length_ft))
-        valley_length_ft = max(0.0, float(valley_length_ft))
-        pitch = max(0.0, float(pitch))
+        pitch = float(pitch)
+        eave_length_ft = float(eave_length_ft)
+        valley_length_ft = float(valley_length_ft)
+
+        if pitch < 0 or eave_length_ft < 0 or valley_length_ft < 0:
+            import structlog
+            logger = structlog.get_logger("app.services.supplement_engine")
+            logger.warning("invalid_iws_inputs", pitch=pitch, eave=eave_length_ft, valley=valley_length_ft)
+            raise ValueError(f"Malformed EagleView inputs: pitch={pitch}, eave={eave_length_ft}, valley={valley_length_ft}")
         
         # Horizontal distance required in inches: overhang + wall + 24" inside
         total_horizontal_in = overhang_in + wall_thickness_in + 24.0

@@ -38,13 +38,15 @@ def _fetch_job_context_sync(job_id: str) -> dict:
         conn.close()
 
 
-def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: EagleViewData) -> None:
+def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: EagleViewData) -> bool:
     """
     Evaluates DB rules and persists them to supplement_flags if the climate gate permits it.
     Also calculates dynamic quantities for specific rules (e.g. IWS rolls).
+    Returns True if any flag requires manual review due to bad input data.
     """
     conn = get_connection()
     import uuid
+    manual_review_required = False
     try:
         # Fetch all seeded rules
         cursor = conn.execute("SELECT * FROM supplement_rules")
@@ -56,6 +58,7 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: Ea
                 continue
             
             quantity_delta = 1.0  # Default to 1 for most triggered rules
+            notes = "Triggered via deterministic pipeline"
             
             # Use deterministic math engine if applicable
             if rule["required_child_code"] == "RFG IWS":
@@ -64,12 +67,18 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: Ea
                 except (ValueError, AttributeError):
                     pitch = 0.0
                 
+                
                 # IWS roll calculation requires pitch, eave LF, and valley LF
-                quantity_delta = SupplementEngine.calculate_ice_and_water_rolls(
-                    pitch=pitch,
-                    eave_length_ft=ev_data.eaves_lf,
-                    valley_length_ft=ev_data.valley_lf
-                )
+                try:
+                    quantity_delta = SupplementEngine.calculate_ice_and_water_rolls(
+                        pitch=pitch,
+                        eave_length_ft=ev_data.eaves_lf,
+                        valley_length_ft=ev_data.valley_lf
+                    )
+                except ValueError as e:
+                    quantity_delta = 0.0
+                    notes = f"MANUAL REVIEW REQUIRED: {e}"
+                    manual_review_required = True
 
             flags_to_insert.append((
                 str(uuid.uuid4()),
@@ -77,7 +86,7 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: Ea
                 rule["id"],
                 1,
                 float(quantity_delta),
-                "Triggered via deterministic pipeline"
+                notes
             ))
         
         if flags_to_insert:
@@ -86,6 +95,8 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: Ea
                 VALUES (?, ?, ?, ?, ?, ?)
             ''', flags_to_insert)
             conn.commit()
+            
+        return manual_review_required
     finally:
         conn.close()
 
@@ -117,7 +128,12 @@ async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: str, sol
 
         # 4.5. Generate and Gate Supplement Flags
         ice_barrier_required = bool(job_dict.get("ice_barrier_required")) if job_dict.get("ice_barrier_required") is not None else False
-        await asyncio.to_thread(generate_and_gate_flags, job_id, ice_barrier_required, ev_data)
+        manual_review_required = await asyncio.to_thread(generate_and_gate_flags, job_id, ice_barrier_required, ev_data)
+        
+        if manual_review_required:
+            await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_MANUAL_REVIEW, note="Manual flag entry required due to malformed extraction.")
+            log.info("pipeline_halted_for_review")
+            return {"status": "halted_for_review"}
 
         # 5. Generate Narrative
         narrative = await ai_service.generate_supplement_narrative(report, codes)
