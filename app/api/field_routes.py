@@ -13,8 +13,10 @@ import structlog
 import uuid
 import json
 import os
+import io
 from pathlib import Path
 from datetime import datetime
+from PIL import Image
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from pydantic import BaseModel, Field
@@ -176,13 +178,37 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
     Handle E-Signature for Contingency Agreements.
     Saves PNG, generates PDF, logs agreement, and updates status.
     """
+    if len(payload.signature_base64) > 2_000_000:
+        raise HTTPException(status_code=413, detail="Payload too large. Maximum size is 2MB.")
+        
+    if not payload.signature_base64.startswith("data:image/png;base64,"):
+        raise HTTPException(status_code=400, detail="Invalid signature format. Must be a PNG data URI.")
+        
     try:
-        header, encoded = payload.signature_base64.split(",", 1) if "," in payload.signature_base64 else ("", payload.signature_base64)
+        header, encoded = payload.signature_base64.split(",", 1)
         image_bytes = base64.b64decode(encoded)
         
-        SIGNED_AGREEMENTS_DIR.mkdir(parents=True, exist_ok=True)
-        sig_file_path = SIGNED_AGREEMENTS_DIR / f"{job_id}_contingency_sig.png"
-        sig_file_path.write_bytes(image_bytes)
+        # Verify and sanitize the image using Pillow before saving to disk
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+            image.verify()  # Verify it's a valid image
+            
+            # Re-open for actual processing/saving since verify() leaves the file pointer at the end
+            image = Image.open(io.BytesIO(image_bytes))
+            
+            # Enforce format and re-save cleanly
+            if image.format not in ["PNG", "JPEG"]:
+                raise ValueError("Unsupported image format")
+                
+            SIGNED_AGREEMENTS_DIR.mkdir(parents=True, exist_ok=True)
+            sig_file_path = SIGNED_AGREEMENTS_DIR / f"{job_id}_contingency_sig.png"
+            
+            # Convert to RGBA for PNG compatibility and save
+            image = image.convert("RGBA")
+            image.save(sig_file_path, format="PNG", optimize=True)
+        except Exception as e:
+            logger.error("signature_image_verification_failed", error=str(e))
+            raise HTTPException(status_code=400, detail="Invalid or corrupt image data")
         
         conn = get_connection()
         try:

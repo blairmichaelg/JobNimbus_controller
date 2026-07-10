@@ -93,6 +93,22 @@
         const ctx = canvas.getContext('2d');
         let isDrawing = false;
         
+        function initCanvasScale() {
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width === 0) return; // Hidden
+            
+            const dpr = window.devicePixelRatio || 1;
+            // Only scale if it hasn't been scaled yet for this width
+            if (canvas.width !== Math.floor(rect.width * dpr)) {
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                ctx.scale(dpr, dpr);
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = '#000';
+            }
+        }
+        
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -140,6 +156,7 @@
         jobTypeSelect.addEventListener('change', (e) => {
             if(e.target.value === 'INSURANCE') {
                 signatureSection.classList.remove('hidden');
+                initCanvasScale();
             } else {
                 signatureSection.classList.add('hidden');
             }

@@ -25,6 +25,7 @@ from app.core.database import insert_material_order, insert_schedule, JobStatus,
 from app.core.pipeline import run_full_office_pipeline
 from app.config import verify_office_token
 from app.core.upload_utils import stream_upload_safely
+from app.core.qbo_client import QBOClient
 
 logger = structlog.get_logger("app.api.office_routes")
 
@@ -69,6 +70,39 @@ class ProductionPayload(BaseModel):
 class MaterialOrderPayload(BaseModel):
     supplier_name: str
     delivery_date: str
+
+# --- QBO Routes ---
+@router.get("/qbo/connect")
+def qbo_connect(request: Request):
+    client = QBOClient()
+    # The frontend needs to pass its origin or we construct a redirect URI
+    # For now, let's construct it based on request URL
+    redirect_uri = str(request.base_url) + "api/office/qbo/callback"
+    url = client.get_authorization_url(redirect_uri)
+    return {"auth_url": url}
+
+@router.get("/qbo/callback")
+async def qbo_callback(request: Request, code: str, realmId: str, state: str):
+    client = QBOClient()
+    redirect_uri = str(request.base_url) + "api/office/qbo/callback"
+    try:
+        await client.exchange_code(code, realmId, redirect_uri)
+        return {"status": "success", "message": "QBO Connected successfully"}
+    except Exception as e:
+        logger.error("qbo_callback_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="QBO Connection failed")
+
+@router.get("/qbo/status")
+async def qbo_status():
+    client = QBOClient()
+    status = await client.get_status()
+    return status
+
+@router.post("/qbo/disconnect")
+async def qbo_disconnect():
+    client = QBOClient()
+    await client.disconnect()
+    return {"status": "success", "message": "QBO Disconnected"}
 
 @router.get("/jobs")
 def get_all_jobs() -> List[Dict[str, Any]]:

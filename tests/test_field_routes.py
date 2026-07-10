@@ -177,8 +177,13 @@ def test_capture_signature():
     expected_path = fr.SIGNED_AGREEMENTS_DIR / "TEST-SIG-003_contingency_sig.png"
     assert expected_path.exists()
     
+    from PIL import Image
+    import io
     file_bytes = expected_path.read_bytes()
-    assert file_bytes == base64.b64decode(tiny_png_base64)
+    # Verify the saved image is valid
+    saved_img = Image.open(io.BytesIO(file_bytes))
+    saved_img.verify()
+    assert saved_img.format == "PNG"
 
 
 def test_capture_signature_bad_payload():
@@ -199,4 +204,4 @@ def test_capture_signature_bad_payload():
             "signer_name": "Test Homeowner"
         }
     )
-    assert response.status_code == 500
+    assert response.status_code == 400
