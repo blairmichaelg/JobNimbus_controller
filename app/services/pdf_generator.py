@@ -17,6 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle, Image, PageBreak
 import datetime
+import html
 
 from app.core.supplement_models import DiscrepancyReport, MaterialBOM
 from app.core.inspection_models import InspectionJob
@@ -67,49 +68,85 @@ class PDFGenerator:
         }
 
     def _universal_letterhead(self, canvas, doc) -> None:
-        """Universal callback for page headers."""
+        """Universal callback for page headers and footers."""
         canvas.saveState()
+
+        # Header
         canvas.setFont("Helvetica-Bold", 14)
         canvas.drawString(50, 750, "WICKHAM ROOFING, LLC")
         canvas.setFont("Helvetica", 10)
         canvas.drawString(50, 735, "123 Roofing Lane, Thomasville, GA 31792")
         canvas.drawString(50, 720, "Phone: (555) 123-4567 | Email: info@wickhamroofing.com")
+
         # Line under header
         canvas.setStrokeColor(colors.black)
         canvas.setLineWidth(1)
         canvas.line(50, 710, 560, 710)
+
+        # Footer
+        canvas.setFont("Helvetica", 8)
+        canvas.setFillColor(colors.darkgrey)
+        job_id = getattr(doc, 'job_id', 'N/A')
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        canvas.drawString(50, 30, f"DocID: {job_id} | Generated: {timestamp}")
+        page_num = canvas.getPageNumber()
+        canvas.drawRightString(560, 30, f"Page {page_num}")
+
         canvas.restoreState()
 
-    def _build_signature_block(self, title1: str = "Homeowner Signature", title2: str = "Contractor Signature"):
+    def _build_signature_block(self, title1: str = "Homeowner Signature", title2: str = "Contractor Signature", include_witness: bool = False):
         """Returns a KeepTogether flowable for clean signature blocks."""
         story: list = []
         story.append(Spacer(1, 30))
-        
+
         # Two columns: Signature and Date
         data = [
             ["", ""],
             [title1, "Date"],
+            ["(Printed Name)", "(MM/DD/YYYY)"],
             ["", ""],
-            [title2, "Date"]
+            [title2, "Date"],
+            ["(Printed Name)", "(MM/DD/YYYY)"]
         ]
-        
-        # Create physical signature lines using LINEABOVE
+
+        if include_witness:
+            data.extend([
+                ["", ""],
+                ["Witness / Notary Signature", "Date"],
+                ["(Printed Name)", "(MM/DD/YYYY)"]
+            ])
+
         t = Table(data, colWidths=[250, 100])
-        t.setStyle(TableStyle([
+        style = [
             ('LINEABOVE', (0,1), (0,1), 1, colors.black),
             ('LINEABOVE', (1,1), (1,1), 1, colors.black),
-            ('LINEABOVE', (0,3), (0,3), 1, colors.black),
-            ('LINEABOVE', (1,3), (1,3), 1, colors.black),
-            ('PADDING', (0,0), (-1,-1), 6),
-            ('BOTTOMPADDING', (0,1), (-1,1), 30), # Space before next signature
-        ]))
+            ('LINEABOVE', (0,4), (0,4), 1, colors.black),
+            ('LINEABOVE', (1,4), (1,4), 1, colors.black),
+            ('PADDING', (0,0), (-1,-1), 2),
+            ('FONTSIZE', (0,2), (1,2), 8),
+            ('TEXTCOLOR', (0,2), (1,2), colors.dimgrey),
+            ('FONTSIZE', (0,5), (1,5), 8),
+            ('TEXTCOLOR', (0,5), (1,5), colors.dimgrey),
+            ('BOTTOMPADDING', (0,2), (-1,2), 20),
+        ]
+
+        if include_witness:
+            style.extend([
+                ('LINEABOVE', (0,7), (0,7), 1, colors.black),
+                ('LINEABOVE', (1,7), (1,7), 1, colors.black),
+                ('FONTSIZE', (0,8), (1,8), 8),
+                ('TEXTCOLOR', (0,8), (1,8), colors.dimgrey),
+            ])
+
+        t.setStyle(TableStyle(style))
         story.append(t)
-        
+
         return KeepTogether(story)
 
-    def _get_doc_template(self, filepath: str, top_margin: int = 144) -> BaseDocTemplate:
+    def _get_doc_template(self, filepath: str, top_margin: int = 144, job_id: str = "N/A") -> BaseDocTemplate:
         """Returns a BaseDocTemplate configured with a Frame that prevents overlapping with the header."""
         doc = BaseDocTemplate(filepath, pagesize=letter, leftMargin=50, rightMargin=50, topMargin=top_margin, bottomMargin=50)
+        doc.job_id = job_id
         # letter height is 792. Leave space at the top.
         frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='normal')
         template = PageTemplate(id='standard', frames=frame, onPage=self._universal_letterhead)
@@ -164,7 +201,7 @@ class PDFGenerator:
         filepath = str(job_dir / "estimate.pdf")  # Close so ReportLab can write to it
 
         def build_pdf():
-            doc = self._get_doc_template(filepath)
+            doc = self._get_doc_template(filepath, job_id=job_id)
             story = []
             
             # Styles
@@ -236,6 +273,7 @@ class PDFGenerator:
                 alignment=2 # 2=TA_RIGHT
             )
             story.append(Paragraph(f"Total Cost: ${total_cost:,.2f}", total_style))
+            story.append(Paragraph("(Includes Labor, Material Waste, and Applicable Taxes)", self.custom_styles["FinePrint"]))
             story.append(Spacer(1, 40))
             
             # --- 5. Legal Terms & Disclaimers Boilerplate ---
@@ -274,7 +312,7 @@ class PDFGenerator:
         filepath = str(job_dir / "Supplement_Request.pdf")
 
         def build_pdf():
-            doc = self._get_doc_template(filepath)
+            doc = self._get_doc_template(filepath, job_id=job_id)
             story = []
             
             # Styles
@@ -387,19 +425,8 @@ class PDFGenerator:
             # Split narrative by newlines into separate paragraphs
             for p in narrative.split("\n"):
                 if p.strip():
-                    story.append(Paragraph(p.strip(), narrative_style))
+                    story.append(Paragraph(html.escape(p.strip()), narrative_style))
             story.append(Spacer(1, 24))
-            
-            # --- 5. Legal Terms & Disclaimers Boilerplate ---
-            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey, spaceBefore=0, spaceAfter=12))
-            legal_text = (
-                "<b>Scope of Work:</b> This estimate covers explicitly listed materials and applications. "
-                "Any hidden structural rot, decking damage, or code upgrades discovered during tear-off "
-                "will be handled via a supplemental change order.<br/><br/>"
-                "<b>Payment Terms:</b> All balances are due upon job completion. Unpaid invoices past 30 days "
-                "are subject to standard financing interest rates as specified by corporate policy."
-            )
-            story.append(Paragraph(legal_text, legal_style))
             
             doc.build(story)
 
@@ -425,7 +452,7 @@ class PDFGenerator:
         filepath = str(job_dir / "evidence_grid.pdf")
 
         def build_pdf():
-            doc = self._get_doc_template(filepath)
+            doc = self._get_doc_template(filepath, job_id=job.job_id)
             story = []
             
             # Styles
@@ -551,13 +578,15 @@ class PDFGenerator:
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
         def build_pdf():
-            doc = self._get_doc_template(filepath)
+            doc = self._get_doc_template(filepath, job_id=job["id"])
             story = []
             
             # --- 1. Order Details ---
             po_number = f"PO-{job['id'][:8].upper()}-{datetime.date.today().isoformat()}"
             story.append(Paragraph(f"<b>PO Number:</b> {po_number}", self.custom_styles["BodyText"]))
             story.append(Paragraph(f"<b>Supplier:</b> {supplier_name}", self.custom_styles["BodyText"]))
+            story.append(Paragraph("<b>Supplier Account #:</b> [TBD - Insert Account Here]", self.custom_styles["BodyText"]))
+            story.append(Paragraph("<b>Order Confirmation #:</b> ___________________", self.custom_styles["BodyText"]))
             story.append(Paragraph(f"<b>Order Date:</b> {datetime.date.today().isoformat()}", self.custom_styles["BodyText"]))
             story.append(Paragraph(f"<b>Requested Delivery Date:</b> {delivery_date}", self.custom_styles["BodyText"]))
             story.append(Spacer(1, 12))
@@ -613,6 +642,8 @@ class PDFGenerator:
             # --- 3. Special Instructions ---
             story.append(Paragraph("Special Instructions:", self.custom_styles["SectionHeading"]))
             story.append(Paragraph("Deliver to driveway; no yard entry with loaded truck.", self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 20))
+            story.append(Paragraph("<b>Total Estimated Cost:</b> $___________", self.custom_styles["SectionHeading"]))
             
             doc.build(story)
 
@@ -634,7 +665,7 @@ class PDFGenerator:
         filepath = str(job_dir / "contingency_agreement.pdf")
 
         def build_pdf():
-            doc = self._get_doc_template(filepath)
+            doc = self._get_doc_template(filepath, job_id=job["id"])
             story = []
             
             story.append(Paragraph("INSURANCE CONTINGENCY AGREEMENT", self.custom_styles["Title"]))
@@ -681,7 +712,7 @@ class PDFGenerator:
         filepath = str(job_dir / "contingency_agreement_signed.pdf")
 
         def build_pdf():
-            doc = self._get_doc_template(filepath)
+            doc = self._get_doc_template(filepath, job_id=job_id)
             story = []
             
             story.append(Paragraph("INSURANCE CONTINGENCY AGREEMENT", self.custom_styles["Title"]))
@@ -731,7 +762,7 @@ class PDFGenerator:
         filepath = str(job_dir / "notice_of_cancellation.pdf")
 
         def build_pdf():
-            doc = self._get_doc_template(filepath)
+            doc = self._get_doc_template(filepath, job_id=job["id"])
             story = []
             
             for copy_type in ["Customer Copy", "Contractor Copy"]:
@@ -754,8 +785,10 @@ class PDFGenerator:
                     "See attached notice of cancellation form for an explanation of this right."
                 )
                 story.append(Paragraph(statutory_text, self.custom_styles["StatWarning"]))
-                story.append(Spacer(1, 40))
+                story.append(Spacer(1, 20))
                 
+                story.append(Paragraph("To cancel this transaction, mail or deliver a signed and dated copy of this cancellation notice, or any other written notice, to:<br/><br/><b>WICKHAM ROOFING LLC</b><br/>123 Roofing Lane<br/>Thomasville, GA 31792", self.custom_styles["BodyText"]))
+                story.append(Spacer(1, 40))
                 story.append(Paragraph("I HEREBY CANCEL THIS TRANSACTION.", self.custom_styles["BodyText"]))
                 story.append(Spacer(1, 40))
                 
@@ -779,7 +812,7 @@ class PDFGenerator:
         filepath = str(job_dir / "certificate_of_completion.pdf")
 
         def build_pdf():
-            doc = self._get_doc_template(filepath)
+            doc = self._get_doc_template(filepath, job_id=job["id"])
             story = []
             
             story.append(Paragraph("CERTIFICATE OF COMPLETION", self.custom_styles["Title"]))
@@ -801,11 +834,21 @@ class PDFGenerator:
             story.append(Paragraph(text, self.custom_styles["BodyText"]))
             story.append(Spacer(1, 15))
             
-            story.append(Paragraph("Conditional Waiver and Release of Lien", self.custom_styles["SectionHeading"]))
+            story.append(Paragraph("WAIVER AND RELEASE OF LIEN AND PAYMENT BOND RIGHTS UPON FINAL PAYMENT", self.custom_styles["SectionHeading"]))
+            story.append(Paragraph("STATE OF GEORGIA<br/>COUNTY OF THOMAS", self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 10))
+            address_str = f"{job['address_line1']}, {job['city']}, {job['state']} {job['postal_code']}"
             lien_text = (
-                "Upon receipt by Wickham Roofing LLC of a check or final insurance draft in the sum of the remaining balance, "
-                "and when the check has been properly endorsed and has been paid by the bank upon which it is drawn, this document "
-                "shall become effective to release any pro tanto mechanic's lien, stop notice, or bond right the Contractor has on the job."
+                "THE UNDERSIGNED MECHANIC AND/OR MATERIALMAN HAS BEEN EMPLOYED BY WICKHAM ROOFING LLC "
+                "TO FURNISH ROOFING MATERIALS AND LABOR FOR THE CONSTRUCTION OF IMPROVEMENTS KNOWN AS "
+                f"ROOF REPLACEMENT WHICH IS LOCATED IN THE CITY OF {job['city'].upper()}, COUNTY OF THOMAS, "
+                f"AND IS OWNED BY {job['homeowner_name'].upper()} AND MORE PARTICULARLY DESCRIBED AS FOLLOWS:<br/><br/>"
+                f"{address_str.upper()}<br/><br/>"
+                "UPON THE RECEIPT OF THE SUM OF $__________, THE MECHANIC AND/OR MATERIALMAN WAIVES AND RELEASES "
+                "ANY AND ALL LIENS OR CLAIMS OF LIENS IT HAS UPON THE FOREGOING DESCRIBED PROPERTY OR ANY RIGHTS "
+                "AGAINST ANY LABOR AND/OR MATERIAL BOND ON ACCOUNT OF LABOR OR MATERIALS, OR BOTH, FURNISHED BY "
+                "THE UNDERSIGNED TO OR ON ACCOUNT OF SAID CONTRACTOR FOR SAID PROPERTY.<br/><br/>"
+                f"GIVEN UNDER HAND AND SEAL THIS {datetime.date.today().day} DAY OF {datetime.date.today().strftime('%B').upper()}, {datetime.date.today().year}."
             )
             story.append(Paragraph(lien_text, self.custom_styles["BodyText"]))
             story.append(Spacer(1, 15))
@@ -818,7 +861,7 @@ class PDFGenerator:
             story.append(self._box_warning("Warranty Disclaimer", warranty_text, colors.lightgrey))
             story.append(Spacer(1, 20))
             
-            story.append(self._build_signature_block(title1="Homeowner Signature", title2="Wickham Roofing LLC Representative"))
+            story.append(self._build_signature_block(title1="Homeowner Signature", title2="Wickham Roofing LLC Representative", include_witness=True))
             
             doc.build(story)
 
@@ -836,7 +879,7 @@ class PDFGenerator:
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
         
         def build_pdf():
-            doc = self._get_doc_template(filepath, top_margin=120)
+            doc = self._get_doc_template(filepath, top_margin=120, job_id="MONTHLY")
             story = []
             
             story.append(Paragraph(f"Monthly Financial Summary - {year}-{month:02d}", self.custom_styles["Title"]))
@@ -934,7 +977,7 @@ class PDFGenerator:
         filepath = str(job_dir / "inspection_letter.pdf")
         
         def build_pdf():
-            doc = self._get_doc_template(filepath, top_margin=120)
+            doc = self._get_doc_template(filepath, top_margin=120, job_id=job_id)
             story = []
             
             story.append(Paragraph("FORMAL ROOF INSPECTION REPORT", self.custom_styles["Title"]))

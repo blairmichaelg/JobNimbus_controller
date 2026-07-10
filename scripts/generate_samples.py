@@ -55,8 +55,9 @@ async def main():
         init_db()
         conn = get_connection()
         try:
-            conn.execute("INSERT OR IGNORE INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, status, inspector_name, inspection_date, inspection_notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                         ("demo_job_1", "Scott Wickham", "123 Peachtree Lane", "Thomasville", "GA", "31792", "555-0199", "INVOICED", "John Doe (Lead Inspector)", "2026-06-30 09:15:00", "Observed significant hail damage to the west-facing slopes.", "2026-07-01 12:00:00"))
+            conn.execute("DELETE FROM jobs WHERE id = ?", ("demo_job_1",))
+            conn.execute("INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, status, inspector_name, inspection_date, inspection_notes, claim_number, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         ("demo_job_1", "Scott Wickham", "123 Peachtree Lane", "Thomasville", "GA", "31792", "555-0199", "INVOICED", "Michael Wickham - Lic # GA-99887", "2026-06-30 09:15:00", "Observed significant hail damage to the west-facing slopes.", "TEST-998877", "2026-07-01 12:00:00"))
             conn.commit()
         except Exception:
             pass
