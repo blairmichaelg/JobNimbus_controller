@@ -169,7 +169,7 @@ async def main():
         shutil.move(est_path, str(est_final))
         
         print("    -> Generating Supplement Request PDF...")
-        supp_path = await generator.generate_supplement_pdf(report, narrative, "demo_job_1")
+        supp_path = await generator.generate_supplement_pdf(report, narrative, mock_job_with_meta)
         supp_final = sample_dir / "Supplement_Request_Mock.pdf"
         shutil.move(supp_path, str(supp_final))
     else:
