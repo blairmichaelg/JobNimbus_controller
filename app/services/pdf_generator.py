@@ -340,22 +340,33 @@ class PDFGenerator:
             from app.core.database import get_connection
             conn = get_connection()
             try:
-                # Get triggered rules (mocked/queried if supplements/rules exist)
-                # For demonstration in PDF, we check if there are flags or just pull the baseline
-                # In a real app we'd join supplement_flags with supplement_rules
+                # Fetch the ice_barrier_required flag from jobs
+                job_cursor = conn.execute("SELECT ice_barrier_required, jurisdiction_code_version FROM jobs WHERE id = ?", (job_id,))
+                job_row = job_cursor.fetchone()
+                ice_barrier_required = bool(job_row["ice_barrier_required"]) if job_row and job_row["ice_barrier_required"] is not None else False
+                jurisdiction = job_row["jurisdiction_code_version"] if job_row else "2021_IRC"
+
                 cursor = conn.execute('''
-                    SELECT r.citation_text, r.citation_type 
+                    SELECT r.citation_text, r.citation_type, r.required_child_code
                     FROM supplement_rules r
                     -- Ideally JOIN supplement_flags f ON r.id = f.rule_id WHERE f.supplement_id = ?
-                    LIMIT 2
+                    LIMIT 10
                 ''')
                 rules = cursor.fetchall()
                 
                 for r in rules:
                     ctype = r["citation_type"]
                     ctext = r["citation_text"]
+                    child_code = r["required_child_code"]
+                    
+                    # CLIMATE GATE: If this rule is related to IWS (Ice & Water Shield) and the barrier is not explicitly required
+                    # or it relies on R905.1.2/R905.2.8.5 which are ice barrier codes, block it.
+                    if ("IWS" in child_code or "DRIP" in child_code or "R905.2.8.5" in ctext or "R905.1.2" in ctext):
+                        if not ice_barrier_required:
+                            continue
+                    
                     if ctype == "IRC":
-                        framed = f"Pursuant to International Residential Code Section: {ctext}"
+                        framed = f"Pursuant to {jurisdiction.replace('_', ' ')} Section: {ctext}"
                     elif ctype == "MFG_SPEC":
                         framed = f"Per Manufacturer Installation Warranty Requirements: {ctext}"
                     else:

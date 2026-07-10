@@ -59,6 +59,8 @@ class ContingencySignaturePayload(BaseModel):
     ip_address: str | None = Field(None, description="IP address of the device capturing the signature")
     user_agent: str | None = Field(None, description="User Agent of the device capturing the signature")
 
+from app.core.climate_lookup import is_ice_barrier_required
+
 @router.post("/jobs")
 def create_new_job(payload: LeadIntakePayload):
     """
@@ -66,6 +68,9 @@ def create_new_job(payload: LeadIntakePayload):
     Generates UUID, creates directories, and initializes local SQLite record.
     """
     job_id = str(uuid.uuid4())
+    
+    # Determine climate requirements
+    ice_barrier = is_ice_barrier_required(payload.state)
     
     # Insert into database
     conn = get_connection()
@@ -79,13 +84,15 @@ def create_new_job(payload: LeadIntakePayload):
         conn.execute('''
             INSERT INTO jobs (
                 id, homeowner_name, address_line1, city, state, postal_code, 
-                phone, email, claim_number, insurer_name, status, status_history, job_type
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                phone, email, claim_number, insurer_name, status, status_history, job_type,
+                ice_barrier_required, jurisdiction_code_version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             job_id, payload.homeowner_name, payload.address_line1, payload.city,
             payload.state, payload.postal_code, payload.phone, payload.email,
             payload.claim_number, payload.insurer_name, "LEAD_CAPTURED",
-            json.dumps(initial_history), payload.job_type
+            json.dumps(initial_history), payload.job_type,
+            ice_barrier, "2021_IRC"
         ))
         conn.commit()
     except Exception as e:

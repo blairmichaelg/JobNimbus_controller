@@ -83,6 +83,8 @@ def init_db() -> None:
                 inspector_name TEXT,
                 inspection_date TIMESTAMP,
                 inspection_notes TEXT,
+                ice_barrier_required BOOLEAN,
+                jurisdiction_code_version TEXT DEFAULT '2021_IRC',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -90,7 +92,8 @@ def init_db() -> None:
         # Lightweight migration if jobs existed before inspection fields
         for col in ["inspector_name TEXT", "inspection_date TIMESTAMP", "inspection_notes TEXT",
                     "job_type TEXT DEFAULT 'INSURANCE'", "policy_type TEXT", "adjuster_name TEXT", "adjuster_phone TEXT",
-                    "adjuster_email TEXT", "canvasser_name TEXT", "qbo_customer_id TEXT"]:
+                    "adjuster_email TEXT", "canvasser_name TEXT", "qbo_customer_id TEXT",
+                    "ice_barrier_required BOOLEAN", "jurisdiction_code_version TEXT DEFAULT '2021_IRC'"]:
             try:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
             except sqlite3.OperationalError:
