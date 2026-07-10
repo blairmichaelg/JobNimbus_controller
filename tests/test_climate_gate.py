@@ -43,8 +43,14 @@ def test_climate_gate_blocks_iws_in_georgia(setup_test_jobs):
     Asserts that supplement_flags contains zero rows for a climate-dependent rule (IWS)
     on a Georgia job where ice_barrier_required is False.
     """
+    from app.core.supplement_models import EagleViewData
+    ev_data = EagleViewData(
+        total_area_sf=1000.0, rake_lf=0.0, valley_lf=20.0, ridge_lf=0.0,
+        hip_lf=0.0, eaves_lf=50.0, drip_edge_lf=0.0, flashing_lf=0.0,
+        step_flashing_lf=0.0, total_facets=2, predominant_pitch="6/12"
+    )
     # Trigger flag generation (ice_barrier_required = False)
-    generate_and_gate_flags("TEST-GA-JOB", ice_barrier_required=False)
+    generate_and_gate_flags("TEST-GA-JOB", ice_barrier_required=False, ev_data=ev_data)
     
     conn = get_connection()
     try:
@@ -73,8 +79,14 @@ def test_climate_gate_allows_iws_in_minnesota(setup_test_jobs):
     Asserts that supplement_flags DOES contain a row for the climate-dependent rule (IWS)
     on a Minnesota job where ice_barrier_required is True.
     """
+    from app.core.supplement_models import EagleViewData
+    ev_data = EagleViewData(
+        total_area_sf=1000.0, rake_lf=0.0, valley_lf=20.0, ridge_lf=0.0,
+        hip_lf=0.0, eaves_lf=50.0, drip_edge_lf=0.0, flashing_lf=0.0,
+        step_flashing_lf=0.0, total_facets=2, predominant_pitch="6/12"
+    )
     # Trigger flag generation (ice_barrier_required = True)
-    generate_and_gate_flags("TEST-MN-JOB", ice_barrier_required=True)
+    generate_and_gate_flags("TEST-MN-JOB", ice_barrier_required=True, ev_data=ev_data)
     
     conn = get_connection()
     try:
@@ -94,8 +106,14 @@ def test_climate_gate_blocks_iws_when_ambiguous(setup_test_jobs):
     Asserts that supplement_flags contains zero rows for a climate-dependent rule (IWS)
     on an ambiguous job (e.g. Virginia) where ice_barrier_required is None.
     """
+    from app.core.supplement_models import EagleViewData
+    ev_data = EagleViewData(
+        total_area_sf=1000.0, rake_lf=0.0, valley_lf=20.0, ridge_lf=0.0,
+        hip_lf=0.0, eaves_lf=50.0, drip_edge_lf=0.0, flashing_lf=0.0,
+        step_flashing_lf=0.0, total_facets=2, predominant_pitch="6/12"
+    )
     # Trigger flag generation (ice_barrier_required = None)
-    generate_and_gate_flags("TEST-VA-JOB", ice_barrier_required=None)
+    generate_and_gate_flags("TEST-VA-JOB", ice_barrier_required=None, ev_data=ev_data)
     
     conn = get_connection()
     try:

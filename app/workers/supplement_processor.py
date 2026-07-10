@@ -17,6 +17,8 @@ from app.core.reconciliation import reconcile
 from app.core.code_router import parse_code_files, get_relevant_codes
 from app.services.pdf_generator import PDFGenerator
 from app.core.database import get_connection, insert_job_document, update_job_status, JobStatus
+from app.services.supplement_engine import SupplementEngine
+from app.core.supplement_models import EagleViewData
 
 logger = structlog.get_logger("app.workers.supplement_processor")
 
@@ -36,9 +38,10 @@ def _fetch_job_context_sync(job_id: str) -> dict:
         conn.close()
 
 
-def generate_and_gate_flags(job_id: str, ice_barrier_required: bool) -> None:
+def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: EagleViewData) -> None:
     """
     Evaluates DB rules and persists them to supplement_flags if the climate gate permits it.
+    Also calculates dynamic quantities for specific rules (e.g. IWS rolls).
     """
     conn = get_connection()
     import uuid
@@ -52,14 +55,28 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool) -> None:
             if bool(rule["climate_dependent"]) and not ice_barrier_required:
                 continue
             
-            # For demonstration, we simply insert a flag for all valid rules
-            # In a real app, you'd execute rule["trigger_logic_name"] against the `report` or `ev_data`
+            quantity_delta = 1.0  # Default to 1 for most triggered rules
+            
+            # Use deterministic math engine if applicable
+            if rule["required_child_code"] == "RFG IWS":
+                try:
+                    pitch = float(ev_data.predominant_pitch.split('/')[0])
+                except (ValueError, AttributeError):
+                    pitch = 0.0
+                
+                # IWS roll calculation requires pitch, eave LF, and valley LF
+                quantity_delta = SupplementEngine.calculate_ice_and_water_rolls(
+                    pitch=pitch,
+                    eave_length_ft=ev_data.eaves_lf,
+                    valley_length_ft=ev_data.valley_lf
+                )
+
             flags_to_insert.append((
                 str(uuid.uuid4()),
                 job_id,
                 rule["id"],
                 1,
-                0.0,
+                float(quantity_delta),
                 "Triggered via deterministic pipeline"
             ))
         
@@ -100,7 +117,7 @@ async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: str, sol
 
         # 4.5. Generate and Gate Supplement Flags
         ice_barrier_required = bool(job_dict.get("ice_barrier_required")) if job_dict.get("ice_barrier_required") is not None else False
-        await asyncio.to_thread(generate_and_gate_flags, job_id, ice_barrier_required)
+        await asyncio.to_thread(generate_and_gate_flags, job_id, ice_barrier_required, ev_data)
 
         # 5. Generate Narrative
         narrative = await ai_service.generate_supplement_narrative(report, codes)
