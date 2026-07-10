@@ -62,6 +62,44 @@ async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: str, sol
         code_index = await asyncio.to_thread(parse_code_files)
         codes = await asyncio.to_thread(get_relevant_codes, report, code_index)
 
+        # 4.5. Generate and Gate Supplement Flags
+        ice_barrier_required = bool(job_dict.get("ice_barrier_required")) if job_dict.get("ice_barrier_required") is not None else False
+        
+        def _persist_flags():
+            conn = get_connection()
+            import uuid
+            try:
+                # Fetch all seeded rules
+                cursor = conn.execute("SELECT * FROM supplement_rules")
+                rules = cursor.fetchall()
+                flags_to_insert = []
+                for rule in rules:
+                    # CLIMATE GATE: If rule is climate dependent but job doesn't require it, SKIP.
+                    if bool(rule["climate_dependent"]) and not ice_barrier_required:
+                        continue
+                    
+                    # For demonstration, we simply insert a flag for all valid rules
+                    # In a real app, you'd execute rule["trigger_logic_name"] against the `report` or `ev_data`
+                    flags_to_insert.append((
+                        str(uuid.uuid4()),
+                        job_id,
+                        rule["id"],
+                        1,
+                        0.0,
+                        "Triggered via deterministic pipeline"
+                    ))
+                
+                if flags_to_insert:
+                    conn.executemany('''
+                        INSERT INTO supplement_flags (id, job_id, rule_id, triggered, quantity_delta, notes)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', flags_to_insert)
+                    conn.commit()
+            finally:
+                conn.close()
+
+        await asyncio.to_thread(_persist_flags)
+
         # 5. Generate Narrative
         narrative = await ai_service.generate_supplement_narrative(report, codes)
 

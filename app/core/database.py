@@ -251,19 +251,25 @@ def init_db() -> None:
                 required_child_code TEXT NOT NULL,
                 citation_text TEXT NOT NULL,
                 citation_type TEXT NOT NULL CHECK(citation_type IN ('IRC', 'MFG_SPEC', 'INTERNAL_POLICY')),
-                trigger_logic_name TEXT NOT NULL
+                trigger_logic_name TEXT NOT NULL,
+                climate_dependent BOOLEAN DEFAULT 0
             )
         ''')
+        
+        try:
+            conn.execute("ALTER TABLE supplement_rules ADD COLUMN climate_dependent BOOLEAN DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass # Column already exists
         
         conn.execute('''
             CREATE TABLE IF NOT EXISTS supplement_flags (
                 id TEXT PRIMARY KEY,
-                supplement_id TEXT NOT NULL,
+                job_id TEXT NOT NULL,
                 rule_id TEXT NOT NULL,
                 triggered INTEGER NOT NULL DEFAULT 0,
                 quantity_delta REAL NOT NULL DEFAULT 0.0,
                 notes TEXT,
-                FOREIGN KEY(supplement_id) REFERENCES supplements(id),
+                FOREIGN KEY(job_id) REFERENCES jobs(id),
                 FOREIGN KEY(rule_id) REFERENCES supplement_rules(id)
             )
         ''')
@@ -308,18 +314,19 @@ def seed_supplement_rules() -> None:
     conn = get_connection()
     try:
         baseline_rules = [
-            (str(uuid.uuid4()), "RFG 300S", "RFG START", "Manufacturer Shingle High-Wind Installation Specifications", "MFG_SPEC", "eval_rfg_start"),
-            (str(uuid.uuid4()), "RFG 300S", "RFG DRIP", "IRC R905.2.8.5", "IRC", "eval_rfg_drip"),
-            (str(uuid.uuid4()), "RFG TEAR", "DMO PU", "Debris Haul-off and Tonnage Regulatory Compliance", "INTERNAL_POLICY", "eval_dmo_pu")
+            (str(uuid.uuid4()), "RFG 300S", "RFG START", "Manufacturer Shingle High-Wind Installation Specifications", "MFG_SPEC", "eval_rfg_start", False),
+            (str(uuid.uuid4()), "RFG 300S", "RFG DRIP", "IRC R905.2.8.5", "IRC", "eval_rfg_drip", False),
+            (str(uuid.uuid4()), "RFG 300S", "RFG IWS", "IRC R905.1.2", "IRC", "eval_rfg_iws", True),
+            (str(uuid.uuid4()), "RFG TEAR", "DMO PU", "Debris Haul-off and Tonnage Regulatory Compliance", "INTERNAL_POLICY", "eval_dmo_pu", False)
         ]
         conn.executemany('''
-            INSERT INTO supplement_rules (id, parent_code, required_child_code, citation_text, citation_type, trigger_logic_name)
-            SELECT ?, ?, ?, ?, ?, ?
+            INSERT INTO supplement_rules (id, parent_code, required_child_code, citation_text, citation_type, trigger_logic_name, climate_dependent)
+            SELECT ?, ?, ?, ?, ?, ?, ?
             WHERE NOT EXISTS (
                 SELECT 1 FROM supplement_rules 
                 WHERE parent_code = ? AND required_child_code = ?
             )
-        ''', [(r[0], r[1], r[2], r[3], r[4], r[5], r[1], r[2]) for r in baseline_rules])
+        ''', [(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[1], r[2]) for r in baseline_rules])
         conn.commit()
     except Exception as e:
         logger.error("supplement_rules_seed_failed", error=str(e))

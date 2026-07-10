@@ -347,7 +347,7 @@ class PDFGenerator:
                 jurisdiction = job_row["jurisdiction_code_version"] if job_row else "2021_IRC"
 
                 cursor = conn.execute('''
-                    SELECT r.citation_text, r.citation_type, r.required_child_code
+                    SELECT r.citation_text, r.citation_type, r.required_child_code, r.climate_dependent
                     FROM supplement_rules r
                     -- Ideally JOIN supplement_flags f ON r.id = f.rule_id WHERE f.supplement_id = ?
                     LIMIT 10
@@ -358,12 +358,12 @@ class PDFGenerator:
                     ctype = r["citation_type"]
                     ctext = r["citation_text"]
                     child_code = r["required_child_code"]
+                    climate_dependent = bool(r["climate_dependent"])
                     
-                    # CLIMATE GATE: If this rule is related to IWS (Ice & Water Shield) and the barrier is not explicitly required
-                    # or it relies on R905.1.2/R905.2.8.5 which are ice barrier codes, block it.
-                    if ("IWS" in child_code or "DRIP" in child_code or "R905.2.8.5" in ctext or "R905.1.2" in ctext):
-                        if not ice_barrier_required:
-                            continue
+                    # CLIMATE GATE: Defensive second layer. If the rule is marked climate_dependent 
+                    # and the job's ice_barrier_required is False/None, block it from PDF.
+                    if climate_dependent and not ice_barrier_required:
+                        continue
                     
                     if ctype == "IRC":
                         framed = f"Pursuant to {jurisdiction.replace('_', ' ')} Section: {ctext}"

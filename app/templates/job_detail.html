@@ -22,7 +22,14 @@
     <div class="flex-1 flex flex-col h-full overflow-y-auto bg-gray-900">
         <div class="p-8 space-y-6">
             <div class="flex justify-between items-center">
-                <h1 class="text-3xl font-bold text-white">Job Overview</h1>
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-3xl font-bold text-white">Job Overview</h1>
+                    {% if job.ice_barrier_required is none %}
+                    <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-yellow-900 text-yellow-200 border border-yellow-700">
+                        Climate Zone Review Needed
+                    </span>
+                    {% endif %}
+                </div>
                 <a href="/office" class="text-gray-400 hover:text-white">&larr; Back to Dashboard</a>
             </div>
 
