@@ -25,6 +25,7 @@ from app.core.cache import get_cached_analyses_for_job
 from app.core.database import get_connection, update_job_status
 from app.config import verify_field_token
 from app.core.upload_utils import stream_upload_safely
+from app.core.notifications import notifier
 
 logger = structlog.get_logger("app.api.field_routes")
 
@@ -106,6 +107,19 @@ async def create_new_job(payload: LeadIntakePayload):
     # Insert into database using background thread
     try:
         await asyncio.to_thread(_sync_create_new_job, job_id, payload, ice_barrier)
+        
+        await notifier.broadcast({
+            "type": "new_lead",
+            "job": {
+                "id": job_id,
+                "homeowner_name": payload.homeowner_name,
+                "address_line1": payload.address_line1,
+                "city": payload.city,
+                "state": payload.state,
+                "status": "LEAD_CAPTURED",
+                "ice_barrier_required": ice_barrier
+            }
+        })
     except Exception as e:
         logger.error("lead_intake_db_failed", error=str(e))
         raise HTTPException(status_code=500, detail="Database insertion failed")
@@ -331,6 +345,15 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
         await asyncio.to_thread(_sync_insert_agreement, agreement_id, job_id, pdf_path, str(sig_file_path), ts, payload.signer_name, payload.ip_address, payload.user_agent)
             
         await asyncio.to_thread(update_job_status, job_id, "CONTINGENCY_SIGNED", f"Contingency signed by {payload.signer_name}")
+        
+        await notifier.broadcast({
+            "type": "contingency_signed",
+            "job": {
+                "id": job_id,
+                "signer_name": payload.signer_name,
+                "status": "CONTINGENCY_SIGNED"
+            }
+        })
         
         logger.info("contingency_signed_and_generated", job_id=job_id, agreement_id=agreement_id)
         return {"status": "success", "pdf_path": Path(pdf_path).name}

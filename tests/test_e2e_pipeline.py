@@ -71,7 +71,7 @@ def test_full_job_lifecycle(tmp_path):
         
     # 3. Create a fake EV PDF
     fake_pdf = tmp_path / "fake_eagleview.pdf"
-    fake_pdf.write_bytes(b"dummy pdf content")
+    fake_pdf.write_bytes(b"%PDF-dummy pdf content")
     
     # Mock the extract_eagleview_data so we don't need a real PDF
     # We will use dependency injection or patching for the extraction

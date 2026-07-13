@@ -6,7 +6,10 @@
     <title>Manage Job - {{ job.id[:8] }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden">
+<body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden relative">
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
     <!-- Sidebar -->
     <div class="w-64 bg-gray-800 h-full flex flex-col border-r border-gray-700">
@@ -114,6 +117,27 @@
     <script>
         const OFFICE_TOKEN = "{{ office_token }}";
 
+        function showToast(message, type = 'error') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-red-600' : 'bg-green-600';
+            toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 opacity-0 translate-y-[-10px] pointer-events-auto flex justify-between items-center max-w-sm w-full`;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <button onclick="this.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 font-bold">&times;</button>
+            `;
+            container.appendChild(toast);
+            
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', 'translate-y-[-10px]');
+            });
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('file_input');
         const fileList = document.getElementById('fileList');
@@ -148,7 +172,7 @@
                         selectedFiles.push(files[i]);
                     }
                 } else {
-                    alert('Only PDF files are allowed.');
+                    showToast('Only PDF files are allowed.', 'error');
                 }
             }
             updateFileList();
@@ -188,7 +212,7 @@
             e.preventDefault();
             
             if (selectedFiles.length !== 2) {
-                alert('Please upload exactly two PDF files (EagleView and Statement of Loss).');
+                showToast('Please upload exactly two PDF files (EagleView and Statement of Loss).', 'error');
                 return;
             }
 
@@ -269,7 +293,7 @@
                     throw new Error(`Upload failed: ${errText}`);
                 }
             } catch (error) {
-                alert(error.message);
+                showToast(error.message, 'error');
                 pipelineStatus.classList.add('hidden');
                 dropZone.classList.remove('hidden');
                 updateFileList();

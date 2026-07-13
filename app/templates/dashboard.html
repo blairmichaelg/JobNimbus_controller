@@ -6,7 +6,10 @@
     <title>Office Control Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden">
+<body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden relative">
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
     <!-- Sidebar -->
     <div class="w-64 bg-gray-800 h-full flex flex-col border-r border-gray-700">
@@ -81,6 +84,76 @@
         </div>
     </div>
 
-    <script>const OFFICE_TOKEN = "{{ office_token }}";</script>
+    <script>
+        const OFFICE_TOKEN = "{{ office_token }}";
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-red-600' : 'bg-green-600';
+            toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 opacity-0 translate-y-[-10px] pointer-events-auto flex justify-between items-center max-w-sm w-full`;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <button onclick="this.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 font-bold">&times;</button>
+            `;
+            container.appendChild(toast);
+            
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', 'translate-y-[-10px]');
+            });
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        const ws = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/api/office/ws/office');
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'new_lead') {
+                showToast(`New Lead Captured: ${data.job.homeowner_name} at ${data.job.address_line1}`, 'success');
+                
+                const tbody = document.querySelector('tbody');
+                const noJobs = tbody.querySelector('td[colspan="4"]');
+                if (noJobs) noJobs.parentElement.remove();
+                
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-700 transition-colors bg-blue-900 bg-opacity-20'; // highlight new row
+                
+                let reviewBadge = '';
+                if (data.job.ice_barrier_required === null) {
+                    reviewBadge = `<span class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-900 text-yellow-200 border border-yellow-700">Climate Zone Review Needed</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">${data.job.homeowner_name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${data.job.address_line1}, ${data.job.city} ${data.job.state}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-900 text-blue-200">
+                            ${data.job.status}
+                        </span>
+                        ${reviewBadge}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                        <a href="/office/jobs/${data.job.id}" class="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-500 text-sm font-medium inline-block">Manage Job</a>
+                    </td>
+                `;
+                tbody.prepend(tr);
+                
+                // remove highlight after 3 seconds
+                setTimeout(() => {
+                    tr.classList.remove('bg-blue-900', 'bg-opacity-20');
+                }, 3000);
+            } else if (data.type === 'contingency_signed') {
+                showToast(`Contingency Signed by ${data.job.signer_name}!`, 'success');
+            }
+        };
+        
+        ws.onerror = function(error) {
+            console.error('WebSocket Error: ', error);
+        };
+    </script>
 </body>
 </html>

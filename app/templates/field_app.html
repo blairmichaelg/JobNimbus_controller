@@ -4,13 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Field Intake</title>
+    <meta name="theme-color" content="#1e3a8a">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Hide scrollbar for a native app feel */
         ::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen">
+<body class="bg-gray-900 text-gray-100 min-h-screen relative">
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
     <div class="max-w-md mx-auto p-6 pb-24">
         <h1 class="text-3xl font-bold text-white mb-8 border-b border-gray-700 pb-4">New Lead</h1>
         
@@ -108,6 +115,69 @@
         const ctx = canvas.getContext('2d');
         let isDrawing = false;
         let isSignatureLocked = false;
+
+        // --- PWA & IndexedDB Setup ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/service-worker.js');
+            });
+        }
+
+        let idb;
+        const idbReq = indexedDB.open("FieldAppDB", 1);
+        idbReq.onupgradeneeded = (e) => {
+            idb = e.target.result;
+            if (!idb.objectStoreNames.contains("offline_queue")) {
+                idb.createObjectStore("offline_queue", { keyPath: "id", autoIncrement: true });
+            }
+        };
+        idbReq.onsuccess = (e) => { idb = e.target.result; };
+
+        function showToast(message, type = 'error') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-red-600' : (type === 'success' ? 'bg-green-600' : 'bg-blue-600');
+            toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 opacity-0 translate-y-[-10px] pointer-events-auto flex justify-between items-center max-w-sm w-full`;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <button onclick="this.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 font-bold">&times;</button>
+            `;
+            container.appendChild(toast);
+            
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', 'translate-y-[-10px]');
+            });
+            
+            // Auto remove
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        window.addEventListener('online', async () => {
+            showToast("Connection restored. Syncing offline data...", "success");
+            const tx = idb.transaction("offline_queue", "readonly");
+            const store = tx.objectStore("offline_queue");
+            const req = store.getAll();
+            req.onsuccess = async () => {
+                const items = req.result;
+                for (const item of items) {
+                    try {
+                        await processSubmission(item.payload.lead, item.payload.photo, item.payload.signature, item.payload.signer_name);
+                        // Remove from DB
+                        const delTx = idb.transaction("offline_queue", "readwrite");
+                        delTx.objectStore("offline_queue").delete(item.id);
+                    } catch (err) {
+                        showToast(`Background sync failed: ${err.message}`, "error");
+                    }
+                }
+                if (items.length > 0) {
+                    showToast("Offline data synced successfully!", "success");
+                }
+            };
+        });
         
         function initCanvasScale() {
             const rect = canvas.getBoundingClientRect();
@@ -185,6 +255,8 @@
             }
         });
 
+        window.addEventListener('resize', initCanvasScale);
+
         const jobTypeSelect = document.getElementById('job_type');
         const signatureSection = document.getElementById('signatureSection');
         
@@ -235,83 +307,51 @@
                     job_type: document.getElementById('job_type').value
                 };
 
-                const leadResponse = await fetch('/api/field/jobs', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-internal-token': FIELD_TOKEN
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!leadResponse.ok) {
-                    const err = await leadResponse.text();
-                    throw new Error(`Lead submission failed: ${err}`);
-                }
-
-                const leadData = await leadResponse.json();
-                const jobId = leadData.job_id;
-                
-                if (!jobId) {
-                    throw new Error('Failed to retrieve a valid Job ID from the server.');
-                }
-
-                loadingProgress.style.width = '40%';
-
-                // 2. Submit Photo if exists
                 const photoInput = document.getElementById('photo');
+                let photoFile = null;
                 if (photoInput.files && photoInput.files.length > 0) {
-                    const photoFile = photoInput.files[0];
+                    photoFile = photoInput.files[0];
                     if (photoFile.type !== 'image/jpeg' && photoFile.type !== 'image/png') {
                         throw new Error('Photo must be a JPEG or PNG image.');
                     }
-                
-                    loadingTitle.innerText = 'Uploading Photo...';
-                    loadingProgress.style.width = '60%';
-                    const photoData = new FormData();
-                    photoData.append('file', photoFile);
-
-                    const photoResponse = await fetch(`/api/field/jobs/${jobId}/photos`, {
-                        method: 'POST',
-                        headers: {
-                            'x-internal-token': FIELD_TOKEN
-                        },
-                        body: photoData
-                    });
-
-                    if (!photoResponse.ok) {
-                        const err = await photoResponse.text();
-                        // Non-fatal, but we should alert
-                        console.warn(`Photo upload failed: ${err}`);
-                    }
-                    loadingProgress.style.width = '80%';
                 }
 
-                // 3. Submit Contingency Signature (if applicable)
+                let signatureBase64 = null;
+                let signerName = null;
                 if (document.getElementById('job_type').value === 'INSURANCE') {
-                    loadingTitle.innerText = 'Generating Contract...';
-                    loadingProgress.style.width = '90%';
-                    const signatureBase64 = canvas.toDataURL('image/png');
-                    const sigPayload = {
-                        signature_base64: signatureBase64,
-                        signer_name: document.getElementById('homeowner_name').value,
-                        user_agent: navigator.userAgent
-                    };
-                    
-                    const sigResponse = await fetch(`/api/field/jobs/${jobId}/contingency-sign`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'x-internal-token': FIELD_TOKEN
+                    signatureBase64 = canvas.toDataURL('image/png');
+                    signerName = document.getElementById('homeowner_name').value;
+                }
+
+                if (!navigator.onLine) {
+                    // Offline Mode
+                    const tx = idb.transaction("offline_queue", "readwrite");
+                    const store = tx.objectStore("offline_queue");
+                    store.add({
+                        payload: {
+                            lead: payload,
+                            photo: photoFile,
+                            signature: signatureBase64,
+                            signer_name: signerName
                         },
-                        body: JSON.stringify(sigPayload)
+                        timestamp: Date.now()
                     });
                     
-                    if (!sigResponse.ok) {
-                        const err = await sigResponse.text();
-                        throw new Error(`Signature upload failed: ${err}`);
-                    }
+                    setTimeout(() => {
+                        loadingModal.classList.add('hidden');
+                        showToast("Offline Mode: Lead saved locally. Will sync automatically when connection returns.", "success");
+                        // Reset form
+                        document.getElementById('intakeForm').reset();
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        if (isSignatureLocked) document.getElementById('lockBtn').click(); // unlock
+                        submitBtn.innerText = originalText;
+                        submitBtn.disabled = false;
+                    }, 500);
+                    return;
                 }
+
+                // Online Mode
+                await processSubmission(payload, photoFile, signatureBase64, signerName);
 
                 loadingProgress.style.width = '100%';
                 
@@ -323,11 +363,88 @@
 
             } catch (error) {
                 document.getElementById('loadingModal').classList.add('hidden');
-                alert(error.message);
+                showToast(error.message, "error");
                 submitBtn.innerText = originalText;
                 submitBtn.disabled = false;
             }
         };
+
+        async function processSubmission(payload, photoFile, signatureBase64, signerName) {
+            const loadingTitle = document.getElementById('loadingTitle');
+            const loadingProgress = document.getElementById('loadingProgress');
+            
+            const leadResponse = await fetch('/api/field/jobs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-internal-token': FIELD_TOKEN
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!leadResponse.ok) {
+                const err = await leadResponse.text();
+                throw new Error(`Lead submission failed: ${err}`);
+            }
+
+            const leadData = await leadResponse.json();
+            const jobId = leadData.job_id;
+            
+            if (!jobId) {
+                throw new Error('Failed to retrieve a valid Job ID from the server.');
+            }
+
+            if (loadingProgress) loadingProgress.style.width = '40%';
+
+            // 2. Submit Photo if exists
+            if (photoFile) {
+                if (loadingTitle) loadingTitle.innerText = 'Uploading Photo...';
+                if (loadingProgress) loadingProgress.style.width = '60%';
+                
+                const photoData = new FormData();
+                photoData.append('file', photoFile);
+
+                const photoResponse = await fetch(`/api/field/jobs/${jobId}/photos`, {
+                    method: 'POST',
+                    headers: {
+                        'x-internal-token': FIELD_TOKEN
+                    },
+                    body: photoData
+                });
+
+                if (!photoResponse.ok) {
+                    const err = await photoResponse.text();
+                    showToast(`Photo upload failed: ${err}`, "error");
+                }
+                if (loadingProgress) loadingProgress.style.width = '80%';
+            }
+
+            // 3. Submit Contingency Signature (if applicable)
+            if (signatureBase64) {
+                if (loadingTitle) loadingTitle.innerText = 'Generating Contract...';
+                if (loadingProgress) loadingProgress.style.width = '90%';
+                
+                const sigPayload = {
+                    signature_base64: signatureBase64,
+                    signer_name: signerName,
+                    user_agent: navigator.userAgent
+                };
+                
+                const sigResponse = await fetch(`/api/field/jobs/${jobId}/contingency-sign`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-internal-token': FIELD_TOKEN
+                    },
+                    body: JSON.stringify(sigPayload)
+                });
+                
+                if (!sigResponse.ok) {
+                    const err = await sigResponse.text();
+                    throw new Error(`Signature upload failed: ${err}`);
+                }
+            }
+        }
     </script>
 </body>
 </html>

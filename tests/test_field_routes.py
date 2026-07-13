@@ -81,7 +81,7 @@ def test_create_new_job_lead_intake():
 
 def test_upload_field_photo():
     """POST /api/field/jobs/{id}/photos should save the photo."""
-    file_content = b"fake_jpeg_content"
+    file_content = b"\xFF\xD8\xFFfake_jpeg_content"
     
     response = client.post(
         "/api/field/jobs/TEST-JOB-001/photos",

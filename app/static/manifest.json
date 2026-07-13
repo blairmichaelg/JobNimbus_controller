@@ -1,0 +1,21 @@
+{
+  "name": "Truck Server Field App",
+  "short_name": "Field App",
+  "description": "JobNimbus Offline-Ready Field Application",
+  "start_url": "/field",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#1e3a8a",
+  "icons": [
+    {
+      "src": "/static/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}

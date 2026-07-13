@@ -9,7 +9,7 @@ from pathlib import Path
 import structlog
 from typing import List, Dict, Optional, Union
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -24,10 +24,20 @@ from app.core.database import insert_material_order, insert_schedule, JobStatus,
 from app.core.pipeline import run_full_office_pipeline
 from app.config import verify_office_token
 from app.core.upload_utils import stream_upload_safely
+from app.core.notifications import notifier
 
 logger = structlog.get_logger("app.api.office_routes")
 
 router = APIRouter(prefix="/api/office", tags=["office_ux"], dependencies=[Depends(verify_office_token)])
+
+@router.websocket("/ws/office")
+async def websocket_endpoint(websocket: WebSocket):
+    await notifier.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+    except WebSocketDisconnect:
+        notifier.disconnect(websocket)
 
 FIELD_DOCS_DIR = Path("field_docs")
 EXPORT_DIR = Path("generated_exports")
