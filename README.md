@@ -36,10 +36,12 @@ A proprietary, zero-cost, multi-agent AI pipeline and local CRM for insurance ro
 
 ### V4 — Local CRM Pivot ("Truck Server") ✅
 The final evolution of the pipeline, transitioning the entire operational lifecycle to a standalone, zero-cloud architecture.
-- **SQLite WAL State Machine**: Replaced JobNimbus with an indestructible, locally hosted SQLite database utilizing Write-Ahead Logging (WAL) and hot `VACUUM INTO` backups.
-- **Automated Supplement Pipeline**: Parses EagleView and Statement of Loss (SoL) PDFs via RAG, reconciles discrepancies using the purely mathematical `SupplementEngine`, and executes a structured rule-gate (`SupplementProcessor`). 
+- **SQLite WAL State Machine**: Replaced JobNimbus with an indestructible, locally hosted SQLite database utilizing Write-Ahead Logging (WAL) and hot `VACUUM INTO` backups. Fully hardened with explicit `BEGIN IMMEDIATE` transactions to eliminate deadlocks.
+- **Universal Claim AST**: Enforces mathematical determinism using Pydantic V2 `UniversalClaimAST` models to parse EagleView and Statement of Loss (SoL) PDFs securely before the logic reaches the `SupplementEngine`.
+- **Role-Tailored SQL Views**: Instantly projects immutable operational metrics (like `live_material_board` and `financial_delta_view`) for zero-latency dashboard delivery.
 - **Manual Review & Resume**: Automatically halts erroneous extractions and flags them for manual review. Dashboard operators can resolve these flags and seamlessly resume the pipeline to generate legally-binding PDFs.
 - **Paperwork Matrix**: Generates strict Georgia Statutory Compliance documents and Supplier Purchase Orders directly from deterministic `MaterialBOM` calculations.
+- **Robust Connection Manager**: Incorporates a self-healing WebSocket infrastructure with active background heartbeat monitoring to instantly sweep inactive connections.
 
 ### V2 & V3 — AI Supplement & Vision Engines ✅
 The core artificial intelligence layers powering the system's logic.

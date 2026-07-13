@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0] - 2026-07-13
+### Added & Fixed
+- **Architectural Refactor**: Comprehensive backend hardening for the V4 Truck Server.
+- **SQLite Concurrency**: Enforced explicit `BEGIN IMMEDIATE` transaction blocks and PRAGMA configurations (WAL, mmap, busy_timeout) to eliminate read-to-write database locks.
+- **Universal Claim AST**: Built `ingestion_models.py` leveraging Pydantic V2 for mathematically deterministic extraction of adjustor claims.
+- **Role-Tailored Projections**: Deployed `live_material_board` and `financial_delta_view` SQL Views for immediate operations and accounting insights.
+- **WebSocket Zombie Sweeper**: Upgraded `Notifier` to `RobustConnectionManager` with an active background `asyncio` heartbeat loop isolating dead connections.
+
 ## [0.5.2] - 2026-07-13
 ### Added & Fixed
 - **System Stability**: Resolved critical asynchronous Coroutine execution bugs in the V4 Truck Server pipeline affecting inspection doc generation.
