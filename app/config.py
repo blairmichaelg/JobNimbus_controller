@@ -27,13 +27,25 @@ class Settings(BaseSettings):
         ...,
         description="Shared secret for x-api-key header validation on inbound webhooks.",
     )
-    office_internal_token: str = Field(
-        default="office-secret-token",
-        description="Global access token for backend office endpoints.",
+    jwt_secret: str = Field(
+        default="super-secret-jwt-key-for-local-dev-only",
+        description="Secret key for signing JWTs.",
     )
-    field_internal_token: str = Field(
-        default="field-secret-token",
-        description="Global access token for backend field endpoints.",
+    admin_pin: str = Field(
+        default="9999",
+        description="Access PIN for the Admin persona.",
+    )
+    accounting_pin: str = Field(
+        default="1111",
+        description="Access PIN for the Accounting persona.",
+    )
+    operations_pin: str = Field(
+        default="2222",
+        description="Access PIN for the Operations persona.",
+    )
+    field_pin: str = Field(
+        default="3333",
+        description="Access PIN for Field Salesmen.",
     )
 
     # --- Redis ---

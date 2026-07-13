@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accounting Ledger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-gray-100 h-screen flex flex-col overflow-hidden font-mono">
+    <div class="p-8 h-full flex flex-col">
+        <div class="flex justify-between items-center border-b border-gray-800 pb-4 mb-8">
+            <h1 class="text-3xl font-bold text-green-400 uppercase tracking-widest">Accounting Ledger</h1>
+            <a href="/login" class="text-gray-500 hover:text-white">Logout</a>
+        </div>
+        
+        <div class="flex-1 bg-gray-900 border border-gray-700 rounded p-6 shadow-2xl flex flex-col">
+            <div class="flex justify-between items-start mb-8">
+                <div>
+                    <div class="text-gray-400 text-sm uppercase tracking-wider">Supplemented RCV Added</div>
+                    <div id="acct-rcv" class="text-5xl text-green-500 font-bold mt-2">$0.00</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">QBO Export Queue</div>
+                    <div id="acct-ready" class="text-3xl text-white font-bold mb-4">0</div>
+                    <button class="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-6 rounded uppercase tracking-wider transition-colors">
+                        Export QBO CSV
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-auto">
+                <table class="w-full text-left uppercase text-sm">
+                    <thead class="sticky top-0 bg-gray-900 shadow">
+                        <tr class="text-gray-500 border-b border-gray-800">
+                            <th class="py-3 px-4">Job ID</th>
+                            <th class="py-3 px-4">Homeowner</th>
+                            <th class="py-3 px-4 text-right">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="acct-table" class="divide-y divide-gray-800">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const AUTH_TOKEN = "{{ auth_token }}";
+
+        async function fetchAccounting() {
+            try {
+                const res = await fetch('/api/office/accounting/brief', { headers: { 'X-Internal-Token': AUTH_TOKEN } });
+                const data = await res.json();
+                document.getElementById('acct-rcv').innerText = data.supplemented_rcv_added;
+                document.getElementById('acct-ready').innerText = data.qbo_ready_count;
+                
+                const tbody = document.getElementById('acct-table');
+                tbody.innerHTML = '';
+                data.rows.forEach(row => {
+                    const statusColor = row.status.includes('INVOICED') ? 'text-green-400' : 'text-yellow-400';
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-800 transition-colors">
+                            <td class="py-4 px-4 text-gray-300 font-mono">${row.job_id.substring(0,8)}</td>
+                            <td class="py-4 px-4 text-white font-bold">${row.name}</td>
+                            <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
+                        </tr>
+                    `;
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        fetchAccounting();
+        const ws = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/api/office/ws/office');
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'stale' || data.type === 'new_lead') fetchAccounting();
+        };
+    </script>
+</body>
+</html>

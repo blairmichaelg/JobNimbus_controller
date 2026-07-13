@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operations Board</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-gray-100 h-screen flex flex-col overflow-hidden font-mono">
+    <div class="p-8 h-full flex flex-col">
+        <div class="flex justify-between items-center border-b border-gray-800 pb-4 mb-8">
+            <h1 class="text-3xl font-bold text-blue-400 uppercase tracking-widest">Operations Departure Board</h1>
+            <a href="/login" class="text-gray-500 hover:text-white">Logout</a>
+        </div>
+        
+        <div class="flex-1 bg-gray-900 border border-gray-700 rounded p-6 shadow-2xl flex flex-col">
+            <div class="flex space-x-12 mb-8 text-xl">
+                <div>
+                    <div class="text-gray-400 text-sm uppercase tracking-wider">Deliveries Today</div>
+                    <div id="ops-deliveries" class="text-4xl text-white font-bold mt-2">0</div>
+                </div>
+                <div>
+                    <div class="text-gray-400 text-sm uppercase tracking-wider">Active Crews</div>
+                    <div id="ops-crews" class="text-4xl text-white font-bold mt-2">0</div>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-auto">
+                <table class="w-full text-left uppercase text-sm">
+                    <thead class="sticky top-0 bg-gray-900 shadow">
+                        <tr class="text-gray-500 border-b border-gray-800">
+                            <th class="py-3 px-4">Job ID</th>
+                            <th class="py-3 px-4">Supplier</th>
+                            <th class="py-3 px-4">Delivery Date</th>
+                            <th class="py-3 px-4 text-right">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ops-table" class="divide-y divide-gray-800">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const AUTH_TOKEN = "{{ auth_token }}";
+
+        async function fetchOperations() {
+            try {
+                const res = await fetch('/api/office/operations/brief', { headers: { 'X-Internal-Token': AUTH_TOKEN } });
+                const data = await res.json();
+                document.getElementById('ops-deliveries').innerText = data.deliveries_today;
+                document.getElementById('ops-crews').innerText = data.crews_today;
+                
+                const tbody = document.getElementById('ops-table');
+                tbody.innerHTML = '';
+                data.material_rows.forEach(row => {
+                    const statusColor = row.status === 'Ready' ? 'text-green-400' : 'text-yellow-400';
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-800 transition-colors">
+                            <td class="py-4 px-4 text-gray-300 font-mono">${row.job_id.substring(0,8)}</td>
+                            <td class="py-4 px-4 text-white font-bold">${row.supplier_name}</td>
+                            <td class="py-4 px-4 text-gray-400">${row.delivery_date}</td>
+                            <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
+                        </tr>
+                    `;
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        fetchOperations();
+        const ws = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/api/office/ws/office');
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'stale' || data.type === 'new_lead') fetchOperations();
+        };
+    </script>
+</body>
+</html>

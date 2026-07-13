@@ -215,25 +215,54 @@ async def serve_field_app(request: Request):
         "field_token": get_settings().field_internal_token
     })
 
-@app.get("/office/login", tags=["frontend"])
-async def serve_office_login(request: Request):
-    """Serve the office login page."""
+@app.get("/login", tags=["frontend"])
+async def serve_login(request: Request):
+    """Serve the universal login page."""
     return templates.TemplateResponse(request, "login.html", {"request": request})
 
-@app.post("/office/login", tags=["frontend"])
-async def process_office_login(request: Request, access_code: str = Form(...)):
-    """Process office login."""
+@app.post("/login", tags=["frontend"])
+async def process_login(request: Request, access_code: str = Form(...)):
+    """Process login and route to persona dashboard based on PIN."""
     settings = get_settings()
-    if access_code == settings.office_internal_token:
-        response = RedirectResponse(url="/office", status_code=303)
+    
+    role = None
+    redirect_url = "/"
+    
+    if access_code == settings.admin_pin:
+        role = "admin"
+        redirect_url = "/admin"
+    elif access_code == settings.accounting_pin:
+        role = "accounting"
+        redirect_url = "/accounting"
+    elif access_code == settings.operations_pin:
+        role = "operations"
+        redirect_url = "/operations"
+    elif access_code == settings.field_pin:
+        role = "field"
+        redirect_url = "/field"
+        
+    # Support backward compatibility for old local testing
+    if access_code == "office-secret-token":
+        role = "admin"
+        redirect_url = "/admin"
+    if access_code == "field-secret-token":
+        role = "field"
+        redirect_url = "/field"
+        
+    if role:
+        from app.api.auth import create_access_token
+        token = create_access_token(role)
+        
+        response = RedirectResponse(url=redirect_url, status_code=303)
         response.set_cookie(
-            key="office_auth",
-            value=access_code,
+            key="auth_token",
+            value=token,
             httponly=True,
             secure=(settings.app_env == "production"),
             samesite="lax"
         )
         return response
+        
     return templates.TemplateResponse(request, "login.html", {"request": request, "error": "Invalid Access Code"})
 
 def _fetch_active_jobs_sync():
@@ -249,25 +278,38 @@ def _fetch_active_jobs_sync():
     finally:
         conn.close()
 
-@app.get("/office", tags=["frontend"])
-async def serve_office_dashboard(request: Request):
-    """Serve the Office Control Center desktop dashboard."""
+from fastapi import Depends
+from app.api.auth import verify_admin, verify_accounting, verify_operations
+
+@app.get("/admin", tags=["frontend"])
+async def serve_admin_dashboard(request: Request, role: str = Depends(verify_admin)):
+    """Serve the Admin Kanban Board."""
     jobs = await asyncio.to_thread(_fetch_active_jobs_sync)
-    active_jobs = len(jobs)
-    ready_to_invoice = sum(1 for j in jobs if j["status"] in ("INSPECTION_COMPLETED", "FINAL_INSPECTION"))
-    recent_leads = sum(1 for j in jobs if j["status"] == "LEAD_CAPTURED")
-    return templates.TemplateResponse(request, "dashboard.html", {
+    return templates.TemplateResponse(request, "admin_dashboard.html", {
         "request": request, 
         "jobs": jobs,
-        "active_jobs": active_jobs,
-        "recent_leads": recent_leads,
-        "ready_to_invoice": ready_to_invoice,
-        "office_token": get_settings().office_internal_token
+        "auth_token": request.cookies.get("auth_token", "")
+    })
+
+@app.get("/accounting", tags=["frontend"])
+async def serve_accounting_dashboard(request: Request, role: str = Depends(verify_accounting)):
+    """Serve the Accounting Ledger."""
+    return templates.TemplateResponse(request, "accounting_dashboard.html", {
+        "request": request, 
+        "auth_token": request.cookies.get("auth_token", "")
+    })
+
+@app.get("/operations", tags=["frontend"])
+async def serve_operations_dashboard(request: Request, role: str = Depends(verify_operations)):
+    """Serve the Operations Departure Board."""
+    return templates.TemplateResponse(request, "operations_dashboard.html", {
+        "request": request, 
+        "auth_token": request.cookies.get("auth_token", "")
     })
 
 @app.get("/office/jobs/{job_id}", tags=["frontend"])
 async def serve_job_detail(request: Request, job_id: str):
-    """Serve the unified Job Overview dashboard."""
+    """Serve the unified Job Overview dashboard (for Admin)."""
     from fastapi import HTTPException
     job = await asyncio.to_thread(_fetch_job_sync, job_id)
     if not job:
@@ -275,5 +317,5 @@ async def serve_job_detail(request: Request, job_id: str):
     return templates.TemplateResponse(request, "job_detail.html", {
         "request": request, 
         "job": job,
-        "office_token": get_settings().office_internal_token
+        "auth_token": request.cookies.get("auth_token", "")
     })
