@@ -34,7 +34,7 @@ router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends
 
 # Base directories (created on startup)
 FIELD_PHOTOS_DIR = Path("field_photos")
-FIELD_DOCS_DIR = Path("field_docs")
+FIELD_DOCS_DIR = Path("data/field_docs")
 SIGNED_AGREEMENTS_DIR = Path("signed_agreements")
 
 class LeadIntakePayload(BaseModel):
@@ -193,10 +193,28 @@ async def get_inspection_summary(job_id: str):
     # Retrieve all cached analyses for this job
     analyses = await asyncio.to_thread(get_cached_analyses_for_job, job_id)
 
+    # Fetch real address and inspector from the jobs table
+    property_address = "Unknown Address"
+    inspector_name = "Wickham Roofing LLC"
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "SELECT address_line1, city, state, postal_code, inspector_name FROM jobs WHERE id = ?",
+            (job_id,)
+        )
+        row = cursor.fetchone()
+        if row:
+            property_address = f"{row['address_line1']}, {row['city']}, {row['state']} {row['postal_code']}"
+            if row["inspector_name"]:
+                inspector_name = row["inspector_name"]
+    finally:
+        conn.close()
+
     job = InspectionJob(
         job_id=job_id,
-        property_address="Unknown Address (Pending Sync)",  # Would be pulled from CRM in full impl
+        property_address=property_address,
         inspection_date=datetime.now(),
+        inspector_name=inspector_name,
         photos=photos,
         analyses=analyses,
     )

@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI):
     # Initialize V4 CRM DB
     init_crm_db()
     os.makedirs("field_photos", exist_ok=True)
-    os.makedirs("field_docs", exist_ok=True)
+    os.makedirs("data/field_docs", exist_ok=True)
     os.makedirs("signed_agreements", exist_ok=True)
     logger.info("v3_infrastructure_initialized")
 

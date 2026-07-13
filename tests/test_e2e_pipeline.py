@@ -114,11 +114,11 @@ def test_full_job_lifecycle(tmp_path):
     assert "12390.00" in content # Field Shingle Bundles
     assert "180.00" in content   # Starter Bundles
     
-    # 5. Verify final state is INVOICED
+    # 5. Verify final state is EV_PARSED (not INVOICED — invoicing is now a separate manual step)
     conn = get_connection()
     try:
         cursor = conn.execute("SELECT status FROM jobs WHERE id = ?", (job_id,))
         row = cursor.fetchone()
-        assert row["status"] == "INVOICED"
+        assert row["status"] == "EV_PARSED"
     finally:
         conn.close()

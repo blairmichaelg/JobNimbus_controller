@@ -46,11 +46,12 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
         log.info("pipeline_bom_calculated", field_bundles=bom.field_shingle_bundles)
         
         import asyncio
-        # 3. Generate QBO CSV with dynamic pricing (Threaded)
+        # 3. Generate QBO CSV as a reference export (does NOT auto-invoice)
         csv_path = await asyncio.to_thread(generate_qbo_invoice, job_id, bom, customer_name)
         log.info("pipeline_qbo_generated", csv_path=csv_path)
         
-        # 4. Transition Status (generate_qbo_invoice does INVOICED internally, but we log it)
+        # 4. Transition Status to EV_PARSED (not INVOICED — invoicing is a separate manual step)
+        await asyncio.to_thread(update_job_status, job_id, JobStatus.EV_PARSED, "EagleView parsed, BOM calculated, QBO CSV generated.")
         log.info("master_pipeline_completed")
         
         return {

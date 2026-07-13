@@ -31,7 +31,7 @@ router = APIRouter(prefix="/api/office", tags=["office_ux"], dependencies=[Depen
 
 
 
-FIELD_DOCS_DIR = Path("field_docs")
+FIELD_DOCS_DIR = Path("data/field_docs")
 EXPORT_DIR = Path("generated_exports")
 
 def _fetch_homeowner_name_sync(job_id: str) -> str:
@@ -562,9 +562,9 @@ async def generate_material_order(job_id: str, payload: MaterialOrderPayload, bg
         ev_data = await extract_eagleview_data(pdf_path)
         sol_pdf_path = job_dir / "statement_of_loss.pdf"
         if sol_pdf_path.exists():
-            from app.services.pdf_extractor import extract_pdf_text, extract_statement_of_loss
-            text = extract_pdf_text(sol_pdf_path)
-            sol = await extract_statement_of_loss(text)
+            from app.services.ai_service import AIService
+            ai_svc = AIService()
+            sol = await ai_svc.extract_sol_from_pdf(str(sol_pdf_path), job_id=job_id)
         else:
             sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
             

@@ -185,7 +185,8 @@ def generate_qbo_invoice(job_id: str, bom: MaterialBOM, customer_name: str = "Un
     
     csv_path = export_to_csv(export)
     
-    # Directive 3: Update SQLite state
-    update_job_status(job_id, "INVOICED", f"Automated QBO Invoice Generated: {Path(csv_path).name}")
+    # NOTE: Status transition to INVOICED is now handled by the office operator,
+    # not automatically on CSV generation. This prevents premature state transitions
+    # when the EagleView PDF upload pipeline generates a reference CSV.
     
     return csv_path

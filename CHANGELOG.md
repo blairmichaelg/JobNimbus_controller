@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.1] - 2026-07-13
+### Added & Fixed
+- **Pre-Demo Stability Audit**: Resolved 7 critical and high-priority bugs identified during system audit.
+- **Pipeline Lifecycle**: Fixed premature status transitions; EagleView uploads now transition to `EV_PARSED` instead of auto-invoicing via QBO export.
+- **Data Integrity**: Corrected EagleView field name mapping in inspection letters and wired live database lookups for inspection addresses.
+- **PDF Generation**: Hardened the supplement generator to dynamically filter and inject only job-specific, climate-triggered rules via explicit SQL JOINs.
+- **File System Stability**: Centralized and synchronized all `FIELD_DOCS_DIR` path resolution across the orchestration layer and endpoints.
+- **Error Handling**: Patched fatal `ImportError` exceptions in the material order route to ensure pristine demonstration stability.
+
 ## [0.6.0] - 2026-07-13
 ### Added & Fixed
 - **Architectural Refactor**: Comprehensive backend hardening for the V4 Truck Server.

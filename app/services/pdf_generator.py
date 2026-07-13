@@ -384,10 +384,10 @@ class PDFGenerator:
 
                 cursor = conn.execute('''
                     SELECT r.citation_text, r.citation_type, r.required_child_code, r.climate_dependent
-                    FROM supplement_rules r
-                    -- Ideally JOIN supplement_flags f ON r.id = f.rule_id WHERE f.supplement_id = ?
-                    LIMIT 10
-                ''')
+                    FROM supplement_flags f
+                    JOIN supplement_rules r ON f.rule_id = r.id
+                    WHERE f.job_id = ? AND f.triggered = 1
+                ''', (job_id,))
                 rules = cursor.fetchall()
                 
                 for r in rules:
@@ -1005,10 +1005,11 @@ class PDFGenerator:
             story.append(Spacer(1, 20))
             
             story.append(Paragraph("Measurement Summary", self.custom_styles["SectionHeading"]))
-            sq = ev_data.get("total_squares", "N/A")
-            ridge = ev_data.get("ridges", "N/A")
-            valleys = ev_data.get("valleys", "N/A")
-            eaves = ev_data.get("eaves", "N/A")
+            total_sf = ev_data.get("total_area_sf", 0)
+            sq = f"{total_sf / 100.0:.1f}" if isinstance(total_sf, (int, float)) and total_sf > 0 else "N/A"
+            ridge = ev_data.get("ridge_lf", "N/A")
+            valleys = ev_data.get("valley_lf", "N/A")
+            eaves = ev_data.get("eaves_lf", "N/A")
             
             meas_data = [
                 ["Measurement Type", "Value"],
