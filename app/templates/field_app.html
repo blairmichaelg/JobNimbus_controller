@@ -241,6 +241,10 @@
         document.getElementById('lockBtn').addEventListener('click', () => {
             const btn = document.getElementById('lockBtn');
             if (!isSignatureLocked) {
+                const pixelData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+                const hasInk = pixelData.some((v, i) => i % 4 === 3 && v > 0);
+                if (!hasInk) { showToast('Please draw a signature before locking.', 'error'); return; }
+
                 isSignatureLocked = true;
                 btn.innerText = '🔒 Locked';
                 btn.classList.remove('text-green-400', 'hover:text-green-300');
@@ -414,7 +418,7 @@
 
                 if (!photoResponse.ok) {
                     const err = await photoResponse.text();
-                    showToast(`Photo upload failed: ${err}`, "error");
+                    showToast(`⚠️ Photo upload failed (lead saved): ${err}`, 'error');
                 }
                 if (loadingProgress) loadingProgress.style.width = '80%';
             }

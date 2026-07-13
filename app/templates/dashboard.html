@@ -59,7 +59,12 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{{ job.homeowner_name }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ job.address_line1 }}, {{ job.city }} {{ job.state }}</td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-900 text-blue-200">
+                                {% set status_color = 'bg-blue-900 text-blue-200' %}
+                                {% if job.status == 'LEAD_CAPTURED' %}{% set status_color = 'bg-yellow-900 text-yellow-200' %}{% endif %}
+                                {% if job.status == 'CONTINGENCY_SIGNED' %}{% set status_color = 'bg-green-900 text-green-200' %}{% endif %}
+                                {% if job.status == 'SUPPLEMENT_GENERATED' %}{% set status_color = 'bg-purple-900 text-purple-200' %}{% endif %}
+                                {% if job.status == 'PIPELINE_FAILED' %}{% set status_color = 'bg-red-900 text-red-200' %}{% endif %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ status_color }}">
                                     {{ job.status }}
                                 </span>
                                 {% if job.ice_barrier_required is none %}
@@ -142,10 +147,10 @@
                 `;
                 tbody.prepend(tr);
                 
-                // remove highlight after 3 seconds
+                // remove highlight after 5 seconds
                 setTimeout(() => {
                     tr.classList.remove('bg-blue-900', 'bg-opacity-20');
-                }, 3000);
+                }, 5000);
             } else if (data.type === 'contingency_signed') {
                 showToast(`Contingency Signed by ${data.job.signer_name}!`, 'success');
             }
