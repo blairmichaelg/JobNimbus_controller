@@ -9,7 +9,7 @@ from pathlib import Path
 import structlog
 from typing import List, Dict, Optional, Union
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -24,20 +24,12 @@ from app.core.database import insert_material_order, insert_schedule, JobStatus,
 from app.core.pipeline import run_full_office_pipeline
 from app.config import verify_office_token
 from app.core.upload_utils import stream_upload_safely
-from app.core.notifications import notifier
 
 logger = structlog.get_logger("app.api.office_routes")
 
 router = APIRouter(prefix="/api/office", tags=["office_ux"], dependencies=[Depends(verify_office_token)])
 
-@router.websocket("/ws/office")
-async def websocket_endpoint(websocket: WebSocket):
-    await notifier.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        notifier.disconnect(websocket)
+
 
 FIELD_DOCS_DIR = Path("field_docs")
 EXPORT_DIR = Path("generated_exports")
@@ -83,6 +75,9 @@ class FinancialsPayload(BaseModel):
     carrier_rcv: float
     materials: float
     labor: float
+    deductible: float = 0.0
+    acv_payment: float = 0.0
+    recoverable_depreciation: float = 0.0
     overhead_pct: float = 0.25
     commission_pct: float = 0.10
     permits_fee: float = 0.0
@@ -382,7 +377,8 @@ def download_export(filename: str):
 async def upload_job_document(job_id: str, file_type: str = Form(...), file: UploadFile = File(...)):
     """Upload a miscellaneous document to the universal vault."""
     valid_types = ["application/pdf", "image/jpeg", "image/png"]
-    if file.content_type not in valid_types:
+    actual_type = file.content_type
+    if actual_type not in valid_types:
         raise HTTPException(status_code=400, detail="Must upload a PDF, JPEG, or PNG.")
 
     job_dir = FIELD_DOCS_DIR / job_id
@@ -408,7 +404,7 @@ async def upload_job_document(job_id: str, file_type: str = Form(...), file: Upl
             return {"status": "success", "filename": safe_name, "message": "Duplicate file detected."}
             
         try:
-            await asyncio.to_thread(insert_job_document, job_id, safe_name, file_type, str(pdf_path), file_hash)
+            await asyncio.to_thread(insert_job_document, job_id, safe_name, actual_type, str(pdf_path), file_hash)
         except Exception:
             pdf_path.unlink(missing_ok=True)
             raise
@@ -428,10 +424,17 @@ async def get_inspection_letter(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # In a real app we'd fetch actual ev_data and inspection_summary from DB.
-    # Simulating retrieval for the PDF generation.
-    ev_data = {"total_squares": 32.5, "ridges": 40, "valleys": 25, "eaves": 120}
-    inspection_summary = {"damage_count": 14, "predominant_damage_type": "Hail Hits (3/4in)", "severity": "High"}
+    job_dir = FIELD_DOCS_DIR / job_id
+    ev_pdf = job_dir / "eagleview.pdf"
+    if not ev_pdf.exists():
+        raise HTTPException(400, "EagleView not yet uploaded. Cannot generate letter.")
+        
+    ev_data_obj = await extract_eagleview_data(ev_pdf)
+    ev_data = ev_data_obj.model_dump() if hasattr(ev_data_obj, 'model_dump') else dict(ev_data_obj)
+
+    inspection_summary = {"damage_count": 0, "predominant_damage_type": "None", "severity": "Low"}
+    if job.get("inspection_notes"):
+        inspection_summary["severity"] = str(job["inspection_notes"])
     
     gen = PDFGenerator()
     try:
@@ -557,8 +560,15 @@ async def generate_material_order(job_id: str, payload: MaterialOrderPayload, bg
     try:
         # Rebuild BOM
         ev_data = await extract_eagleview_data(pdf_path)
-        empty_sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
-        report = await asyncio.to_thread(reconcile, ev_data, empty_sol, job_id, 0.15)
+        sol_pdf_path = job_dir / "statement_of_loss.pdf"
+        if sol_pdf_path.exists():
+            from app.services.pdf_extractor import extract_pdf_text, extract_statement_of_loss
+            text = extract_pdf_text(sol_pdf_path)
+            sol = await extract_statement_of_loss(text)
+        else:
+            sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
+            
+        report = await asyncio.to_thread(reconcile, ev_data, sol, job_id, 0.15)
         bom = report.material_bom
         
         # Fetch Homeowner Info

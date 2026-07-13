@@ -48,6 +48,7 @@ class LeadIntakePayload(BaseModel):
     claim_number: str | None = None
     insurer_name: str | None = None
     job_type: str = Field(default="INSURANCE")
+    loss_date: str | None = None
 
 class SignaturePayload(BaseModel):
     job_id: str = Field(..., description="JobNimbus entity ID")
@@ -88,6 +89,14 @@ def _sync_create_new_job(job_id: str, payload: LeadIntakePayload, ice_barrier: b
             json.dumps(initial_history), payload.job_type,
             ice_barrier, "2021_IRC"
         ))
+        
+        if payload.loss_date:
+            sv_id = str(uuid.uuid4())
+            conn.execute('''
+                INSERT INTO storm_verifications (id, job_id, loss_date, event_type, begin_lat, begin_lon, match_confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (sv_id, job_id, payload.loss_date, 'Unknown', 0.0, 0.0, 'Pending'))
+            
         conn.commit()
     finally:
         conn.close()

@@ -173,6 +173,21 @@ app.include_router(webhook_router)
 app.include_router(field_router)
 app.include_router(office_router)
 
+from app.core.notifications import notifier
+from fastapi import WebSocket, WebSocketDisconnect
+
+@app.websocket("/ws/office")
+async def office_ws(websocket: WebSocket):
+    # Using generic client_id for now, can be extracted from query params or headers if needed
+    await notifier.connect(websocket, client_id="office_client", role="office")
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "pong":
+                notifier.update_pong(websocket)
+    except WebSocketDisconnect:
+        notifier.disconnect(websocket)
+
 
 # --- Health Check ---
 @app.get("/health", tags=["system"])

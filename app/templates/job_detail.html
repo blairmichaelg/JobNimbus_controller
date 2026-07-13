@@ -130,6 +130,34 @@
                             <a href="/api/office/jobs/{{ job.id }}/evidence_grid" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Evidence Grid (PDF)</a>
                         </div>
                     </div>
+                    <!-- Document Vault Section -->
+                    <div class="mt-6">
+                        <h3 class="text-md font-medium text-gray-300 mb-3">Document Vault</h3>
+                        <div id="dropZoneVault" class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 hover:bg-gray-700 transition-colors cursor-pointer group">
+                            <div class="text-gray-400 group-hover:text-gray-300">
+                                <p class="font-medium text-lg mb-1">📁 Upload Any Document</p>
+                                <p id="vaultFileName" class="text-sm text-blue-400 mt-2">Click or drag PDF, JPEG, PNG</p>
+                            </div>
+                            <input type="file" id="vault_input" accept=".pdf,.jpeg,.jpg,.png" class="hidden">
+                        </div>
+                    </div>
+
+                    <!-- Financials Section -->
+                    <div class="mt-6">
+                        <h3 class="text-md font-medium text-gray-300 mb-3">Financials</h3>
+                        <form id="financialsForm" class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-sm text-gray-400">Revenue</label><input type="number" id="fin_revenue" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
+                                <div><label class="block text-sm text-gray-400">Materials</label><input type="number" id="fin_materials" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
+                                <div><label class="block text-sm text-gray-400">Labor</label><input type="number" id="fin_labor" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
+                                <div><label class="block text-sm text-gray-400">Carrier RCV</label><input type="number" id="fin_carrier_rcv" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
+                                <div><label class="block text-sm text-gray-400">Deductible</label><input type="number" id="fin_deductible" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
+                                <div><label class="block text-sm text-gray-400">ACV Payment</label><input type="number" id="fin_acv_payment" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
+                                <div class="col-span-2"><label class="block text-sm text-gray-400">Recoverable Dep.</label><input type="number" id="fin_recoverable_depreciation" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
+                            </div>
+                            <button type="submit" class="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700">Save Financials</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -296,6 +324,79 @@
                 document.getElementById('dropZoneSOL').classList.remove('hidden');
             }
         };
+
+        // Document Vault Upload
+        const vaultZone = document.getElementById('dropZoneVault');
+        const vaultInput = document.getElementById('vault_input');
+        const vaultLabel = document.getElementById('vaultFileName');
+
+        vaultZone.addEventListener('click', () => vaultInput.click());
+        vaultZone.addEventListener('dragover', (e) => { e.preventDefault(); vaultZone.classList.add('border-blue-500', 'bg-gray-700'); });
+        vaultZone.addEventListener('dragleave', () => vaultZone.classList.remove('border-blue-500', 'bg-gray-700'));
+        vaultZone.addEventListener('drop', (e) => { e.preventDefault(); vaultZone.classList.remove('border-blue-500', 'bg-gray-700'); handleVaultUpload(e.dataTransfer.files[0]); });
+        vaultInput.addEventListener('change', (e) => { handleVaultUpload(e.target.files[0]); });
+
+        async function handleVaultUpload(file) {
+            if (!file) return;
+            vaultLabel.innerText = "Uploading...";
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('file_type', 'Vault Document');
+            
+            try {
+                const response = await fetch(`/api/office/jobs/{{ job.id }}/docs/upload`, {
+                    method: 'POST',
+                    headers: { 'x-internal-token': OFFICE_TOKEN },
+                    body: formData
+                });
+                if (response.ok) {
+                    showToast('Document uploaded successfully!', 'success');
+                    vaultLabel.innerText = file.name;
+                } else {
+                    throw new Error(await response.text());
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+                vaultLabel.innerText = "Click or drag PDF, JPEG, PNG";
+            }
+        }
+
+        // Financials Submit
+        const finForm = document.getElementById('financialsForm');
+        finForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                revenue: parseFloat(document.getElementById('fin_revenue').value) || 0,
+                materials: parseFloat(document.getElementById('fin_materials').value) || 0,
+                labor: parseFloat(document.getElementById('fin_labor').value) || 0,
+                carrier_rcv: parseFloat(document.getElementById('fin_carrier_rcv').value) || 0,
+                deductible: parseFloat(document.getElementById('fin_deductible').value) || 0,
+                acv_payment: parseFloat(document.getElementById('fin_acv_payment').value) || 0,
+                recoverable_depreciation: parseFloat(document.getElementById('fin_recoverable_depreciation').value) || 0,
+                overhead_pct: 0.25,
+                commission_pct: 0.10,
+                permits_fee: 0.0
+            };
+            
+            try {
+                const response = await fetch(`/api/office/jobs/{{ job.id }}/financials`, {
+                    method: 'POST',
+                    headers: {
+                        'x-internal-token': OFFICE_TOKEN,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                if (response.ok) {
+                    showToast('Financials saved!', 'success');
+                } else {
+                    throw new Error(await response.text());
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        });
     </script>
 </body>
 </html>

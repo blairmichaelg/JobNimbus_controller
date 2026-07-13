@@ -1,35 +1,78 @@
-from typing import List
+import asyncio
 from fastapi import WebSocket
+from typing import Dict, Any
 import structlog
+import time
 
 logger = structlog.get_logger("app.core.notifications")
 
-class Notifier:
+class RobustConnectionManager:
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        # Maps websocket -> dict with 'client_id', 'role', 'last_pong'
+        self.active_connections: Dict[WebSocket, Dict[str, Any]] = {}
+        # Start the loop lazily on the first connection
+        self._heartbeat_task = None
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, client_id: str = "unknown", role: str = "unknown"):
         await websocket.accept()
-        self.active_connections.append(websocket)
-        logger.info("websocket_client_connected", active_count=len(self.active_connections))
+        self.active_connections[websocket] = {
+            "client_id": client_id,
+            "role": role,
+            "last_pong": time.time()
+        }
+        logger.info("websocket_client_connected", client_id=client_id, role=role, active_count=len(self.active_connections))
+        
+        if self._heartbeat_task is None:
+            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-            logger.info("websocket_client_disconnected", active_count=len(self.active_connections))
+            meta = self.active_connections.pop(websocket)
+            logger.info("websocket_client_disconnected", client_id=meta["client_id"], active_count=len(self.active_connections))
 
     async def broadcast(self, message: dict):
-        dead_connections = []
+        dead_connections = set()
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
             except Exception as e:
                 logger.warning("websocket_broadcast_failed", error=str(e))
-                dead_connections.append(connection)
+                dead_connections.add(connection)
                 
         # Clean up any dead connections
-        for dead in dead_connections:
-            self.disconnect(dead)
+        for dead_conn in dead_connections:
+            self.disconnect(dead_conn)
+
+    def update_pong(self, websocket: WebSocket):
+        """Update the last_pong timestamp when a pong is received from the client."""
+        if websocket in self.active_connections:
+            self.active_connections[websocket]["last_pong"] = time.time()
+
+    async def _heartbeat_loop(self):
+        """Background loop to ping connections and disconnect zombies."""
+        while True:
+            await asyncio.sleep(30)
+            now = time.time()
+            zombies = set()
+            
+            # Iterate over a list of items to avoid dict size changing during iteration
+            for ws, meta in list(self.active_connections.items()):
+                if now - meta["last_pong"] > 90:
+                    zombies.add(ws)
+                else:
+                    try:
+                        await ws.send_json({"type": "ping", "timestamp": now})
+                    except Exception:
+                        zombies.add(ws)
+                        
+            for zombie in zombies:
+                if zombie in self.active_connections:
+                    logger.warning("websocket_zombie_culled", client_id=self.active_connections[zombie]["client_id"])
+                    self.disconnect(zombie)
+                    try:
+                        await zombie.close()
+                    except Exception:
+                        pass
 
 # Global singleton
-notifier = Notifier()
+notifier = RobustConnectionManager()

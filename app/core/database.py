@@ -50,10 +50,16 @@ def get_connection() -> sqlite3.Connection:
     """Get a SQLite connection with WAL mode enabled for concurrency."""
     conn = sqlite3.connect(get_db_path(), check_same_thread=False, timeout=15.0)
     conn.row_factory = sqlite3.Row
-    # Enable Write-Ahead Logging to allow concurrent read/writes between FastAPI and ARQ
+    conn.isolation_level = None  # Explicit transaction control
+    
+    # Pragma injection for maximum WAL concurrency
     conn.execute("PRAGMA journal_mode=WAL;")
-    # Ensure foreign keys are enforced if we add them later
-    conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute("PRAGMA foreign_keys=ON;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA temp_store=MEMORY;")
+    conn.execute("PRAGMA mmap_size=268435456;")
+    conn.execute("PRAGMA busy_timeout=15000;")
+    
     return conn
 
 def init_db() -> None:
@@ -67,6 +73,7 @@ def init_db() -> None:
     """
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         conn.execute('''
             CREATE TABLE IF NOT EXISTS jobs (
                 id TEXT PRIMARY KEY,
@@ -94,7 +101,7 @@ def init_db() -> None:
         for col in ["inspector_name TEXT", "inspection_date TIMESTAMP", "inspection_notes TEXT",
                     "job_type TEXT DEFAULT 'INSURANCE'", "policy_type TEXT", "adjuster_name TEXT", "adjuster_phone TEXT",
                     "adjuster_email TEXT", "canvasser_name TEXT", "qbo_customer_id TEXT",
-                    "ice_barrier_required BOOLEAN", "jurisdiction_code_version TEXT DEFAULT '2021_IRC'"]:
+                    "ice_barrier_required BOOLEAN", "jurisdiction_code_version TEXT DEFAULT '2021_IRC'", "invoiced_at TIMESTAMP"]:
             try:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
             except sqlite3.OperationalError:
@@ -275,7 +282,56 @@ def init_db() -> None:
             )
         ''')
         
-        conn.commit()
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS job_tasks (
+                job_id TEXT,
+                task_type TEXT,
+                phase TEXT CHECK(phase IN ('queued','running','completed','failed')),
+                last_error TEXT,
+                PRIMARY KEY(job_id, task_type)
+            )
+        ''')
+        
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_job_docs_unique ON job_documents(job_id, filename)")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_supp_flags_unique ON supplement_flags(job_id, rule_id)")
+
+        conn.execute('''
+            CREATE VIEW IF NOT EXISTS live_material_board AS
+            SELECT 
+                j.id as job_id,
+                j.homeowner_name,
+                j.status,
+                m.supplier_name,
+                m.delivery_date,
+                CAST(json_extract(m.bom_json, '$.total_squares') * 1.15 + 0.99 AS INTEGER) AS shingle_squares_required,
+                CAST((json_extract(m.bom_json, '$.eaves_lf') + json_extract(m.bom_json, '$.valleys_lf')) / 66.0 + 0.99 AS INTEGER) AS ice_and_water_rolls,
+                CAST((json_extract(m.bom_json, '$.eaves_lf') + json_extract(m.bom_json, '$.rakes_lf')) / 10.0 + 0.99 AS INTEGER) AS drip_edge_pieces_10ft,
+                CAST((json_extract(m.bom_json, '$.eaves_lf') + json_extract(m.bom_json, '$.rakes_lf')) / 100.0 + 0.99 AS INTEGER) AS starter_bundles
+            FROM jobs j
+            JOIN material_orders m ON j.id = m.job_id
+        ''')
+        
+        for col in ["carrier_initial_rcv REAL", "carrier_supplemented_rcv REAL"]:
+            try:
+                conn.execute(f"ALTER TABLE financials ADD COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass
+                
+        conn.execute('''
+            CREATE VIEW IF NOT EXISTS financial_delta_view AS
+            SELECT 
+                j.id as job_id,
+                j.homeowner_name,
+                f.carrier_initial_rcv,
+                f.carrier_supplemented_rcv,
+                f.revenue,
+                (f.carrier_supplemented_rcv - f.carrier_initial_rcv) AS carrier_rcv_delta,
+                (f.revenue - f.carrier_supplemented_rcv) AS contractor_over_carrier
+            FROM jobs j
+            JOIN financials f ON j.id = f.job_id
+        ''')
+
+        conn.execute("COMMIT")
         logger.info("database_initialized", db_path=str(get_db_path()))
         seed_default_pricing()
         seed_supplement_rules()
@@ -292,6 +348,7 @@ def seed_default_pricing() -> None:
     """
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         # Default Wickham Roofing baselines
         baseline_pricing = [
             ("field_shingle_bundles", 105.0),
@@ -306,7 +363,7 @@ def seed_default_pricing() -> None:
             INSERT OR IGNORE INTO pricing (item_key, default_rate)
             VALUES (?, ?)
         ''', baseline_pricing)
-        conn.commit()
+        conn.execute("COMMIT")
     except Exception as e:
         logger.error("pricing_seed_failed", error=str(e))
 
@@ -314,6 +371,7 @@ def seed_supplement_rules() -> None:
     """Seed the supplement_rules table with baseline rules."""
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         baseline_rules = [
             (str(uuid.uuid4()), "RFG 300S", "RFG START", "Manufacturer Shingle High-Wind Installation Specifications", "MFG_SPEC", "eval_rfg_start", False),
             (str(uuid.uuid4()), "RFG 300S", "RFG DRIP", "IRC R905.2.8.5", "IRC", "eval_rfg_drip", False),
@@ -328,7 +386,7 @@ def seed_supplement_rules() -> None:
                 WHERE parent_code = ? AND required_child_code = ?
             )
         ''', [(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[1], r[2]) for r in baseline_rules])
-        conn.commit()
+        conn.execute("COMMIT")
     except Exception as e:
         logger.error("supplement_rules_seed_failed", error=str(e))
     finally:
@@ -370,6 +428,7 @@ def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
 
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         # Get current status history
         cursor = conn.execute("SELECT status, status_history FROM jobs WHERE id = ?", (job_id,))
         row = cursor.fetchone()
@@ -413,10 +472,13 @@ def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
             (new_status, new_status, timestamp_str, note, job_id)
         )
             
+        if new_status == JobStatus.INVOICED:
+            conn.execute("UPDATE jobs SET invoiced_at = CURRENT_TIMESTAMP WHERE id = ?", (job_id,))
+            
         if cursor.rowcount == 0:
             raise ValueError(f"Job {job_id} not found during update")
             
-        conn.commit()
+        conn.execute("COMMIT")
         logger.info("job_status_updated", job_id=job_id, status=new_status)
     except Exception as e:
         logger.error("job_status_update_failed", job_id=job_id, error=str(e))
@@ -452,11 +514,19 @@ def upsert_financials(
     conn = get_connection()
     try:
         conn.execute('''
-            INSERT OR REPLACE INTO financials 
+            INSERT INTO financials 
             (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct, permits_fee)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id) DO UPDATE SET
+                revenue = excluded.revenue,
+                carrier_rcv = excluded.carrier_rcv,
+                material_cost = excluded.material_cost,
+                labor_cost = excluded.labor_cost,
+                overhead_pct = excluded.overhead_pct,
+                canvasser_commission_pct = excluded.canvasser_commission_pct,
+                permits_fee = excluded.permits_fee
         ''', (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct, permits_fee))
-        conn.commit()
+        conn.execute("COMMIT")
         logger.info("financials_upserted", job_id=job_id)
     except Exception as e:
         logger.error("financials_upsert_failed", job_id=job_id, error=str(e))
@@ -478,12 +548,13 @@ def insert_material_order(job_id: str, supplier_name: str, delivery_date: str, b
     """
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         order_id = str(uuid.uuid4())
         conn.execute('''
             INSERT INTO material_orders (id, job_id, supplier_name, delivery_date, bom_json)
             VALUES (?, ?, ?, ?, ?)
         ''', (order_id, job_id, supplier_name, delivery_date, bom_json))
-        conn.commit()
+        conn.execute("COMMIT")
         logger.info("material_order_inserted", order_id=order_id, job_id=job_id)
     except Exception as e:
         logger.error("material_order_insert_failed", job_id=job_id, error=str(e))
@@ -506,12 +577,13 @@ def insert_schedule(job_id: str, crew_name: str, install_date: str, delivery_dat
     """
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         schedule_id = str(uuid.uuid4())
         conn.execute('''
-            INSERT INTO schedule (id, job_id, crew_name, install_date, delivery_date, status)
+            INSERT OR REPLACE INTO schedule (id, job_id, crew_name, install_date, delivery_date, status)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (schedule_id, job_id, crew_name, install_date, delivery_date, status))
-        conn.commit()
+        conn.execute("COMMIT")
         logger.info("schedule_inserted", schedule_id=schedule_id, job_id=job_id)
     except Exception as e:
         logger.error("schedule_insert_failed", job_id=job_id, error=str(e))
@@ -561,12 +633,19 @@ def insert_job_document(job_id: str, filename: str, file_type: str, storage_path
     """Register a generated or uploaded file in the universal document vault."""
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         doc_id = str(uuid.uuid4())
         conn.execute(
-            "INSERT INTO job_documents (id, job_id, filename, file_type, storage_path, sha256_hash) VALUES (?, ?, ?, ?, ?, ?)",
+            """INSERT INTO job_documents (id, job_id, filename, file_type, storage_path, sha256_hash) 
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id, filename) DO UPDATE SET
+            file_type=excluded.file_type,
+            storage_path=excluded.storage_path,
+            sha256_hash=excluded.sha256_hash,
+            created_at=CURRENT_TIMESTAMP""",
             (doc_id, job_id, filename, file_type, storage_path, sha256_hash)
         )
-        conn.commit()
+        conn.execute("COMMIT")
         logger.info("job_document_registered", doc_id=doc_id, job_id=job_id, file_type=file_type)
     except Exception as e:
         logger.error("job_document_registration_failed", error=str(e))
@@ -624,12 +703,13 @@ def update_job_metadata(job_id: str, inspector_name: str, inspection_date: str, 
     """Update inspection-related metadata for a specific job."""
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         conn.execute('''
             UPDATE jobs 
             SET inspector_name = ?, inspection_date = ?, inspection_notes = ? 
             WHERE id = ?
         ''', (inspector_name, inspection_date, inspection_notes, job_id))
-        conn.commit()
+        conn.execute("COMMIT")
         logger.info("job_metadata_updated", job_id=job_id)
     except Exception as e:
         logger.error("update_job_metadata_failed", job_id=job_id, error=str(e))
@@ -641,12 +721,13 @@ def log_ai_usage(job_id: str | None, tokens_used: int, model_name: str, operatio
     """Synchronously log AI token consumption to the database."""
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         log_id = str(uuid.uuid4())
         conn.execute('''
             INSERT INTO ai_usage_logs (id, job_id, tokens_used, model_name, operation_type)
             VALUES (?, ?, ?, ?, ?)
         ''', (log_id, job_id, tokens_used, model_name, operation_type))
-        conn.commit()
+        conn.execute("COMMIT")
     except Exception as e:
         logger.error("failed_to_log_ai_usage", error=str(e))
     finally:
