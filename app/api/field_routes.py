@@ -7,6 +7,7 @@ These endpoints allow the field inspectors to:
 3. Capture and save digital signatures as physical images for the PDF appendix.
 """
 
+import asyncio
 import base64
 import io
 import structlog
@@ -65,18 +66,7 @@ class FlagResolutionPayload(BaseModel):
 
 from app.core.climate_lookup import is_ice_barrier_required
 
-@router.post("/jobs")
-def create_new_job(payload: LeadIntakePayload):
-    """
-    Intake hook for new leads. Replaces JobNimbus lead creation.
-    Generates UUID, creates directories, and initializes local SQLite record.
-    """
-    job_id = str(uuid.uuid4())
-    
-    # Determine climate requirements
-    ice_barrier = is_ice_barrier_required(payload.state)
-    
-    # Insert into database
+def _sync_create_new_job(job_id: str, payload: LeadIntakePayload, ice_barrier: bool | None):
     conn = get_connection()
     try:
         initial_history = [{
@@ -99,11 +89,26 @@ def create_new_job(payload: LeadIntakePayload):
             ice_barrier, "2021_IRC"
         ))
         conn.commit()
+    finally:
+        conn.close()
+
+@router.post("/jobs")
+async def create_new_job(payload: LeadIntakePayload):
+    """
+    Intake hook for new leads. Replaces JobNimbus lead creation.
+    Generates UUID, creates directories, and initializes local SQLite record.
+    """
+    job_id = str(uuid.uuid4())
+    
+    # Determine climate requirements
+    ice_barrier = is_ice_barrier_required(payload.state)
+    
+    # Insert into database using background thread
+    try:
+        await asyncio.to_thread(_sync_create_new_job, job_id, payload, ice_barrier)
     except Exception as e:
         logger.error("lead_intake_db_failed", error=str(e))
         raise HTTPException(status_code=500, detail="Database insertion failed")
-    finally:
-        conn.close()
 
     # Create local directories
     (FIELD_PHOTOS_DIR / job_id).mkdir(parents=True, exist_ok=True)
@@ -133,7 +138,12 @@ async def upload_field_photo(job_id: str, file: UploadFile = File(...)):
     file_path = job_dir / safe_name
 
     try:
-        await stream_upload_safely(file, file_path)
+        await stream_upload_safely(
+            file, 
+            file_path, 
+            max_bytes=15 * 1024 * 1024, 
+            allowed_magic_bytes=[b"\xFF\xD8\xFF", b"\x89PNG\r\n\x1A\n"]
+        )
         logger.info("field_photo_uploaded", job_id=job_id, filename=safe_name, size=getattr(file, "size", 0))
         return {"status": "success", "filename": safe_name}
     except HTTPException:
@@ -144,7 +154,7 @@ async def upload_field_photo(job_id: str, file: UploadFile = File(...)):
 
 
 @router.get("/jobs/{job_id}/inspection", response_model=InspectionJob)
-def get_inspection_summary(job_id: str):
+async def get_inspection_summary(job_id: str):
     """
     Retrieve the full InspectionJob summary.
     Constructs the job by scanning the local field_photos/{job_id} directory
@@ -156,10 +166,10 @@ def get_inspection_summary(job_id: str):
     photos = []
     if job_dir.exists() and job_dir.is_dir():
         # Settle seconds = 0 for direct HTTP uploads (no Drive sync delay)
-        photos = get_stable_photos(job_dir, settle_seconds=0)
+        photos = await asyncio.to_thread(get_stable_photos, job_dir, 0)
 
     # Retrieve all cached analyses for this job
-    analyses = get_cached_analyses_for_job(job_id)
+    analyses = await asyncio.to_thread(get_cached_analyses_for_job, job_id)
 
     job = InspectionJob(
         job_id=job_id,
@@ -198,18 +208,7 @@ async def resume_supplement(job_id: str, request: Request, background_tasks: Bac
     
     return {"status": "accepted", "job_id": job_id, "message": "Supplement resume processing started."}
 
-@router.patch("/jobs/{job_id}/flags/{flag_id}", status_code=200)
-async def resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload):
-    """
-    Resolves a flag that was marked for manual review.
-    Updates the quantity and adds a resolution note.
-    """
-    try:
-        uuid.UUID(job_id)
-        uuid.UUID(flag_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid job_id or flag_id format. Must be a valid UUID.")
-
+def _sync_resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload):
     conn = get_connection()
     try:
         # Verify the flag exists and belongs to the job
@@ -227,9 +226,65 @@ async def resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload
         conn.commit()
     finally:
         conn.close()
+
+@router.patch("/jobs/{job_id}/flags/{flag_id}", status_code=200)
+async def resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload):
+    """
+    Resolves a flag that was marked for manual review.
+    Updates the quantity and adds a resolution note.
+    """
+    try:
+        uuid.UUID(job_id)
+        uuid.UUID(flag_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id or flag_id format. Must be a valid UUID.")
+
+    await asyncio.to_thread(_sync_resolve_flag, job_id, flag_id, payload)
         
     return {"status": "success", "flag_id": flag_id, "message": "Flag resolved successfully."}
 
+
+def _sync_fetch_job_contingency(job_id: str):
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        job_row = cursor.fetchone()
+        if not job_row:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return dict(job_row)
+    finally:
+        conn.close()
+
+def _sync_process_image(encoded_b64: str, job_id: str) -> Path:
+    image_bytes = base64.b64decode(encoded_b64)
+    image = Image.open(io.BytesIO(image_bytes))
+    image.verify()  # Verify it's a valid image
+    
+    # Re-open for actual processing/saving since verify() leaves the file pointer at the end
+    image = Image.open(io.BytesIO(image_bytes))
+    
+    # Enforce format and re-save cleanly
+    if image.format not in ["PNG", "JPEG"]:
+        raise ValueError("Unsupported image format")
+        
+    SIGNED_AGREEMENTS_DIR.mkdir(parents=True, exist_ok=True)
+    sig_file_path = SIGNED_AGREEMENTS_DIR / f"{job_id}_contingency_sig.png"
+    
+    # Convert to RGBA for PNG compatibility and save
+    image = image.convert("RGBA")
+    image.save(sig_file_path, format="PNG", optimize=True)
+    return sig_file_path
+
+def _sync_insert_agreement(agreement_id: str, job_id: str, pdf_path: str, sig_file_path: str, ts: str, signer_name: str, ip_address: str | None, user_agent: str | None):
+    conn = get_connection()
+    try:
+        conn.execute('''
+            INSERT INTO job_agreements (id, job_id, type, pdf_path, signature_image_path, signed_at, signed_by_name, signed_by_ip, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (agreement_id, job_id, "CONTINGENCY", pdf_path, sig_file_path, ts, signer_name, ip_address, user_agent))
+        conn.commit()
+    finally:
+        conn.close()
 
 @router.post("/jobs/{job_id}/contingency-sign")
 async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
@@ -251,37 +306,13 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
         raise HTTPException(status_code=400, detail="Invalid signature format. Must be a PNG data URI.")
         
     try:
-        conn = get_connection()
-        try:
-            cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
-            job_row = cursor.fetchone()
-            if not job_row:
-                raise HTTPException(status_code=404, detail="Job not found")
-            job_dict = dict(job_row)
-        finally:
-            conn.close()
+        job_dict = await asyncio.to_thread(_sync_fetch_job_contingency, job_id)
 
         header, encoded = payload.signature_base64.split(",", 1)
         
         # Verify and sanitize the image using Pillow before saving to disk
         try:
-            image_bytes = base64.b64decode(encoded)
-            image = Image.open(io.BytesIO(image_bytes))
-            image.verify()  # Verify it's a valid image
-            
-            # Re-open for actual processing/saving since verify() leaves the file pointer at the end
-            image = Image.open(io.BytesIO(image_bytes))
-            
-            # Enforce format and re-save cleanly
-            if image.format not in ["PNG", "JPEG"]:
-                raise ValueError("Unsupported image format")
-                
-            SIGNED_AGREEMENTS_DIR.mkdir(parents=True, exist_ok=True)
-            sig_file_path = SIGNED_AGREEMENTS_DIR / f"{job_id}_contingency_sig.png"
-            
-            # Convert to RGBA for PNG compatibility and save
-            image = image.convert("RGBA")
-            image.save(sig_file_path, format="PNG", optimize=True)
+            sig_file_path = await asyncio.to_thread(_sync_process_image, encoded, job_id)
         except Exception as e:
             logger.error("signature_image_verification_failed", error=str(e))
             raise HTTPException(status_code=400, detail="Invalid or corrupt image data")
@@ -295,19 +326,11 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
             payload.ip_address or "Unknown IP"
         )
         
-        conn = get_connection()
-        try:
-            agreement_id = str(uuid.uuid4())
-            ts = datetime.utcnow().isoformat() + "Z"
-            conn.execute('''
-                INSERT INTO job_agreements (id, job_id, type, pdf_path, signature_image_path, signed_at, signed_by_name, signed_by_ip, user_agent)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (agreement_id, job_id, "CONTINGENCY", pdf_path, str(sig_file_path), ts, payload.signer_name, payload.ip_address, payload.user_agent))
-            conn.commit()
-        finally:
-            conn.close()
+        agreement_id = str(uuid.uuid4())
+        ts = datetime.utcnow().isoformat() + "Z"
+        await asyncio.to_thread(_sync_insert_agreement, agreement_id, job_id, pdf_path, str(sig_file_path), ts, payload.signer_name, payload.ip_address, payload.user_agent)
             
-        update_job_status(job_id, "CONTINGENCY_SIGNED", f"Contingency signed by {payload.signer_name}")
+        await asyncio.to_thread(update_job_status, job_id, "CONTINGENCY_SIGNED", f"Contingency signed by {payload.signer_name}")
         
         logger.info("contingency_signed_and_generated", job_id=job_id, agreement_id=agreement_id)
         return {"status": "success", "pdf_path": Path(pdf_path).name}

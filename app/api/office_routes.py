@@ -199,7 +199,12 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
 
     # 1. Save File & Get Hash
     try:
-        file_hash = await stream_upload_safely(file, pdf_path)
+        file_hash = await stream_upload_safely(
+            file, 
+            pdf_path,
+            max_bytes=25 * 1024 * 1024,
+            allowed_magic_bytes=[b"%PDF-"]
+        )
         logger.info("eagleview_pdf_uploaded", job_id=job_id, size=getattr(file, "size", 0), sha256=file_hash)
     except HTTPException:
         raise
@@ -254,8 +259,8 @@ async def upload_supplement_docs(
     sol_path = job_dir / "statement_of_loss.pdf"
 
     try:
-        ev_hash = await stream_upload_safely(ev_file, ev_path)
-        sol_hash = await stream_upload_safely(sol_file, sol_path)
+        ev_hash = await stream_upload_safely(ev_file, ev_path, max_bytes=25 * 1024 * 1024, allowed_magic_bytes=[b"%PDF-"])
+        sol_hash = await stream_upload_safely(sol_file, sol_path, max_bytes=25 * 1024 * 1024, allowed_magic_bytes=[b"%PDF-"])
         
         logger.info("supplement_docs_uploaded", job_id=job_id)
     except HTTPException:
@@ -378,7 +383,12 @@ async def upload_job_document(job_id: str, file_type: str = Form(...), file: Upl
     pdf_path = job_dir / safe_name
 
     try:
-        file_hash = await stream_upload_safely(file, pdf_path)
+        file_hash = await stream_upload_safely(
+            file, 
+            pdf_path,
+            max_bytes=25 * 1024 * 1024,
+            allowed_magic_bytes=[b"%PDF-", b"\xFF\xD8\xFF", b"\x89PNG\r\n\x1A\n"]
+        )
         
         from app.core.database import get_job_document_by_hash
         existing_doc = await asyncio.to_thread(get_job_document_by_hash, job_id, file_hash)
@@ -435,43 +445,47 @@ def download_qbo_export(job_id: str):
         media_type="text/csv"
     )
 
+def _sync_update_job_financials(job_id: str, payload: FinancialsPayload):
+    # Calculate precise financials
+    results = compute_job_profitability(
+        revenue=payload.revenue,
+        materials=payload.materials,
+        labor=payload.labor,
+        overhead_pct=payload.overhead_pct,
+        commission_pct=payload.commission_pct
+    )
+    
+    # Directive 4: Low Margin Alert
+    if results["gross_margin"] < 0.35:
+        logger.warning(
+            "low_margin_alert", 
+            job_id=job_id, 
+            gross_margin=results["gross_margin"],
+            revenue=payload.revenue,
+            direct_costs=results["direct_costs"]
+        )
+        
+    # Store raw parameters in DB
+    upsert_financials(
+        job_id=job_id,
+        revenue=payload.revenue,
+        carrier_rcv=payload.carrier_rcv,
+        material_cost=payload.materials,
+        labor_cost=payload.labor,
+        overhead_pct=payload.overhead_pct,
+        canvasser_commission_pct=payload.commission_pct,
+        permits_fee=payload.permits_fee
+    )
+    return results
+
 @router.post("/jobs/{job_id}/financials")
-def update_job_financials(job_id: str, payload: FinancialsPayload, bg_tasks: BackgroundTasks):
+async def update_job_financials(job_id: str, payload: FinancialsPayload, bg_tasks: BackgroundTasks):
     """
     Process pre-build job costing parameters from the Office Dashboard.
     Calculates exact margin profiles and logs alerts if profitability is too low.
     """
     try:
-        # Calculate precise financials
-        results = compute_job_profitability(
-            revenue=payload.revenue,
-            materials=payload.materials,
-            labor=payload.labor,
-            overhead_pct=payload.overhead_pct,
-            commission_pct=payload.commission_pct
-        )
-        
-        # Directive 4: Low Margin Alert
-        if results["gross_margin"] < 0.35:
-            logger.warning(
-                "low_margin_alert", 
-                job_id=job_id, 
-                gross_margin=results["gross_margin"],
-                revenue=payload.revenue,
-                direct_costs=results["direct_costs"]
-            )
-            
-        # Store raw parameters in DB
-        upsert_financials(
-            job_id=job_id,
-            revenue=payload.revenue,
-            carrier_rcv=payload.carrier_rcv,
-            material_cost=payload.materials,
-            labor_cost=payload.labor,
-            overhead_pct=payload.overhead_pct,
-            canvasser_commission_pct=payload.commission_pct,
-            permits_fee=payload.permits_fee
-        )
+        results = await asyncio.to_thread(_sync_update_job_financials, job_id, payload)
         
         # Trigger Hot Backup
         bg_tasks.add_task(backup_database)
@@ -482,32 +496,36 @@ def update_job_financials(job_id: str, payload: FinancialsPayload, bg_tasks: Bac
         raise HTTPException(status_code=500, detail="Failed to calculate and save financials.")
 
 
+def _sync_update_job_production(job_id: str, payload: ProductionPayload):
+    # Dummy BOM JSON for now, in a real scenario we'd pull the actual calculated BOM
+    dummy_bom = json.dumps({"status": "scheduled_for_delivery"})
+    
+    insert_material_order(
+        job_id=job_id,
+        supplier_name=payload.supplier_name,
+        delivery_date=payload.delivery_date,
+        bom_json=dummy_bom
+    )
+    
+    insert_schedule(
+        job_id=job_id,
+        crew_name=payload.crew_name,
+        install_date=payload.install_date,
+        delivery_date=payload.delivery_date,
+        status="SCHEDULED"
+    )
+    
+    update_job_status(job_id, JobStatus.INSTALL_SCHEDULED, f"Scheduled with {payload.crew_name} on {payload.install_date}")
+
 @router.post("/jobs/{job_id}/production")
-def update_job_production(job_id: str, payload: ProductionPayload, bg_tasks: BackgroundTasks):
+async def update_job_production(job_id: str, payload: ProductionPayload, bg_tasks: BackgroundTasks):
     """
     Unified route to set both material orders and installation schedule.
     Transitions job to INSTALL_SCHEDULED.
     """
     try:
-        # Dummy BOM JSON for now, in a real scenario we'd pull the actual calculated BOM
-        dummy_bom = json.dumps({"status": "scheduled_for_delivery"})
+        await asyncio.to_thread(_sync_update_job_production, job_id, payload)
         
-        insert_material_order(
-            job_id=job_id,
-            supplier_name=payload.supplier_name,
-            delivery_date=payload.delivery_date,
-            bom_json=dummy_bom
-        )
-        
-        insert_schedule(
-            job_id=job_id,
-            crew_name=payload.crew_name,
-            install_date=payload.install_date,
-            delivery_date=payload.delivery_date,
-            status="SCHEDULED"
-        )
-        
-        update_job_status(job_id, JobStatus.INSTALL_SCHEDULED, f"Scheduled with {payload.crew_name} on {payload.install_date}")
         bg_tasks.add_task(backup_database)
         
         return {"status": "success", "message": "Production scheduled."}
@@ -530,7 +548,7 @@ async def generate_material_order(job_id: str, payload: MaterialOrderPayload, bg
         # Rebuild BOM
         ev_data = await extract_eagleview_data(pdf_path)
         empty_sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
-        report = reconcile(ev_data, empty_sol, job_id, waste_factor=0.15)
+        report = await asyncio.to_thread(reconcile, ev_data, empty_sol, job_id, 0.15)
         bom = report.material_bom
         
         # Fetch Homeowner Info

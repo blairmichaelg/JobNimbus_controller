@@ -65,15 +65,30 @@
                 <div class="bg-white rounded-lg p-1 border border-gray-600 mb-2 relative">
                     <canvas id="signaturePad" width="380" height="150" class="w-full border-none touch-none rounded bg-white"></canvas>
                 </div>
-                <button type="button" id="clearBtn" class="text-sm text-red-400 hover:text-red-300 font-semibold">Clear Signature</button>
+                <div class="flex justify-between items-center mt-2">
+                    <button type="button" id="clearBtn" class="text-sm text-red-400 hover:text-red-300 font-semibold px-4 py-2 bg-gray-800 rounded">Clear Signature</button>
+                    <button type="button" id="lockBtn" class="text-sm text-green-400 hover:text-green-300 font-semibold px-4 py-2 bg-gray-800 rounded">Lock Signature</button>
+                </div>
             </div>
 
             <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white p-4 rounded-lg font-bold text-xl mt-8 active:bg-blue-800 transition-colors shadow-lg">Submit Lead</button>
         </form>
     </div>
 
+    <!-- Loading Modal -->
+    <div id="loadingModal" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 p-8 rounded-xl max-w-sm w-full text-center border border-gray-700 shadow-2xl">
+            <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-6"></div>
+            <h3 class="text-2xl font-bold text-white mb-2" id="loadingTitle">Processing...</h3>
+            <p class="text-gray-400 mb-4" id="loadingText">Please wait while we upload the data.</p>
+            <div class="w-full bg-gray-700 rounded-full h-2 mt-4 overflow-hidden">
+                <div id="loadingProgress" class="bg-blue-500 h-2 rounded-full transition-all duration-300 ease-out" style="width: 5%"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Success Modal -->
-    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center p-4">
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-gray-800 p-8 rounded-xl max-w-sm w-full text-center border border-gray-700 shadow-2xl">
             <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-900 mb-4">
                 <svg class="h-10 w-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -92,6 +107,7 @@
         const canvas = document.getElementById('signaturePad');
         const ctx = canvas.getContext('2d');
         let isDrawing = false;
+        let isSignatureLocked = false;
         
         function initCanvasScale() {
             const rect = canvas.getBoundingClientRect();
@@ -120,6 +136,7 @@
         }
 
         const startDrawing = (e) => {
+            if (isSignatureLocked) return;
             isDrawing = true;
             const pos = getPos(e);
             ctx.beginPath();
@@ -128,7 +145,7 @@
         };
 
         const draw = (e) => {
-            if (!isDrawing) return;
+            if (!isDrawing || isSignatureLocked) return;
             const pos = getPos(e);
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
@@ -142,12 +159,30 @@
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
         
-        canvas.addEventListener('touchstart', startDrawing);
-        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchstart', startDrawing, {passive: false});
+        canvas.addEventListener('touchmove', draw, {passive: false});
         canvas.addEventListener('touchend', stopDrawing);
         
         document.getElementById('clearBtn').addEventListener('click', () => {
+            if (isSignatureLocked) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        document.getElementById('lockBtn').addEventListener('click', () => {
+            const btn = document.getElementById('lockBtn');
+            if (!isSignatureLocked) {
+                isSignatureLocked = true;
+                btn.innerText = '🔒 Locked';
+                btn.classList.remove('text-green-400', 'hover:text-green-300');
+                btn.classList.add('text-gray-400');
+                document.getElementById('clearBtn').classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                isSignatureLocked = false;
+                btn.innerText = 'Lock Signature';
+                btn.classList.remove('text-gray-400');
+                btn.classList.add('text-green-400', 'hover:text-green-300');
+                document.getElementById('clearBtn').classList.remove('opacity-50', 'cursor-not-allowed');
+            }
         });
 
         const jobTypeSelect = document.getElementById('job_type');
@@ -174,6 +209,18 @@
             submitBtn.disabled = true;
 
             try {
+                const loadingModal = document.getElementById('loadingModal');
+                const loadingTitle = document.getElementById('loadingTitle');
+                const loadingProgress = document.getElementById('loadingProgress');
+
+                if (document.getElementById('job_type').value === 'INSURANCE' && !isSignatureLocked) {
+                    throw new Error('Please lock the signature before submitting.');
+                }
+
+                loadingModal.classList.remove('hidden');
+                loadingTitle.innerText = 'Creating Lead...';
+                loadingProgress.style.width = '20%';
+
                 // 1. Submit Lead Data
                 const payload = {
                     homeowner_name: document.getElementById('homeowner_name').value,
@@ -209,6 +256,8 @@
                     throw new Error('Failed to retrieve a valid Job ID from the server.');
                 }
 
+                loadingProgress.style.width = '40%';
+
                 // 2. Submit Photo if exists
                 const photoInput = document.getElementById('photo');
                 if (photoInput.files && photoInput.files.length > 0) {
@@ -217,7 +266,8 @@
                         throw new Error('Photo must be a JPEG or PNG image.');
                     }
                 
-                    submitBtn.innerText = 'Uploading Photo...';
+                    loadingTitle.innerText = 'Uploading Photo...';
+                    loadingProgress.style.width = '60%';
                     const photoData = new FormData();
                     photoData.append('file', photoFile);
 
@@ -234,11 +284,13 @@
                         // Non-fatal, but we should alert
                         console.warn(`Photo upload failed: ${err}`);
                     }
+                    loadingProgress.style.width = '80%';
                 }
 
                 // 3. Submit Contingency Signature (if applicable)
                 if (document.getElementById('job_type').value === 'INSURANCE') {
-                    submitBtn.innerText = 'Generating Contract...';
+                    loadingTitle.innerText = 'Generating Contract...';
+                    loadingProgress.style.width = '90%';
                     const signatureBase64 = canvas.toDataURL('image/png');
                     const sigPayload = {
                         signature_base64: signatureBase64,
@@ -261,10 +313,16 @@
                     }
                 }
 
+                loadingProgress.style.width = '100%';
+                
                 // Show Success
-                document.getElementById('successModal').classList.remove('hidden');
+                setTimeout(() => {
+                    loadingModal.classList.add('hidden');
+                    document.getElementById('successModal').classList.remove('hidden');
+                }, 500);
 
             } catch (error) {
+                document.getElementById('loadingModal').classList.add('hidden');
                 alert(error.message);
                 submitBtn.innerText = originalText;
                 submitBtn.disabled = false;

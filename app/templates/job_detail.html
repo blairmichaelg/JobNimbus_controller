@@ -63,16 +63,36 @@
                     <!-- Upload Section -->
                     <div class="mb-6">
                         <h3 class="text-md font-medium text-gray-300 mb-3">Upload Documents</h3>
-                        <form id="uploadForm" class="space-y-4">
-                            <div>
-                                <label class="block text-sm text-gray-400 mb-1">EagleView PDF</label>
-                                <input type="file" id="ev_file" name="ev_file" accept=".pdf" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer" required>
+                        <form id="uploadForm" class="space-y-4 relative">
+                            <!-- Drag & Drop Zone -->
+                            <div id="dropZone" class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 hover:bg-gray-700 transition-colors cursor-pointer group">
+                                <div class="text-gray-400 group-hover:text-gray-300">
+                                    <svg class="mx-auto h-12 w-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                                    <p class="font-medium text-lg mb-1">Drag & drop PDFs here</p>
+                                    <p class="text-sm">or click to browse</p>
+                                    <p class="text-xs text-gray-500 mt-2">Requires: EagleView and Statement of Loss (.pdf)</p>
+                                </div>
+                                <input type="file" id="file_input" name="files" accept=".pdf" multiple class="hidden">
                             </div>
-                            <div>
-                                <label class="block text-sm text-gray-400 mb-1">Statement of Loss PDF</label>
-                                <input type="file" id="sol_file" name="sol_file" accept=".pdf" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer" required>
+
+                            <!-- Selected Files List -->
+                            <div id="fileList" class="hidden space-y-2">
+                                <div class="text-sm font-medium text-gray-300">Selected Files:</div>
+                                <div id="filesContainer" class="text-sm text-blue-400 space-y-1"></div>
                             </div>
-                            <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold disabled:opacity-50">Upload & Trigger Pipeline</button>
+
+                            <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 font-bold disabled:opacity-50 transition shadow-lg mt-4 hidden">Upload & Trigger Pipeline</button>
+                            
+                            <!-- Processing Pipeline View -->
+                            <div id="pipelineStatus" class="hidden mt-4 pt-4 border-t border-gray-700">
+                                <div class="flex items-center space-x-3 mb-3">
+                                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                                    <h4 id="pipelineStepText" class="text-white font-medium">Extracting PDF Data...</h4>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div id="pipelineProgressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: 20%"></div>
+                                </div>
+                            </div>
                         </form>
                     </div>
 
@@ -94,35 +114,110 @@
     <script>
         const OFFICE_TOKEN = "{{ office_token }}";
 
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('file_input');
+        const fileList = document.getElementById('fileList');
+        const filesContainer = document.getElementById('filesContainer');
+        const submitBtn = document.getElementById('submitBtn');
+        const pipelineStatus = document.getElementById('pipelineStatus');
+        const pipelineProgressBar = document.getElementById('pipelineProgressBar');
+        const pipelineStepText = document.getElementById('pipelineStepText');
+
+        let selectedFiles = [];
+
+        // Drag & Drop handlers
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-blue-500', 'bg-gray-700');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-blue-500', 'bg-gray-700');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500', 'bg-gray-700');
+            handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        function handleFiles(files) {
+            for(let i = 0; i < files.length; i++) {
+                if(files[i].type === 'application/pdf') {
+                    if (selectedFiles.length < 2) {
+                        selectedFiles.push(files[i]);
+                    }
+                } else {
+                    alert('Only PDF files are allowed.');
+                }
+            }
+            updateFileList();
+        }
+
+        function updateFileList() {
+            filesContainer.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                filesContainer.innerHTML += `
+                    <div class="flex justify-between items-center bg-gray-800 p-2 rounded border border-gray-600">
+                        <span class="truncate">${file.name}</span>
+                        <button type="button" class="text-red-400 hover:text-red-300 ml-2" onclick="removeFile(${index})">✕</button>
+                    </div>`;
+            });
+            
+            if (selectedFiles.length > 0) {
+                fileList.classList.remove('hidden');
+            } else {
+                fileList.classList.add('hidden');
+            }
+
+            if (selectedFiles.length === 2) {
+                submitBtn.classList.remove('hidden');
+                dropZone.classList.add('opacity-50', 'pointer-events-none');
+            } else {
+                submitBtn.classList.add('hidden');
+                dropZone.classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        window.removeFile = function(index) {
+            selectedFiles.splice(index, 1);
+            updateFileList();
+        }
+
         document.getElementById('uploadForm').onsubmit = async function(e) {
             e.preventDefault();
             
-            const submitBtn = document.getElementById('submitBtn');
-            const originalText = submitBtn.innerText;
-            submitBtn.innerText = 'Enqueueing...';
-            submitBtn.disabled = true;
+            if (selectedFiles.length !== 2) {
+                alert('Please upload exactly two PDF files (EagleView and Statement of Loss).');
+                return;
+            }
+
+            submitBtn.classList.add('hidden');
+            pipelineStatus.classList.remove('hidden');
+            dropZone.classList.add('hidden');
+            fileList.classList.add('hidden');
 
             try {
                 if (!OFFICE_TOKEN) {
                     throw new Error('Authentication token missing from context.');
                 }
 
-                // Build FormData
-                const evFile = document.getElementById('ev_file').files[0];
-                const solFile = document.getElementById('sol_file').files[0];
-
-                if (!evFile || !solFile) {
-                    throw new Error('Both EagleView and Statement of Loss PDFs are required.');
-                }
-                if (evFile.type !== 'application/pdf' || solFile.type !== 'application/pdf') {
-                    throw new Error('Both files must be valid PDF documents.');
+                // Determine which is EV and which is SoL (heuristic or let the user explicitly map it, here we assume EV is first for simplicity, or just append in order)
+                // In a robust implementation, we'd have explicit fields. For now, pass them as sol_file and ev_file based on names or order.
+                let evFile, solFile;
+                if (selectedFiles[0].name.toLowerCase().includes('eagle') || selectedFiles[0].name.toLowerCase().includes('ev')) {
+                    evFile = selectedFiles[0]; solFile = selectedFiles[1];
+                } else {
+                    evFile = selectedFiles[1]; solFile = selectedFiles[0];
                 }
 
                 const formData = new FormData();
                 formData.append('ev_file', evFile);
                 formData.append('sol_file', solFile);
 
-                // Send Fetch Request to Async Path
+                pipelineStepText.innerText = 'Enqueuing Documents...';
+                pipelineProgressBar.style.width = '10%';
+
                 const response = await fetch(`/api/office/jobs/{{ job.id }}/supplement_docs`, {
                     method: 'POST',
                     headers: {
@@ -132,10 +227,11 @@
                 });
 
                 if (response.ok) {
-                    submitBtn.innerText = 'AI Workers Processing Pipeline...';
+                    pipelineStepText.innerText = 'AI Workers Processing...';
+                    pipelineProgressBar.style.width = '30%';
                     
                     let attempts = 0;
-                    const maxAttempts = 24;
+                    const maxAttempts = 24; // 2 minutes
 
                     const pollInterval = setInterval(async () => {
                         attempts++;
@@ -145,19 +241,24 @@
                             });
                             if (checkResponse.ok) {
                                 const data = await checkResponse.json();
-                                const jobStatus = data.job?.status || data.status; // Support both nested and flat responses
+                                const jobStatus = data.job?.status || data.status;
+                                
+                                // Dynamic progress based on status could be implemented here
+                                if (attempts > 5) { pipelineProgressBar.style.width = '50%'; pipelineStepText.innerText = 'Extracting multimodal data...'; }
+                                if (attempts > 12) { pipelineProgressBar.style.width = '75%'; pipelineStepText.innerText = 'Generating Narrative & PDFs...'; }
                                 
                                 if (jobStatus === 'SUPPLEMENT_GENERATED' || jobStatus === 'PIPELINE_FAILED') {
                                     clearInterval(pollInterval);
-                                    window.location.reload();
+                                    pipelineProgressBar.style.width = '100%';
+                                    pipelineStepText.innerText = 'Complete! Reloading...';
+                                    setTimeout(() => window.location.reload(), 1000);
                                 }
                             }
                             
                             if (attempts >= maxAttempts) {
                                 clearInterval(pollInterval);
-                                submitBtn.innerText = originalText;
-                                submitBtn.disabled = false;
-                                alert('The pipeline is taking longer than expected. Please check back later.');
+                                pipelineStepText.innerText = 'Timed out waiting for worker. Reloading...';
+                                setTimeout(() => window.location.reload(), 1000);
                             }
                         } catch (pollErr) {
                             console.error('Polling error:', pollErr);
@@ -166,13 +267,12 @@
                 } else {
                     const errText = await response.text();
                     throw new Error(`Upload failed: ${errText}`);
-                    submitBtn.innerText = originalText;
-                    submitBtn.disabled = false;
                 }
             } catch (error) {
                 alert(error.message);
-                submitBtn.innerText = originalText;
-                submitBtn.disabled = false;
+                pipelineStatus.classList.add('hidden');
+                dropZone.classList.remove('hidden');
+                updateFileList();
             }
         };
     </script>
