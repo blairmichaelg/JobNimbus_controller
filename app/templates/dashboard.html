@@ -6,158 +6,118 @@
     <title>Office Control Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden relative">
-
-    <!-- Toast Container -->
-    <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
-
-    <!-- Sidebar -->
-    <div class="w-64 bg-gray-800 h-full flex flex-col border-r border-gray-700">
-        <div class="p-6 text-2xl font-bold text-white border-b border-gray-700">
-            Truck Server
-        </div>
-        <nav class="flex-1 p-4 space-y-2">
-            <a href="/office" class="block py-2 px-4 rounded bg-blue-900 text-blue-200">Dashboard</a>
-        </nav>
-    </div>
-
+<body class="bg-black text-gray-100 h-screen flex flex-col overflow-hidden relative font-mono">
     <!-- Main Content -->
-    <div class="flex-1 flex flex-col h-full overflow-y-auto bg-gray-900">
-        <div class="p-8 space-y-6">
-            <h1 class="text-3xl font-bold text-white">Office Control Center</h1>
-            
-            <!-- KPI Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-md">
-                    <h3 class="text-gray-400 text-sm font-semibold uppercase tracking-wider">Active Jobs</h3>
-                    <p class="text-4xl font-bold text-blue-400 mt-2">{{ active_jobs }}</p>
+    <div class="flex-1 flex flex-col h-full overflow-y-auto p-8 space-y-8">
+        <h1 class="text-4xl font-bold text-yellow-400 uppercase tracking-widest text-center border-b border-gray-800 pb-4">Wickham Roofing - Operations & Accounting Brief</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Operations Board -->
+            <div class="bg-gray-900 border border-gray-700 rounded p-6 shadow-2xl">
+                <h2 class="text-2xl text-blue-400 uppercase font-bold mb-4">Operations (Today)</h2>
+                <div class="flex space-x-8 mb-6 text-xl">
+                    <div>Deliveries: <span id="ops-deliveries" class="text-white font-bold">0</span></div>
+                    <div>Crews Active: <span id="ops-crews" class="text-white font-bold">0</span></div>
                 </div>
-                <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-md">
-                    <h3 class="text-gray-400 text-sm font-semibold uppercase tracking-wider">Recent Leads</h3>
-                    <p class="text-4xl font-bold text-yellow-400 mt-2">{{ recent_leads }}</p>
-                </div>
-                <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-md">
-                    <h3 class="text-gray-400 text-sm font-semibold uppercase tracking-wider">Ready to Invoice</h3>
-                    <p class="text-4xl font-bold text-green-400 mt-2">{{ ready_to_invoice }}</p>
-                </div>
-            </div>
-
-            <!-- Data Table -->
-            <div class="bg-gray-800 rounded-lg shadow-md border border-gray-700 overflow-hidden">
-                <table class="min-w-full divide-y divide-gray-700">
-                    <thead class="bg-gray-900">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Homeowner</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Location</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                <table class="w-full text-left uppercase text-sm">
+                    <thead>
+                        <tr class="text-gray-500 border-b border-gray-800">
+                            <th class="py-2">Job ID</th>
+                            <th class="py-2">Supplier</th>
+                            <th class="py-2">Status</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-700">
-                        {% for job in jobs %}
-                        <tr class="hover:bg-gray-700 transition-colors">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{{ job.homeowner_name }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ job.address_line1 }}, {{ job.city }} {{ job.state }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                {% set status_color = 'bg-blue-900 text-blue-200' %}
-                                {% if job.status == 'LEAD_CAPTURED' %}{% set status_color = 'bg-yellow-900 text-yellow-200' %}{% endif %}
-                                {% if job.status == 'CONTINGENCY_SIGNED' %}{% set status_color = 'bg-green-900 text-green-200' %}{% endif %}
-                                {% if job.status == 'SUPPLEMENT_GENERATED' %}{% set status_color = 'bg-purple-900 text-purple-200' %}{% endif %}
-                                {% if job.status == 'PIPELINE_FAILED' %}{% set status_color = 'bg-red-900 text-red-200' %}{% endif %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ status_color }}">
-                                    {{ job.status }}
-                                </span>
-                                {% if job.ice_barrier_required is none %}
-                                <span class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-900 text-yellow-200 border border-yellow-700">
-                                    Climate Zone Review Needed
-                                </span>
-                                {% endif %}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                <a href="/office/jobs/{{ job.id }}" class="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-500 text-sm font-medium inline-block">Manage Job</a>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="4" class="px-6 py-12 text-center text-gray-500">No active jobs found.</td>
-                        </tr>
-                        {% endfor %}
+                    <tbody id="ops-table" class="divide-y divide-gray-800">
+                        <!-- Populated via JS -->
                     </tbody>
                 </table>
             </div>
-
+            
+            <!-- Accounting Board -->
+            <div class="bg-gray-900 border border-gray-700 rounded p-6 shadow-2xl">
+                <h2 class="text-2xl text-green-400 uppercase font-bold mb-4">Accounting</h2>
+                <div class="mb-6 text-xl">
+                    <div class="text-gray-400">Supplemented RCV Added</div>
+                    <div id="acct-rcv" class="text-5xl text-green-500 font-bold mt-2">$0.00</div>
+                </div>
+                <div class="mb-4">
+                    <span class="text-gray-400">QBO Export Ready: </span>
+                    <span id="acct-ready" class="text-white font-bold">0</span>
+                </div>
+                <button class="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-4 rounded w-full uppercase tracking-wider mb-6">
+                    Export QBO CSV
+                </button>
+                <table class="w-full text-left uppercase text-sm">
+                    <thead>
+                        <tr class="text-gray-500 border-b border-gray-800">
+                            <th class="py-2">Job ID</th>
+                            <th class="py-2">Homeowner</th>
+                        </tr>
+                    </thead>
+                    <tbody id="acct-table" class="divide-y divide-gray-800">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
         const OFFICE_TOKEN = "{{ office_token }}";
 
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            const bgColor = type === 'error' ? 'bg-red-600' : 'bg-green-600';
-            toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 opacity-0 translate-y-[-10px] pointer-events-auto flex justify-between items-center max-w-sm w-full`;
-            toast.innerHTML = `
-                <span>${message}</span>
-                <button onclick="this.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 font-bold">&times;</button>
-            `;
-            container.appendChild(toast);
-            
-            requestAnimationFrame(() => {
-                toast.classList.remove('opacity-0', 'translate-y-[-10px]');
-            });
-            
-            setTimeout(() => {
-                toast.classList.add('opacity-0');
-                setTimeout(() => toast.remove(), 300);
-            }, 5000);
+        async function fetchBriefs() {
+            try {
+                // Fetch Operations
+                const opsRes = await fetch('/api/office/operations/brief', { headers: { 'X-Internal-Token': OFFICE_TOKEN } });
+                const opsData = await opsRes.json();
+                document.getElementById('ops-deliveries').innerText = opsData.deliveries_today;
+                document.getElementById('ops-crews').innerText = opsData.crews_today;
+                
+                const opsTbody = document.getElementById('ops-table');
+                opsTbody.innerHTML = '';
+                opsData.material_rows.forEach(row => {
+                    const color = row.status === 'Ready' ? 'text-green-400' : 'text-yellow-400';
+                    opsTbody.innerHTML += `
+                        <tr>
+                            <td class="py-3 text-gray-300">${row.job_id.substring(0,8)}</td>
+                            <td class="py-3 text-white">${row.supplier_name}</td>
+                            <td class="py-3 font-bold ${color}">${row.status}</td>
+                        </tr>
+                    `;
+                });
+
+                // Fetch Accounting
+                const acctRes = await fetch('/api/office/accounting/brief', { headers: { 'X-Internal-Token': OFFICE_TOKEN } });
+                const acctData = await acctRes.json();
+                document.getElementById('acct-rcv').innerText = acctData.supplemented_rcv_added;
+                document.getElementById('acct-ready').innerText = acctData.qbo_ready_count;
+                
+                const acctTbody = document.getElementById('acct-table');
+                acctTbody.innerHTML = '';
+                acctData.rows.forEach(row => {
+                    acctTbody.innerHTML += `
+                        <tr>
+                            <td class="py-3 text-gray-300">${row.job_id.substring(0,8)}</td>
+                            <td class="py-3 text-white">${row.name}</td>
+                        </tr>
+                    `;
+                });
+            } catch(e) {
+                console.error("Brief fetch failed", e);
+            }
         }
 
+        // Initial fetch
+        fetchBriefs();
+
+        // WebSocket for pure invalidation
         const ws = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/api/office/ws/office');
-        
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
-            if (data.type === 'new_lead') {
-                showToast(`New Lead Captured: ${data.job.homeowner_name} at ${data.job.address_line1}`, 'success');
-                
-                const tbody = document.querySelector('tbody');
-                const noJobs = tbody.querySelector('td[colspan="4"]');
-                if (noJobs) noJobs.parentElement.remove();
-                
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-700 transition-colors bg-blue-900 bg-opacity-20'; // highlight new row
-                
-                let reviewBadge = '';
-                if (data.job.ice_barrier_required === null) {
-                    reviewBadge = `<span class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-900 text-yellow-200 border border-yellow-700">Climate Zone Review Needed</span>`;
-                }
-
-                tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">${data.job.homeowner_name}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${data.job.address_line1}, ${data.job.city} ${data.job.state}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-900 text-blue-200">
-                            ${data.job.status}
-                        </span>
-                        ${reviewBadge}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                        <a href="/office/jobs/${data.job.id}" class="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-500 text-sm font-medium inline-block">Manage Job</a>
-                    </td>
-                `;
-                tbody.prepend(tr);
-                
-                // remove highlight after 5 seconds
-                setTimeout(() => {
-                    tr.classList.remove('bg-blue-900', 'bg-opacity-20');
-                }, 5000);
-            } else if (data.type === 'contingency_signed') {
-                showToast(`Contingency Signed by ${data.job.signer_name}!`, 'success');
+            if (data.type === 'stale' || data.type === 'new_lead' || data.type === 'contingency_signed') {
+                // Zero complex state logic. Just re-fetch the absolute truth.
+                fetchBriefs();
             }
-        };
-        
-        ws.onerror = function(error) {
-            console.error('WebSocket Error: ', error);
         };
     </script>
 </body>

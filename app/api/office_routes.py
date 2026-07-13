@@ -638,3 +638,78 @@ async def download_contingency(job_id: str):
     pdf_path = await pdf_gen.generate_contingency_agreement(job_dict)
     
     return FileResponse(path=pdf_path, filename=f"Contingency_Agreement_{job_id[:8]}.pdf", media_type="application/pdf")
+
+class MaterialRow(BaseModel):
+    job_id: str
+    supplier_name: str
+    delivery_date: str
+    status: str
+
+class OperationsBrief(BaseModel):
+    deliveries_today: int
+    crews_today: int
+    material_rows: List[MaterialRow]
+
+@router.get("/operations/brief", response_model=OperationsBrief)
+def get_operations_brief():
+    """Zero-click read projection for operations dashboard."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT job_id, supplier_name, delivery_date FROM material_orders")
+        m_rows = cursor.fetchall()
+        
+        material_rows = []
+        deliveries_today = 0
+        import datetime
+        today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        for r in m_rows:
+            d_date = r["delivery_date"]
+            status = "Ready" if d_date == today_str else "Upcoming"
+            if d_date == today_str:
+                deliveries_today += 1
+            material_rows.append(MaterialRow(
+                job_id=r["job_id"],
+                supplier_name=r["supplier_name"],
+                delivery_date=d_date,
+                status=status
+            ))
+            
+        cursor = conn.execute("SELECT COUNT(*) as crews FROM schedule WHERE install_date LIKE ?", (f"{today_str}%",))
+        c_row = cursor.fetchone()
+        crews_today = c_row["crews"] if c_row else 0
+        
+        return OperationsBrief(
+            deliveries_today=deliveries_today,
+            crews_today=crews_today,
+            material_rows=material_rows
+        )
+    finally:
+        conn.close()
+
+class AccountingBrief(BaseModel):
+    supplemented_rcv_added: str
+    qbo_ready_count: int
+    rows: List[Dict[str, str]]
+
+@router.get("/accounting/brief", response_model=AccountingBrief)
+def get_accounting_brief():
+    """Zero-click read projection for accounting dashboard."""
+    conn = get_connection()
+    try:
+        # Mock calculation for supplemented RCV
+        supplemented_rcv = "$14,500.00"
+        
+        cursor = conn.execute("SELECT id, homeowner_name, status FROM jobs WHERE status = 'EV_PARSED' OR status = 'FINAL_INSPECTION'")
+        rows = cursor.fetchall()
+        
+        qbo_ready = len(rows)
+        acct_rows = [{"job_id": r["id"], "name": r["homeowner_name"], "status": r["status"]} for r in rows]
+        
+        return AccountingBrief(
+            supplemented_rcv_added=supplemented_rcv,
+            qbo_ready_count=qbo_ready,
+            rows=acct_rows
+        )
+    finally:
+        conn.close()
