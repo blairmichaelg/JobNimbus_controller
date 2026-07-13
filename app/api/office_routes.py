@@ -22,12 +22,12 @@ from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
 from app.core.database import insert_material_order, insert_schedule, JobStatus, backup_database, upsert_financials, insert_job_document, get_job_document_by_hash
 from app.core.pipeline import run_full_office_pipeline
-from app.config import verify_office_token
+from app.api.auth import verify_admin
 from app.core.upload_utils import stream_upload_safely
 
 logger = structlog.get_logger("app.api.office_routes")
 
-router = APIRouter(prefix="/api/office", tags=["office_ux"], dependencies=[Depends(verify_office_token)])
+router = APIRouter(prefix="/api/office", tags=["office_ux"], dependencies=[Depends(verify_admin)])
 
 
 

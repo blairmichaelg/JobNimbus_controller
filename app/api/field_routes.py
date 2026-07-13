@@ -24,13 +24,12 @@ from pydantic import BaseModel, Field
 from app.core.inspection_models import get_stable_photos, InspectionJob
 from app.core.cache import get_cached_analyses_for_job
 from app.core.database import get_connection, update_job_status
-from app.config import verify_field_token
+from app.api.auth import verify_field
 from app.core.upload_utils import stream_upload_safely
 from app.core.notifications import notifier
 
 logger = structlog.get_logger("app.api.field_routes")
-
-router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends(verify_field_token)])
+router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends(verify_field)])
 
 # Base directories (created on startup)
 FIELD_PHOTOS_DIR = Path("field_photos")

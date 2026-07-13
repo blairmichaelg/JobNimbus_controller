@@ -15,10 +15,9 @@ class TestOfficeJobsRoute:
     """Tests for GET /api/office/jobs."""
 
     def test_office_routes_deny_field_token(self):
-        """Should return 401 Unauthorized if using a field token."""
+        """Should return 403 Forbidden if using a field token."""
         response = client.get("/api/office/jobs", headers={"X-Internal-Token": "field-secret-token"})
-        assert response.status_code == 401
-        assert "Invalid internal token" in response.json()["detail"]
+        assert response.status_code == 403
 
     @patch("app.api.office_routes.get_connection")
     def test_get_jobs_success(self, mock_get_connection):

@@ -37,11 +37,10 @@ def setup_dirs(tmp_path, monkeypatch):
     
     # Cleanup handled by tmp_path
 
-def test_field_routes_deny_office_token():
-    """Should return 401 Unauthorized if using an office token."""
-    response = client.get("/api/field/jobs/TEST-123/inspection", headers={"X-Internal-Token": "office-secret-token"})
+def test_field_routes_deny_unauthorized_token():
+    """Should return 401 Unauthorized if using an invalid token."""
+    response = client.get("/api/field/jobs/TEST-123/inspection", headers={"X-Internal-Token": "invalid-token"})
     assert response.status_code == 401
-    assert "Invalid internal token" in response.json()["detail"]
 
 def test_create_new_job_lead_intake():
     """POST /api/field/jobs should insert a DB row and create directories."""
