@@ -11,7 +11,7 @@ import io
 import asyncio
 from pathlib import Path
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 from PIL import Image as PILImage
@@ -254,7 +254,7 @@ class TestInspectionProcessor:
         )
 
         from app.workers.inspection_processor import process_inspection
-        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=MagicMock) as mock_get_summary:
+        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=AsyncMock) as mock_get_summary:
             mock_get_summary.return_value = job
             result = asyncio.run(process_inspection({"is_test": True}, "WR-TEST-001"))
 
@@ -300,7 +300,7 @@ class TestInspectionProcessor:
         )
 
         from app.workers.inspection_processor import process_inspection
-        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=MagicMock) as mock_get_summary:
+        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=AsyncMock) as mock_get_summary:
             mock_get_summary.return_value = job
             result = asyncio.run(process_inspection({"is_test": True}, "WR-TEST-002"))
 
@@ -345,7 +345,7 @@ class TestInspectionProcessor:
         )
 
         from app.workers.inspection_processor import process_inspection
-        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=MagicMock) as mock_get_summary:
+        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=AsyncMock) as mock_get_summary:
             mock_get_summary.return_value = job
             result = asyncio.run(process_inspection({"is_test": True}, "WR-TEST-003"))
 
@@ -386,7 +386,7 @@ class TestInspectionProcessor:
         )
 
         from app.workers.inspection_processor import process_inspection
-        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=MagicMock) as mock_get_summary:
+        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=AsyncMock) as mock_get_summary:
             mock_get_summary.return_value = job
             result = asyncio.run(process_inspection({"is_test": True}, "WR-TEST-004"))
 
@@ -415,7 +415,7 @@ class TestInspectionProcessor:
         )
         
         from app.workers.inspection_processor import process_inspection
-        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=MagicMock) as mock_get_summary:
+        with patch("app.workers.inspection_processor.get_inspection_summary", new_callable=AsyncMock) as mock_get_summary:
             mock_get_summary.return_value = job
             result = asyncio.run(process_inspection({"is_test": True}, "WR-TEST-005"))
         

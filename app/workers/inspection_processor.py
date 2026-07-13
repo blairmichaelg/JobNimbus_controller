@@ -118,7 +118,7 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
     Returns:
         The updated InspectionJob with analyses populated.
     """
-    job = await asyncio.to_thread(get_inspection_summary, job_id)
+    job = await get_inspection_summary(job_id)
 
     log = logger.bind(job_id=job.job_id, total_photos=len(job.photos))
     log.info("inspection_processing_started")

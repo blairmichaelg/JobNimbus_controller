@@ -9,6 +9,7 @@ from functools import lru_cache
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from fastapi import Header, Cookie, HTTPException
 
 
 class Settings(BaseSettings):
@@ -105,8 +106,6 @@ def get_settings() -> Settings:
     environment variables are missing or malformed.
     """
     return Settings() # type: ignore
-
-from fastapi import Header, Cookie, HTTPException
 
 async def verify_office_token(
     x_internal_token: str | None = Header(None, alias="x-internal-token"),

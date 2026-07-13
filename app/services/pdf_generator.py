@@ -138,7 +138,7 @@ class PDFGenerator:
                 ('TEXTCOLOR', (0,8), (1,8), colors.dimgrey),
             ])
 
-        t.setStyle(TableStyle(style))
+        t.setStyle(TableStyle(style)) # type: ignore[arg-type]
         story.append(t)
 
         return KeepTogether(story)
@@ -146,7 +146,7 @@ class PDFGenerator:
     def _get_doc_template(self, filepath: str, top_margin: int = 144, job_id: str = "N/A") -> BaseDocTemplate:
         """Returns a BaseDocTemplate configured with a Frame that prevents overlapping with the header."""
         doc = BaseDocTemplate(filepath, pagesize=letter, leftMargin=50, rightMargin=50, topMargin=top_margin, bottomMargin=50)
-        doc.job_id = job_id
+        doc.job_id = job_id # type: ignore[attr-defined]
         # letter height is 792. Leave space at the top.
         frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='normal')
         template = PageTemplate(id='standard', frames=frame, onPage=self._universal_letterhead)

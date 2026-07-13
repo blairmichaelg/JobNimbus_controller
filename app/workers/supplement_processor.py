@@ -25,8 +25,6 @@ from app.core.supplement_models import EagleViewData
 logger = structlog.get_logger("app.workers.supplement_processor")
 
 
-import asyncio
-
 def _fetch_job_context_sync(job_id: str) -> dict:
     """Synchronously fetch the job context from SQLite."""
     conn = get_connection()

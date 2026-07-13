@@ -18,6 +18,7 @@ from datetime import datetime
 from PIL import Image
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Request, BackgroundTasks
+from app.core.climate_lookup import is_ice_barrier_required
 from pydantic import BaseModel, Field
 
 from app.core.inspection_models import get_stable_photos, InspectionJob
@@ -64,8 +65,6 @@ class ContingencySignaturePayload(BaseModel):
 class FlagResolutionPayload(BaseModel):
     quantity_delta: float = Field(..., description="The corrected, manually determined quantity")
     resolution_note: str = Field(..., description="Audit note explaining the manual override")
-
-from app.core.climate_lookup import is_ice_barrier_required
 
 def _sync_create_new_job(job_id: str, payload: LeadIntakePayload, ice_barrier: bool | None):
     conn = get_connection()

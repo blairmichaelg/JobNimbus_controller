@@ -35,7 +35,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await notifier.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_text()
+            await websocket.receive_text()
     except WebSocketDisconnect:
         notifier.disconnect(websocket)
 
@@ -317,7 +317,7 @@ async def download_evidence_grid(job_id: str):
     """
     try:
         # Construct the InspectionJob using the field_routes helper
-        job = await asyncio.to_thread(get_inspection_summary, job_id)
+        job = await get_inspection_summary(job_id)
         
         if not job.photos:
             raise HTTPException(status_code=404, detail="No photos found for this job.")
