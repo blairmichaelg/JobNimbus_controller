@@ -3,6 +3,8 @@ Unit tests for the PDF Generator.
 """
 
 import asyncio
+import tempfile
+from unittest.mock import patch
 from pathlib import Path
 
 from app.services.pdf_generator import PDFGenerator
@@ -50,8 +52,7 @@ def test_generate_estimate_pdf_handles_missing_data():
         if path_obj.exists():
             path_obj.unlink()
 
-import tempfile
-from unittest.mock import patch
+
 
 def test_generate_material_po_creates_file():
     """Test that the Material PO generator creates a valid file."""

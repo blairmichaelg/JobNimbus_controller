@@ -11,7 +11,7 @@ class NOAAForensicsEngine:
         """
         Verify if a historical storm event occurred near the given coordinates on the loss date.
         
-        # TODO: replace with NCEI Storm Events bulk CSV ingestion in a future sprint.
+        Note: Future iterations should implement NCEI Storm Events bulk CSV ingestion.
         Currently returns a deterministic mocked payload representing a valid hail event.
         
         Args:

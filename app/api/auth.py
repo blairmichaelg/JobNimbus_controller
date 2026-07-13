@@ -1,6 +1,6 @@
 import jwt
 import datetime
-from fastapi import Request, HTTPException, Depends, Cookie, Header
+from fastapi import HTTPException, Depends, Cookie, Header
 from app.config import get_settings
 
 ALGORITHM = "HS256"
@@ -16,7 +16,7 @@ def decode_token(token: str) -> str:
     settings = get_settings()
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[ALGORITHM])
-        role: str = payload.get("sub")
+        role = payload.get("sub")
         if role is None:
             raise HTTPException(status_code=401, detail="Invalid authentication credentials")
         return role
@@ -33,7 +33,6 @@ async def get_current_role(
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     # Backward compatibility for old tests hitting office endpoints
-    settings = get_settings()
     if token == "office-secret-token":
         return "admin"
     if token == "field-secret-token":

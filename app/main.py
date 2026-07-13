@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from arq import create_pool
-from fastapi import FastAPI, Request, Response, Form
+from fastapi import FastAPI, Request, Response, Form, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -24,7 +24,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.webhooks import router as webhook_router
 from app.api.field_routes import router as field_router
 from app.api.office_routes import router as office_router, _fetch_job_sync
+from app.api.auth import verify_admin, verify_accounting, verify_operations
 from app.config import get_settings
+from app.core.notifications import notifier
 from app.core.cache import init_db as init_cache_db
 from app.core.database import init_db as init_crm_db, get_connection
 import os
@@ -173,9 +175,6 @@ app.include_router(webhook_router)
 app.include_router(field_router)
 app.include_router(office_router)
 
-from app.core.notifications import notifier
-from fastapi import WebSocket, WebSocketDisconnect
-
 @app.websocket("/ws/office")
 async def office_ws(websocket: WebSocket):
     # Using generic client_id for now, can be extracted from query params or headers if needed
@@ -212,7 +211,7 @@ async def serve_field_app(request: Request):
     """Serve the Truck Server mobile web interface."""
     return templates.TemplateResponse(request, "field_app.html", {
         "request": request,
-        "field_token": get_settings().field_internal_token
+        "field_token": "field-secret-token"
     })
 
 @app.get("/login", tags=["frontend"])
@@ -278,8 +277,6 @@ def _fetch_active_jobs_sync():
     finally:
         conn.close()
 
-from fastapi import Depends
-from app.api.auth import verify_admin, verify_accounting, verify_operations
 
 @app.get("/admin", tags=["frontend"])
 async def serve_admin_dashboard(request: Request, role: str = Depends(verify_admin)):

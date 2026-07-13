@@ -12,7 +12,7 @@ import structlog
 from datetime import datetime
 from pathlib import Path
 from app.core.supplement_models import InvoiceExport, InvoiceLine, MaterialBOM
-from app.core.database import update_job_status, get_pricing_ledger
+from app.core.database import get_pricing_ledger
 
 logger = structlog.get_logger("app.services.qbo_export")
 

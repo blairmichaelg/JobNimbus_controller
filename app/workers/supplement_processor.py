@@ -186,4 +186,6 @@ async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: Optional
         raise
     finally:
         # Cleanup temporary PDF
-        pass
+        if temp_pdf_path:
+            from pathlib import Path
+            Path(temp_pdf_path).unlink(missing_ok=True)

@@ -6,8 +6,9 @@ import csv
 import pytest
 from pathlib import Path
 
-from app.core.supplement_models import InvoiceExport, InvoiceLine
-from app.services.qbo_export import export_to_csv, EXPORT_DIR, QBO_ITEMS
+from app.core.supplement_models import InvoiceExport, InvoiceLine, MaterialBOM
+from app.services.qbo_export import export_to_csv, EXPORT_DIR, QBO_ITEMS, generate_qbo_invoice
+from unittest.mock import patch
 
 
 @pytest.fixture(autouse=True)
@@ -141,9 +142,7 @@ def test_qbo_export_unmapped_item_fallback():
         assert rows[1][4] == "custom_fee_xyz"
 
 
-from unittest.mock import patch
-from app.core.supplement_models import MaterialBOM
-from app.services.qbo_export import generate_qbo_invoice
+
 
 @patch("app.core.database.get_financials")
 def test_generate_qbo_invoice_includes_op_and_fees(mock_get_financials):
@@ -167,9 +166,8 @@ def test_generate_qbo_invoice_includes_op_and_fees(mock_get_financials):
         sealant_tubes=0
     )
     
-    # We also mock update_job_status and get_pricing_ledger to keep it isolated
-    with patch("app.services.qbo_export.update_job_status"), \
-         patch("app.services.qbo_export.get_pricing_ledger", return_value={"field_shingle_bundles": 100.0}):
+    # We mock get_pricing_ledger to keep it isolated
+    with patch("app.services.qbo_export.get_pricing_ledger", return_value={"field_shingle_bundles": 100.0}):
         
         filepath = generate_qbo_invoice("demo_job_1", bom)
         

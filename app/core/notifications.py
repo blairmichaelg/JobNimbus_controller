@@ -71,8 +71,8 @@ class RobustConnectionManager:
                     self.disconnect(zombie)
                     try:
                         await zombie.close()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.error("websocket_zombie_close_failed", error=str(e))
 
 # Global singleton
 notifier = RobustConnectionManager()
