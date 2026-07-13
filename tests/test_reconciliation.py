@@ -109,7 +109,13 @@ def test_reconcile_missing_op():
     )
     
     sol = StatementOfLoss(
-        line_items=[],
+        line_items=[
+            LineItem(
+                trade="Roofing",
+                code="RFG 300S",
+                description="Test item"
+            )
+        ],
         overhead_and_profit_included=False
     )
     

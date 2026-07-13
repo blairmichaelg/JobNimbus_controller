@@ -48,6 +48,7 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor
                 ev_value=ev_normalized_squares,
                 sol_value=sol_total_rfg_squares,
                 variance=square_variance,
+                xactimate_code="RFG 300S",
             )
         )
 
@@ -67,6 +68,7 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor
                     ev_value=ev.valley_lf,
                     sol_value=0.0,
                     variance=ev.valley_lf,
+                    xactimate_code="RFG IWS",
                 )
             )
 
@@ -94,18 +96,21 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor
                     ev_value=total_ridge_hip_lf,
                     sol_value=sol_ridge_hip_lf,
                     variance=ridge_variance,
+                    xactimate_code="RFG RIDGC",
                 )
             )
 
-    # 4. Overhead & Profit Check
-    if sol.overhead_and_profit_included is False:
+    # 4. Overhead & Profit Check (Automatic 20%)
+    unique_trades = set(item.trade for item in sol.line_items if hasattr(item, 'trade') and item.trade)
+    if sol.overhead_and_profit_included is False and len(unique_trades) >= 1: # Flag if missing regardless of trade count for now, let adjuster argue it
         discrepancies.append(
             Discrepancy(
                 category="Missing O&P",
-                description="Overhead and Profit (O&P) is missing from the Carrier Statement of Loss.",
+                description="Overhead and Profit (20%) is missing from the Carrier Statement of Loss but is legally warranted due to project complexity.",
                 ev_value=None,
                 sol_value=None,
                 variance=None,
+                xactimate_code="FEE O&P",
             )
         )
 

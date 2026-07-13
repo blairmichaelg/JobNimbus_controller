@@ -343,17 +343,18 @@ class PDFGenerator:
             story.append(Paragraph("<b>Summary of Mathematical Variances:</b>", normal_style))
             story.append(Spacer(1, 6))
             
-            table_data = [["Category", "EV Value", "SoL Value", "Variance"]]
+            table_data = [["Category", "EV Value", "SoL Value", "Variance", "Xactimate"]]
             for d in report.discrepancies:
                 table_data.append([
                     d.category,
                     f"{d.ev_value:.2f}" if isinstance(d.ev_value, (int, float)) else str(d.ev_value) if d.ev_value is not None else "N/A",
                     f"{d.sol_value:.2f}" if isinstance(d.sol_value, (int, float)) else str(d.sol_value) if d.sol_value is not None else "N/A",
                     f"{d.variance:.2f}" if isinstance(d.variance, (int, float)) else str(d.variance) if d.variance is not None else "N/A",
+                    d.xactimate_code if d.xactimate_code else "N/A",
                 ])
                 
             if len(table_data) > 1:
-                t = Table(table_data, colWidths=[150, 100, 100, 100])
+                t = Table(table_data, colWidths=[130, 70, 70, 80, 100])
                 t.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,0), colors.grey),
                     ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
@@ -369,7 +370,7 @@ class PDFGenerator:
             story.append(Spacer(1, 18))
             
             # --- 4. Narrative & Code Requirements ---
-            story.append(Paragraph("<b>Contractor Notes & Code Requirements:</b>", normal_style))
+            story.append(Paragraph("<b>Defensive Summary & Code Requirements:</b>", normal_style))
             story.append(Spacer(1, 6))
             
             # Fetch rules and citations from DB

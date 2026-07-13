@@ -89,6 +89,7 @@ class Discrepancy(BaseModel):
     sol_value: float | None = None
     variance: float | None = None
     code_citation: str | None = None
+    xactimate_code: str | None = None
 
 
 class DiscrepancyReport(BaseModel):
@@ -107,6 +108,7 @@ class DiscrepancyReport(BaseModel):
     waste_explanation: str
     material_bom: MaterialBOM
     discrepancies: list[Discrepancy] = []
+    defensive_narrative: str | None = None
 
 
 class CodeSection(BaseModel):

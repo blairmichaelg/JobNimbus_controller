@@ -310,10 +310,11 @@ Rules:
         log.info("supplement_narrative_started")
 
         prompt = f"""
-        You are an expert, assertive roofing contractor writing a supplement justification letter to an insurance desk adjuster.
+        You are an expert, assertive roofing contractor writing a "Defensive Summary" justification for an insurance desk adjuster.
         
         You have analyzed the EagleView measurement report and the Carrier's Statement of Loss and found the following numerical shortages.
         You MUST explicitly state the mathematical shortages found in the report below.
+        You MUST reference the specific Xactimate codes (e.g. RFG 300S, RFG IWS, FEE O&P) associated with the discrepancies so the adjuster can easily input them.
         Only cite the building codes provided below if they directly relate to the identified discrepancies.
         You MUST use the exact `code_citation` string provided as a bolded header before quoting the building code. Do not hallucinate or alter the citation.
         
@@ -323,7 +324,7 @@ Rules:
         --- BUILDING CODES ---
         {codes}
         
-        Write the letter now. Do not use placeholders for the company name, just use "Wickham Roofing LLC". Do not include a date or address block at the top, just jump straight into "Dear Adjuster," and the body of the letter.
+        Write a concise, 2-paragraph Defensive Summary designed to definitively prove the shortages and remove friction for the adjuster to approve the Xactimate line items. Do not use placeholders for the company name, just use "Wickham Roofing LLC". Do not include a date or address block at the top, just jump straight into the narrative.
         """
 
         try:
