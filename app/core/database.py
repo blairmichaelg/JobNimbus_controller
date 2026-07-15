@@ -50,6 +50,14 @@ class JobStatus(str, Enum):
     INVOICED = "INVOICED"
     PAYMENT_RECEIVED = "PAYMENT_RECEIVED"
     CLOSED = "CLOSED"
+    
+    # RETAIL STATES
+    RETAIL_QUOTE_GENERATED = "RETAIL_QUOTE_GENERATED"
+    RETAIL_QUOTE_ACCEPTED  = "RETAIL_QUOTE_ACCEPTED"
+    RETAIL_QUOTE_DECLINED  = "RETAIL_QUOTE_DECLINED"
+    
+    # OTHER
+    AWAITING_CARRIER_RESPONSE = "AWAITING_CARRIER_RESPONSE"
 
     @classmethod
     def is_operator_gate(cls, status: "JobStatus") -> bool:
@@ -60,7 +68,9 @@ class JobStatus(str, Enum):
             cls.MATERIALS_ON_SITE, cls.INSTALL_SCHEDULED,
             cls.INSTALL_COMPLETED, cls.INSPECTION_COMPLETED,
             cls.FINAL_INSPECTION, cls.INVOICED,
-            cls.PAYMENT_RECEIVED, cls.CLOSED
+            cls.PAYMENT_RECEIVED, cls.CLOSED,
+            cls.RETAIL_QUOTE_GENERATED, cls.RETAIL_QUOTE_ACCEPTED,
+            cls.RETAIL_QUOTE_DECLINED
         }
         return status in _OPERATOR_GATES
 
@@ -95,6 +105,7 @@ def init_db() -> None:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS jobs (
                 id TEXT PRIMARY KEY,
+                invoice_id TEXT UNIQUE,
                 homeowner_name TEXT NOT NULL,
                 address_line1 TEXT NOT NULL,
                 city TEXT NOT NULL,
@@ -145,7 +156,7 @@ def init_db() -> None:
             except sqlite3.OperationalError:
                 pass  # Column already exists
                 
-        # Phase 5: Operations columns on the jobs table
+        # Phase 5 & 6: Operations columns on the jobs table
         for col in [
             "supplement_sent_at TIMESTAMP",
             "acv_received INTEGER DEFAULT 0",
@@ -159,7 +170,8 @@ def init_db() -> None:
             "ev_hip_lf REAL",
             "ev_valley_lf REAL",
             "ev_eaves_lf REAL",
-            "ev_rakes_lf REAL"
+            "ev_rakes_lf REAL",
+            "invoice_id TEXT"
         ]:
             try:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
@@ -426,6 +438,17 @@ def init_db() -> None:
             JOIN financials f ON j.id = f.job_id
         ''')
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS invoice_sequence (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                last_seq INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        conn.execute("""
+            INSERT OR IGNORE INTO invoice_sequence (id, last_seq)
+            VALUES (1, 0)
+        """)
+
         conn.execute("COMMIT")
         logger.info("database_initialized", db_path=str(get_db_path()))
         seed_default_pricing()
@@ -448,11 +471,20 @@ def seed_default_pricing() -> None:
         baseline_pricing = [
             ("field_shingle_bundles", 105.0),
             ("starter_bundles", 45.0),
-            ("ridge_cap_bundles", 55.0),
-            ("ice_water_rolls", 80.0),
-            ("underlayment_rolls", 65.0),
-            ("drip_edge_pieces", 15.0),
-            ("labor_per_sq", 85.0), # Example labor metric
+            ("hip_ridge_bundles", 60.0),
+            ("ice_and_water_rolls", 90.0),
+            ("synthetic_underlayment_rolls", 65.0),
+            ("drip_edge_pieces_10ft", 15.0),
+            ("step_flashing_tins", 0.50),
+            ("coil_nails_boxes", 35.0),
+            ("plastic_cap_nails_boxes", 25.0),
+            ("roof_sealant_tubes", 7.0),
+            ("pipe_jacks", 20.0),
+            ("exhaust_vents", 45.0),
+            ("ridge_vent_rolls_20ft", 80.0),
+            ("retail_standard_per_sq", 350.0),
+            ("retail_arch_per_sq", 420.0),
+            ("retail_premium_per_sq", 580.0),
         ]
         conn.executemany('''
             INSERT OR IGNORE INTO pricing (item_key, default_rate)
@@ -535,7 +567,29 @@ def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
         # ---------------------------------------------------------
         # STATE MACHINE ENFORCEMENT
         # ---------------------------------------------------------
-        if new_status == JobStatus.MATERIAL_ORDERED:
+        if new_status == JobStatus.SUPPLEMENT_APPROVED:
+            if current_status not in [
+                JobStatus.AWAITING_CARRIER_RESPONSE,
+                JobStatus.SUPPLEMENT_SUBMITTED
+            ]:
+                raise RuntimeError(
+                    "ILLEGAL TRANSITION: SUPPLEMENT_APPROVED requires "
+                    "job to be in AWAITING_CARRIER_RESPONSE or "
+                    "SUPPLEMENT_SUBMITTED."
+                )
+
+        elif new_status == JobStatus.SUPPLEMENT_DENIED:
+            if current_status not in [
+                JobStatus.AWAITING_CARRIER_RESPONSE,
+                JobStatus.SUPPLEMENT_SUBMITTED
+            ]:
+                raise RuntimeError(
+                    "ILLEGAL TRANSITION: SUPPLEMENT_DENIED requires "
+                    "job to be in AWAITING_CARRIER_RESPONSE or "
+                    "SUPPLEMENT_SUBMITTED."
+                )
+                
+        elif new_status == JobStatus.MATERIAL_ORDERED:
             fin_cursor = conn.execute("SELECT revenue FROM financials WHERE job_id = ?", (job_id,))
             if not fin_cursor.fetchone():
                 raise RuntimeError("ILLEGAL TRANSITION: Cannot order materials without calculated financials.")
@@ -996,7 +1050,8 @@ def atomic_qbo_export() -> list[dict]:
     try:
         conn.execute("BEGIN IMMEDIATE")
         cursor = conn.execute("""
-            SELECT j.id as job_id, j.homeowner_name, j.status,
+            SELECT j.id as job_id, j.invoice_id, j.homeowner_name, j.status,
+                   j.claim_number,
                    f.revenue, f.carrier_rcv, f.material_cost,
                    f.labor_cost, f.overhead_pct,
                    f.canvasser_commission_pct, f.permits_fee
@@ -1039,7 +1094,10 @@ def mark_supplement_sent(job_id: str) -> None:
             SET status = 'AWAITING_CARRIER_RESPONSE',
                 supplement_sent_at = CURRENT_TIMESTAMP
             WHERE id = ?
-              AND status = 'SUPPLEMENT_GENERATED'
+              AND status IN (
+                  'SUPPLEMENT_GENERATED',
+                  'SUPPLEMENT_SUBMITTED'
+              )
         """, (job_id,))
         conn.commit()
     finally:
@@ -1077,5 +1135,36 @@ def toggle_payment_flag(job_id: str, flag: str) -> dict:
         conn.commit()
         return {"flag": flag, "new_value": new_val,
                 "job_id": job_id}
+    finally:
+        conn.close()
+
+def generate_invoice_id() -> str:
+    """
+    Atomically generate the next sequential invoice ID.
+    Format: WR-YY-NNNN (e.g., WR-26-0001).
+    Uses a single-row counter table to prevent race conditions.
+    Safe under concurrent BEGIN IMMEDIATE transactions.
+    """
+    from datetime import datetime as _dt
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.execute(
+            "UPDATE invoice_sequence SET last_seq = last_seq + 1 "
+            "WHERE id = 1"
+        )
+        row = conn.execute(
+            "SELECT last_seq FROM invoice_sequence WHERE id = 1"
+        ).fetchone()
+        seq = row["last_seq"]
+        year_short = _dt.utcnow().strftime("%y")
+        invoice_id = f"WR-{year_short}-{seq:04d}"
+        conn.execute("COMMIT")
+        logger.info("invoice_id_generated", invoice_id=invoice_id)
+        return invoice_id
+    except Exception as e:
+        conn.execute("ROLLBACK")
+        logger.error("invoice_id_generation_failed", error=str(e))
+        raise
     finally:
         conn.close()

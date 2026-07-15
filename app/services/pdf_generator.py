@@ -1080,3 +1080,224 @@ class PDFGenerator:
             
         await asyncio.to_thread(build_pdf)
         return filepath
+
+    async def generate_rebuttal_letter(
+        self,
+        job: dict,
+        denial_text: str,
+        rebuttal_narrative: str
+    ) -> str:
+        """
+        Generate a formal Rebuttal Letter PDF.
+        Returns the permanent vault path.
+        """
+        job_id = job.get("id", "UNKNOWN")
+        log = logger.bind(job_id=job_id)
+        log.info("rebuttal_pdf_generation_started")
+
+        from pathlib import Path
+        job_dir = FIELD_DOCS_DIR / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "Rebuttal_Letter.pdf")
+
+        def build_pdf():
+            import html as _html
+            doc = self._get_doc_template(filepath,
+                                         job_id=job_id)
+            story = []
+
+            story.append(Paragraph(
+                "SUPPLEMENT REBUTTAL LETTER",
+                self.custom_styles["Title"]
+            ))
+            story.append(Spacer(1, 12))
+            story.append(self._build_metadata_table(job))
+            story.append(Spacer(1, 16))
+
+            story.append(Paragraph(
+                "<b>CARRIER DENIAL SUMMARY (VERBATIM):</b>",
+                self.custom_styles["SectionHeading"]
+            ))
+            denial_style = ParagraphStyle(
+                "DenialQuote",
+                parent=self.styles["Normal"],
+                fontSize=9,
+                leftIndent=20,
+                rightIndent=20,
+                textColor=colors.darkred,
+                backColor=colors.lightyellow,
+                borderPad=6,
+            )
+            for line in denial_text.split("\n"):
+                if line.strip():
+                    story.append(Paragraph(
+                        _html.escape(line.strip()),
+                        denial_style
+                    ))
+            story.append(Spacer(1, 16))
+
+            story.append(Paragraph(
+                "<b>CONTRACTOR REBUTTAL:</b>",
+                self.custom_styles["SectionHeading"]
+            ))
+            story.append(HRFlowable(
+                width="100%", thickness=0.5,
+                color=colors.black, spaceAfter=10
+            ))
+            narrative_style = ParagraphStyle(
+                "RebuttalBody",
+                parent=self.styles["Normal"],
+                fontSize=10,
+                leading=14,
+                spaceBefore=4,
+                spaceAfter=4,
+            )
+            for para in rebuttal_narrative.split("\n"):
+                if para.strip():
+                    story.append(Paragraph(
+                        _html.escape(para.strip()),
+                        narrative_style
+                    ))
+
+            story.append(Spacer(1, 30))
+            story.append(self._build_signature_block(
+                title1="Authorized Contractor Representative",
+                title2="Date"
+            ))
+            doc.build(story)
+
+        try:
+            await asyncio.to_thread(build_pdf)
+            log.info("rebuttal_pdf_generation_complete",
+                     filepath=filepath)
+            return filepath
+        except Exception as exc:
+            log.error("rebuttal_pdf_generation_failed",
+                      error=str(exc))
+            raise
+
+    async def generate_retail_quote(
+        self,
+        job: dict,
+        billable_squares: float,
+        tiers: list[dict]
+    ) -> str:
+        """
+        Generate a 3-tier retail roofing quote PDF.
+        Returns the permanent vault path.
+        """
+        job_id = job.get("id", "UNKNOWN")
+        job_dir = FIELD_DOCS_DIR / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "Retail_Quote.pdf")
+
+        def build_pdf():
+            import datetime as _dt
+            doc = self._get_doc_template(filepath,
+                                         job_id=job_id)
+            story = []
+
+            story.append(Paragraph(
+                "ROOFING REPLACEMENT QUOTE",
+                self.custom_styles["Title"]
+            ))
+            story.append(Spacer(1, 12))
+            story.append(self._build_metadata_table(job))
+            story.append(Spacer(1, 6))
+
+            # Measured area summary
+            story.append(Paragraph(
+                f"<b>Measured Roof Area:</b> "
+                f"{billable_squares:.2f} squares "
+                f"(includes 10% waste factor)",
+                self.custom_styles["BodyText"]
+            ))
+            story.append(Spacer(1, 16))
+
+            # 3-Tier options table
+            story.append(Paragraph(
+                "Select Your Roofing System:",
+                self.custom_styles["SectionHeading"]
+            ))
+
+            header = ["Option", "System", "Description",
+                      "Total Price"]
+            rows = [header]
+            labels = ["A", "B", "C"]
+            for i, tier in enumerate(tiers):
+                rows.append([
+                    labels[i],
+                    tier["name"],
+                    tier["description"],
+                    f"${tier['total_price']:,.2f}"
+                ])
+
+            t = Table(rows, colWidths=[30, 130, 220, 90])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0,0), (-1,0), 10),
+                ('ROWBACKGROUNDS', (0,1), (-1,-1),
+                 [colors.lightblue, colors.white,
+                  colors.lightgrey]),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('PADDING', (0,0), (-1,-1), 8),
+                ('FONTNAME', (0,1), (0,-1), 'Helvetica-Bold'),
+                ('FONTSIZE', (3,1), (3,-1), 11),
+                ('ALIGN', (3,0), (3,-1), 'RIGHT'),
+            ]))
+            story.append(t)
+            story.append(Spacer(1, 20))
+
+            # What's included block
+            story.append(Paragraph(
+                "All Options Include:",
+                self.custom_styles["SectionHeading"]
+            ))
+            included = [
+                "Complete tear-off and disposal of existing roofing",
+                "New synthetic underlayment and drip edge",
+                "Re-flashing of all penetrations and valleys",
+                "5-year Wickham Roofing workmanship warranty",
+                "Haul-away and job site cleanup",
+            ]
+            for item in included:
+                story.append(Paragraph(
+                    f"✓  {item}",
+                    self.custom_styles["BodyText"]
+                ))
+            story.append(Spacer(1, 16))
+
+            # Quote validity disclaimer
+            story.append(self._box_warning(
+                "Quote Validity",
+                f"This quote is valid for 30 days from "
+                f"{_dt.date.today().isoformat()}. "
+                f"Prices subject to material cost changes. "
+                f"Does not include permit fees or code-required "
+                f"decking replacement.",
+                colors.darkgrey
+            ))
+            story.append(Spacer(1, 24))
+
+            # Acceptance signature
+            story.append(Paragraph(
+                "To Accept This Quote:",
+                self.custom_styles["SectionHeading"]
+            ))
+            story.append(Paragraph(
+                "Circle your selected option (A / B / C) "
+                "and sign below.",
+                self.custom_styles["BodyText"]
+            ))
+            story.append(self._build_signature_block(
+                title1="Homeowner Signature & Option Selection",
+                title2="Date"
+            ))
+
+            doc.build(story)
+
+        await asyncio.to_thread(build_pdf)
+        return filepath

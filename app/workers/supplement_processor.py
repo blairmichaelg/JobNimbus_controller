@@ -136,6 +136,12 @@ async def process_supplement_event(
 
     # 0. Fetch Job Context (Threaded)
     job_dict = await asyncio.to_thread(_fetch_job_context_sync, job_id)
+    
+    job_type = job_dict.get("job_type", "INSURANCE")
+    if job_type == "RETAIL":
+        logger.warning("supplement_skipped_retail_job",
+                       job_id=job_id)
+        return {"status": "skipped", "reason": "retail_job"}
 
     from pathlib import Path
     SUPPLEMENT_VAULT = Path("data/field_docs")

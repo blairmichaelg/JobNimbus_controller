@@ -66,7 +66,7 @@ class FlagResolutionPayload(BaseModel):
     quantity_delta: float = Field(..., description="The corrected, manually determined quantity")
     resolution_note: str = Field(..., description="Audit note explaining the manual override")
 
-def _sync_create_new_job(job_id: str, payload: LeadIntakePayload, ice_barrier: bool | None):
+def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, ice_barrier: bool | None):
     conn = get_connection()
     try:
         initial_history = [{
@@ -77,12 +77,12 @@ def _sync_create_new_job(job_id: str, payload: LeadIntakePayload, ice_barrier: b
         
         conn.execute('''
             INSERT INTO jobs (
-                id, homeowner_name, address_line1, city, state, postal_code, 
+                id, invoice_id, homeowner_name, address_line1, city, state, postal_code, 
                 phone, email, claim_number, insurer_name, status, status_history, job_type,
                 ice_barrier_required, jurisdiction_code_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            job_id, payload.homeowner_name, payload.address_line1, payload.city,
+            job_id, inv_id, payload.homeowner_name, payload.address_line1, payload.city,
             payload.state, payload.postal_code, payload.phone, payload.email,
             payload.claim_number, payload.insurer_name, "LEAD_CAPTURED",
             json.dumps(initial_history), payload.job_type,
@@ -100,8 +100,10 @@ def _sync_create_new_job(job_id: str, payload: LeadIntakePayload, ice_barrier: b
     finally:
         conn.close()
 
+from fastapi import Request
+
 @router.post("/jobs")
-async def create_new_job(payload: LeadIntakePayload):
+async def create_new_job(payload: LeadIntakePayload, request: Request):
     """
     Intake hook for new leads. Replaces JobNimbus lead creation.
     Generates UUID, creates directories, and initializes local SQLite record.
@@ -111,9 +113,13 @@ async def create_new_job(payload: LeadIntakePayload):
     # Determine climate requirements
     ice_barrier = is_ice_barrier_required(payload.state)
     
+    # Generate invoice ID
+    from app.core.database import generate_invoice_id
+    inv_id = generate_invoice_id()
+    
     # Insert into database using background thread
     try:
-        await asyncio.to_thread(_sync_create_new_job, job_id, payload, ice_barrier)
+        await asyncio.to_thread(_sync_create_new_job, job_id, inv_id, payload, ice_barrier)
         
         await notifier.broadcast({
             "type": "new_lead",
@@ -135,7 +141,14 @@ async def create_new_job(payload: LeadIntakePayload):
     (FIELD_PHOTOS_DIR / job_id).mkdir(parents=True, exist_ok=True)
     (FIELD_DOCS_DIR / job_id).mkdir(parents=True, exist_ok=True)
     
-    logger.info("new_lead_captured", job_id=job_id, homeowner=payload.homeowner_name)
+    # Fork retail jobs to retail quote worker
+    job_type = payload.job_type
+    if job_type == "RETAIL":
+        await request.app.state.redis_pool.enqueue_job(
+            "process_retail_quote", job_id=job_id
+        )
+
+    logger.info("new_lead_captured", job_id=job_id, invoice_id=inv_id, homeowner=payload.homeowner_name)
     return {"status": "success", "job_id": job_id}
 
 

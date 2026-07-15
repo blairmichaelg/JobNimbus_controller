@@ -107,6 +107,8 @@ class WorkerSettings:
     functions = [
         "app.workers.supplement_processor.process_supplement_event",
         "app.workers.inspection_processor.process_inspection",
+        "app.workers.rebuttal_processor.process_rebuttal",
+        "app.workers.retail_quote_processor.process_retail_quote",
     ]
 
     # Redis connection

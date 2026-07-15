@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Job - {{ job.id[:8] }}</title>
+    <title>Manage Job - {{ job.invoice_id or job.id[:8] }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden relative">
@@ -26,7 +26,7 @@
         <div class="p-8 space-y-6">
             <div class="flex justify-between items-center">
                 <div class="flex items-center space-x-4">
-                    <h1 class="text-3xl font-bold text-white">Job Overview</h1>
+                    <h1 class="text-3xl font-bold text-white">Job <span class="font-mono font-bold text-yellow-400">{{ job.invoice_id or job.id[:8] }}</span></h1>
                     {% if job.ice_barrier_required is none %}
                     <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-yellow-900 text-yellow-200 border border-yellow-700">
                         Climate Zone Review Needed
@@ -178,6 +178,114 @@
                         }
                         </script>
                     </div>
+                    {% endif %}
+
+                    {% if job.status == 'AWAITING_CARRIER_RESPONSE' %}
+                    <div class="mt-4 p-4 bg-gray-800 border border-gray-700
+                                rounded-lg space-y-4">
+                        <h3 class="text-white font-bold">Carrier Decision</h3>
+
+                        <button onclick="approveSupp('{{ job.id }}')"
+                                class="w-full bg-green-700 hover:bg-green-600
+                                       text-white font-bold py-3 rounded-lg
+                                       transition-colors">
+                            ✓ Mark Supplement Approved
+                        </button>
+
+                        <div class="border-t border-gray-700 pt-4">
+                            <label class="block text-sm text-gray-400 mb-2">
+                                Carrier Denial Text (paste from email)
+                            </label>
+                            <textarea id="denialText"
+                                      rows="4"
+                                      placeholder="Paste the adjuster's denial reason here..."
+                                      class="w-full bg-gray-700 text-white rounded-lg
+                                             p-3 border border-gray-600
+                                             focus:border-red-500 focus:outline-none
+                                             text-sm"></textarea>
+                            <button onclick="denySupp('{{ job.id }}')"
+                                    class="mt-2 w-full bg-red-800 hover:bg-red-700
+                                           text-white font-bold py-3 rounded-lg
+                                           transition-colors">
+                                ✗ Mark Denied — Generate AI Rebuttal
+                            </button>
+                        </div>
+                    </div>
+
+                    <script>
+                    async function approveSupp(jobId) {
+                        if (!confirm('Mark supplement as APPROVED? '
+                                     + 'This will alert Scott and Debi.'))
+                            return;
+                        const r = await fetch(
+                            `/api/office/jobs/${jobId}/approve-supplement`,
+                            {method: 'POST',
+                             headers: {'Content-Type': 'application/json'},
+                             body: JSON.stringify({})}
+                        );
+                        if (r.ok) window.location.reload();
+                        else alert('Error: ' + await r.text());
+                    }
+
+                    async function denySupp(jobId) {
+                        const text = document.getElementById('denialText').value
+                                             .trim();
+                        if (!text) {
+                            alert('Please paste the carrier denial text first.');
+                            return;
+                        }
+                        const r = await fetch(
+                            `/api/office/jobs/${jobId}/deny-supplement`,
+                            {method: 'POST',
+                             headers: {'Content-Type': 'application/json'},
+                             body: JSON.stringify({denial_text: text})}
+                        );
+                        if (r.ok) {
+                            alert('Denied. AI Rebuttal is being generated — '
+                                  + 'check back in 60 seconds.');
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + await r.text());
+                        }
+                    }
+                    </script>
+                    {% endif %}
+
+                    {% if job.status == 'SUPPLEMENT_SUBMITTED' %}
+                    <div class="mt-6 p-4 bg-purple-950 border border-purple-700
+                                rounded-lg">
+                        <h3 class="text-purple-300 font-bold mb-2">
+                            AI Rebuttal Ready for Review
+                        </h3>
+                        <p class="text-gray-400 text-sm mb-4">
+                            Download, review, and send from your email client.
+                            Then click below to restart the carrier timer.
+                        </p>
+                        <div class="flex gap-3">
+                            <a href="/api/office/jobs/{{ job.id }}/docs/rebuttal"
+                               class="flex-1 bg-purple-700 hover:bg-purple-600
+                                      text-white font-bold py-3 rounded-lg
+                                      text-center transition-colors">
+                                ⬇ Download Rebuttal Letter
+                            </a>
+                            <button onclick="resubmitSupp('{{ job.id }}')"
+                                    class="flex-1 bg-yellow-700 hover:bg-yellow-600
+                                           text-white font-bold py-3 rounded-lg
+                                           transition-colors">
+                                ✓ Mark Rebuttal Sent → Restart Timer
+                            </button>
+                        </div>
+                    </div>
+                    <script>
+                    async function resubmitSupp(jobId) {
+                        const r = await fetch(
+                            `/api/office/jobs/${jobId}/mark-supplement-sent`,
+                            {method: 'POST'}
+                        );
+                        if (r.ok) window.location.reload();
+                        else alert('Error: ' + await r.text());
+                    }
+                    </script>
                     {% endif %}
 
                     {% if job.status == 'AWAITING_CARRIER_RESPONSE' %}

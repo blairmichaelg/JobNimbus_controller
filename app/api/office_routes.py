@@ -814,7 +814,8 @@ async def export_qbo_csv(token=Depends(verify_accounting)):
             "ItemQuantity":          1,
             "ItemRate":              job["carrier_rcv"],
             "ItemAmount":            job["carrier_rcv"],
-            "Memo":                  f"Job {job['job_id'][:8]} | "
+            "Memo":                  f"Invoice {job.get('invoice_id','N/A')} | "
+                                     f"Job {job['job_id'][:8]} | "
                                      f"Claim {job.get('claim_number','N/A')}"
         }
         writer.writerow(qbo_row)
@@ -890,9 +891,7 @@ async def admin_triage_resolve(job_id: str, payload: dict = Body(...)):
         conn.close()
 
     # Re-enqueue the ARQ worker for this job (resume=True)
-    from app.core.arq_pool import get_arq_pool
-    pool = await get_arq_pool()
-    await pool.enqueue_job(
+    await request.app.state.redis_pool.enqueue_job(
         "process_supplement_event",
         job_id=job_id,
         resume=True
@@ -917,3 +916,78 @@ async def toggle_payment(job_id: str, payload: dict = Body(...)):
     from app.core.database import toggle_payment_flag
     return toggle_payment_flag(job_id, flag)
 
+@router.post(
+    "/jobs/{job_id}/approve-supplement",
+    response_class=JSONResponse
+)
+async def approve_supplement(
+    job_id: str, payload: dict = Body(default={})
+):
+    """
+    Operator gate: transitions AWAITING_CARRIER_RESPONSE
+    → SUPPLEMENT_APPROVED.
+    Triggers a WebSocket broadcast to alert Scott and Debi.
+    """
+    note = payload.get("note", "Approved by operator.")
+    from app.core.database import update_job_status
+    update_job_status(
+        job_id, "SUPPLEMENT_APPROVED", note
+    )
+    # Broadcast over existing office WebSocket
+    from app.core.notifications import notifier
+    await notifier.broadcast({"type": "supplement_approved",
+                              "job_id": job_id})
+    return {"status": "approved", "job_id": job_id}
+
+@router.post(
+    "/jobs/{job_id}/deny-supplement",
+    response_class=JSONResponse
+)
+async def deny_supplement(request: Request, job_id: str,
+                           payload: dict = Body(...)):
+    """
+    Operator gate: transitions AWAITING_CARRIER_RESPONSE
+    → SUPPLEMENT_DENIED.
+    Stores denial text and enqueues the rebuttal ARQ worker.
+    """
+    denial_text = payload.get("denial_text")
+    denial_pdf_doc_id = payload.get("denial_pdf_doc_id")
+    if not denial_text and not denial_pdf_doc_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Must provide denial_text or denial_pdf_doc_id."
+        )
+    note = f"Denied. Reason: {(denial_text or '')[:200]}"
+    from app.core.database import update_job_status
+    update_job_status(
+        job_id, "SUPPLEMENT_DENIED", note
+    )
+    # Enqueue rebuttal worker
+    await request.app.state.redis_pool.enqueue_job(
+        "process_rebuttal",
+        job_id=job_id,
+        denial_text=denial_text,
+        denial_pdf_doc_id=denial_pdf_doc_id
+    )
+    return {"status": "denied_rebuttal_queued",
+            "job_id": job_id}
+
+@router.get(
+    "/jobs/{job_id}/docs/rebuttal",
+    response_class=FileResponse
+)
+async def download_rebuttal(job_id: str):
+    from app.core.database import get_job_documents
+    from fastapi.responses import FileResponse
+    docs = get_job_documents(job_id,
+                             file_type="REBUTTAL_PDF")
+    if not docs:
+        raise HTTPException(404, "No rebuttal PDF found.")
+    path = docs[0]["storage_path"]
+    if not Path(path).exists():
+        raise HTTPException(404, "Rebuttal PDF file missing.")
+    return FileResponse(
+        path,
+        filename=f"Rebuttal_{job_id[:8]}.pdf",
+        media_type="application/pdf"
+    )

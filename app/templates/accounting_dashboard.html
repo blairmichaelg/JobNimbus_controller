@@ -70,7 +70,7 @@
                     const suppText = row.supplement_received ? '✓ Received' : 'Pending';
                     tbody.innerHTML += `
                         <tr class="hover:bg-gray-800 transition-colors">
-                            <td class="py-4 px-4 text-gray-300 font-mono">${row.job_id.substring(0,8)}</td>
+                            <td class="py-4 px-4 text-gray-300 font-mono"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></td>
                             <td class="py-4 px-4 text-white font-bold">${row.name}</td>
                             <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
                             <td class="px-4 py-3">
