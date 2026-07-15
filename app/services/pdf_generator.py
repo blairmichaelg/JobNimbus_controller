@@ -1301,3 +1301,139 @@ class PDFGenerator:
 
         await asyncio.to_thread(build_pdf)
         return filepath
+
+    async def generate_commission_statement(
+        self,
+        job: dict,
+        commission_data: dict
+    ) -> str:
+        job_id   = job.get("id", "UNKNOWN")
+        job_dir  = FIELD_DOCS_DIR / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(
+            job_dir / "Commission_Statement.pdf"
+        )
+
+        def build_pdf():
+            doc   = self._get_doc_template(
+                filepath, job_id=job_id
+            )
+            story = []
+
+            story.append(Paragraph(
+                "INDEPENDENT CONTRACTOR "
+                "COMMISSION STATEMENT",
+                self.custom_styles["Title"]
+            ))
+            story.append(Spacer(1, 8))
+            story.append(
+                self._build_metadata_table(job)
+            )
+            story.append(Spacer(1, 16))
+
+            story.append(Paragraph(
+                f"<b>Canvasser:</b> "
+                f"{commission_data['canvasser_name']}",
+                self.custom_styles["BodyText"]
+            ))
+            story.append(Spacer(1, 10))
+
+            rows = [
+                ["Line Item", "Amount"],
+                ["Total Contract Revenue",
+                 f"${commission_data['revenue']:,.2f}"],
+                ["Less: Material Cost",
+                 f"(${commission_data['material_cost']:,.2f})"],
+                ["Less: Labor Cost",
+                 f"(${commission_data['labor_cost']:,.2f})"],
+                ["Less: Overhead",
+                 f"(${commission_data['overhead_amount']:,.2f})"],
+                ["Gross Profit",
+                 f"${commission_data['gross_profit']:,.2f}"],
+                [f"Commission Rate",
+                 f"{commission_data['commission_pct']*100:.1f}%"],
+                ["COMMISSION EARNED",
+                 f"${commission_data['commission_amount']:,.2f}"],
+            ]
+            t = Table(rows, colWidths=[300, 150])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0),
+                 colors.darkblue),
+                ('TEXTCOLOR', (0,0), (-1,0),
+                 colors.white),
+                ('FONTNAME', (0,0), (-1,0),
+                 'Helvetica-Bold'),
+                ('BACKGROUND', (0,-1), (-1,-1),
+                 colors.darkgreen),
+                ('TEXTCOLOR', (0,-1), (-1,-1),
+                 colors.white),
+                ('FONTNAME', (0,-1), (-1,-1),
+                 'Helvetica-Bold'),
+                ('FONTSIZE', (0,-1), (-1,-1), 12),
+                ('GRID', (0,0), (-1,-1), 0.5,
+                 colors.black),
+                ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+                ('ROWBACKGROUNDS', (0,1), (-1,-2),
+                 [colors.white, colors.lightgrey]),
+                ('PADDING', (0,0), (-1,-1), 8),
+            ]))
+            story.append(t)
+            story.append(Spacer(1, 24))
+
+            story.append(
+                self._build_signature_block(
+                    title1=(
+                        "Authorized Signature — "
+                        "Wickham Roofing"
+                    ),
+                    title2="Date"
+                )
+            )
+            story.append(Spacer(1, 12))
+            story.append(
+                self._build_signature_block(
+                    title1=(
+                        "Contractor Signature — "
+                        f"{commission_data['canvasser_name']}"
+                    ),
+                    title2="Date Received"
+                )
+            )
+            doc.build(story)
+
+        await asyncio.to_thread(build_pdf)
+        return filepath
+
+    async def generate_escalation_letter(self, job: dict, letter_body: str) -> str:
+        job_id = job.get("id", "UNKNOWN")
+        job_dir = FIELD_DOCS_DIR / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "Escalation_Demand.pdf")
+
+        def build_pdf():
+            doc = self._get_doc_template(filepath, job_id=job_id)
+            story = []
+
+            story.append(Paragraph("FORMAL DEMAND FOR CLAIM STATUS UPDATE", self.custom_styles["Title"]))
+            story.append(Spacer(1, 8))
+            story.append(self._build_metadata_table(job))
+            story.append(Spacer(1, 16))
+            
+            story.append(Paragraph("VIA ELECTRONIC SUBMISSION", self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 12))
+
+            for paragraph in letter_body.split('\n\n'):
+                if paragraph.strip():
+                    story.append(Paragraph(paragraph.strip(), self.custom_styles["BodyText"]))
+                    story.append(Spacer(1, 10))
+
+            story.append(Spacer(1, 24))
+            story.append(self._build_signature_block(
+                title1="Authorized Representative — Wickham Roofing",
+                title2="Date"
+            ))
+
+            doc.build(story)
+
+        await asyncio.to_thread(build_pdf)
+        return filepath

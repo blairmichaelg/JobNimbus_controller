@@ -25,6 +25,7 @@ from app.api.webhooks import router as webhook_router
 from app.api.field_routes import router as field_router
 from app.api.office_routes import router as office_router, _fetch_job_sync
 from app.api.operations_routes import router as operations_router
+from app.api.auth_routes import router as auth_router
 from app.api.auth import verify_admin, verify_accounting, verify_operations
 from app.config import get_settings
 from app.core.notifications import notifier
@@ -171,11 +172,25 @@ os.makedirs("app/templates", exist_ok=True)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+def days_since(date_str: str) -> int:
+    if not date_str:
+        return 0
+    from datetime import datetime
+    try:
+        # Expected format: 2026-07-15 14:00:00 (SQLite CURRENT_TIMESTAMP)
+        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+        return (datetime.utcnow() - dt).days
+    except Exception:
+        return 0
+
+templates.env.filters["days_since"] = days_since
+
 # --- Mount Routers ---
 app.include_router(webhook_router)
 app.include_router(field_router)
 app.include_router(office_router)
 app.include_router(operations_router)
+app.include_router(auth_router)
 
 @app.websocket("/ws/office")
 async def office_ws(websocket: WebSocket):

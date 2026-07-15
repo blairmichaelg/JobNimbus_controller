@@ -12,6 +12,18 @@ from app.core.database import (
 
 client = TestClient(app)
 
+response = client.post("/auth/login", data={"pin": "9999", "redirect_url": "/"}, follow_redirects=False)
+office_token = response.cookies.get("auth_token")
+client.cookies.set("auth_token", office_token)
+
+response = client.post("/auth/login", data={"pin": "2222", "redirect_url": "/"}, follow_redirects=False)
+ops_token = response.cookies.get("auth_token")
+
+response = client.post("/auth/login", data={"pin": "3333", "redirect_url": "/"}, follow_redirects=False)
+field_token = response.cookies.get("auth_token")
+
+# Default client cookie to office_token for office routes
+client.cookies.set("auth_token", office_token)
 @pytest.fixture(autouse=True)
 def setup_teardown_db():
     conn = get_connection()
@@ -79,7 +91,7 @@ def test_approve_supplement_route():
     conn.commit()
     conn.close()
 
-    response = client.post(f"/api/office/jobs/{job_id}/approve-supplement", json={"note": "Looks good"}, headers={"X-Internal-Token": "office-secret-token"})
+    response = client.post(f"/api/office/jobs/{job_id}/approve-supplement", json={"note": "Looks good"})
     assert response.status_code == 200
     assert response.json()["status"] == "approved"
 
@@ -91,7 +103,7 @@ def test_approve_supplement_route():
 def test_deny_supplement_route_missing_payload():
     """Test API endpoint for supplement denial without text fails."""
     job_id = str(uuid4())
-    response = client.post(f"/api/office/jobs/{job_id}/deny-supplement", json={}, headers={"X-Internal-Token": "office-secret-token"})
+    response = client.post(f"/api/office/jobs/{job_id}/deny-supplement", json={})
     assert response.status_code == 400
     assert "Must provide denial_text" in response.text
 
@@ -113,7 +125,7 @@ def test_deny_supplement_route_success():
     mock_pool = MockPool()
     app.state.redis_pool = mock_pool
 
-    response = client.post(f"/api/office/jobs/{job_id}/deny-supplement", json={"denial_text": "Not covered"}, headers={"X-Internal-Token": "office-secret-token"})
+    response = client.post(f"/api/office/jobs/{job_id}/deny-supplement", json={"denial_text": "Not covered"})
     assert response.status_code == 200
     assert response.json()["status"] == "denied_rebuttal_queued"
 
@@ -136,7 +148,7 @@ def test_operations_schedule_route():
     response = client.post(
         f"/api/operations/jobs/{job_id}/schedule",
         json={"crew_name": "Alpha", "install_date": "2026-08-01"},
-        headers={"X-Internal-Token": "ops-terminal-xyz987"}
+        cookies={"auth_token": ops_token}
     )
     assert response.status_code == 200
 
@@ -168,6 +180,6 @@ def test_field_routes_retail_job_enqueue():
         "job_type": "RETAIL"
     }
 
-    response = client.post("/api/field/jobs", json=payload, headers={"X-Internal-Token": "field-secret-token"})
+    response = client.post("/api/field/jobs", json=payload, cookies={"auth_token": field_token})
     assert response.status_code == 200
     assert mock_pool.enqueued == "process_retail_quote"

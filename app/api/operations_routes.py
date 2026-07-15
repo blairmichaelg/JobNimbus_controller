@@ -20,24 +20,17 @@ from app.core.database import (
 )
 from app.config import get_settings
 
+from app.api.auth import verify_operations
+
 logger = structlog.get_logger("app.api.operations_routes")
 router = APIRouter(prefix="/api/operations", tags=["operations"])
-
-
-def _verify_ops_token(x_internal_token: str = Header(...)):
-    """Dependency: verify the caller holds the ops-role token."""
-    settings = get_settings()
-    if x_internal_token != settings.INTERNAL_API_TOKEN:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return x_internal_token
-
 
 class MaterialFlagUpdate(BaseModel):
     materials_ordered: Optional[bool] = None
     materials_on_site: Optional[bool] = None
 
 
-@router.patch("/job/{job_id}/materials", dependencies=[Depends(_verify_ops_token)])
+@router.patch("/job/{job_id}/materials", dependencies=[Depends(verify_operations)])
 async def patch_material_flags(job_id: str, body: MaterialFlagUpdate):
     """
     The ONLY write endpoint Scott can reach. Toggles material
@@ -129,7 +122,8 @@ async def operations_board(request: Request):
 
 @router.post(
     "/jobs/{job_id}/schedule",
-    response_class=JSONResponse
+    response_class=JSONResponse,
+    dependencies=[Depends(verify_operations)]
 )
 async def assign_crew(
     job_id: str, payload: dict = Body(...)

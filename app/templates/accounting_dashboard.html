@@ -31,7 +31,7 @@
                 </div>
             </div>
             
-            <div class="flex-1 overflow-auto">
+            <div class="flex-1 overflow-auto mb-8">
                 <table class="w-full text-left uppercase text-sm">
                     <thead class="sticky top-0 bg-gray-900 shadow">
                         <tr class="text-gray-500 border-b border-gray-800">
@@ -43,6 +43,26 @@
                         </tr>
                     </thead>
                     <tbody id="acct-table" class="divide-y divide-gray-800">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="border-b border-gray-800 pb-2 mb-4">
+                <h2 class="text-xl font-bold text-green-400 uppercase tracking-widest">Commissions Ready to Pay</h2>
+            </div>
+            <div class="flex-1 overflow-auto">
+                <table class="w-full text-left uppercase text-sm">
+                    <thead class="sticky top-0 bg-gray-900 shadow">
+                        <tr class="text-gray-500 border-b border-gray-800">
+                            <th class="py-3 px-4">Job ID</th>
+                            <th class="py-3 px-4">Homeowner</th>
+                            <th class="py-3 px-4">Canvasser</th>
+                            <th class="py-3 px-4">Generated At</th>
+                            <th class="py-3 px-4 text-right">Statement</th>
+                        </tr>
+                    </thead>
+                    <tbody id="commissions-table" class="divide-y divide-gray-800">
                         <!-- Populated via JS -->
                     </tbody>
                 </table>
@@ -90,6 +110,29 @@
                         </tr>
                     `;
                 });
+
+                const cres = await fetch('/api/office/accounting/commissions-ready', { headers: { 'X-Internal-Token': AUTH_TOKEN } });
+                if (cres.ok) {
+                    const cdata = await cres.json();
+                    const ctbody = document.getElementById('commissions-table');
+                    ctbody.innerHTML = '';
+                    cdata.forEach(row => {
+                        ctbody.innerHTML += `
+                            <tr class="hover:bg-gray-800 transition-colors">
+                                <td class="py-4 px-4 text-gray-300 font-mono"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></td>
+                                <td class="py-4 px-4 text-white font-bold">${row.homeowner_name}</td>
+                                <td class="py-4 px-4 text-white">${row.canvasser_name || 'N/A'}</td>
+                                <td class="py-4 px-4 text-gray-400">${new Date(row.commission_generated_at + 'Z').toLocaleString()}</td>
+                                <td class="py-4 px-4 text-right">
+                                    <a href="/api/office/jobs/${row.job_id}/docs/commission" target="_blank"
+                                       class="bg-blue-600 hover:bg-blue-500 text-white py-2 px-4 rounded text-xs font-bold transition-colors">
+                                       Download PDF
+                                    </a>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
             } catch(e) { console.error(e); }
         }
 

@@ -32,12 +32,6 @@ async def get_current_role(
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # Backward compatibility for old tests hitting office endpoints
-    if token == "office-secret-token":
-        return "admin"
-    if token == "field-secret-token":
-        return "field"
-        
     return decode_token(token)
 
 async def verify_admin(role: str = Depends(get_current_role)):

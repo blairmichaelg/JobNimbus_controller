@@ -11,7 +11,9 @@ from app.core.cache import set_cached_analysis, init_db
 from app.core.inspection_models import PhotoAnalysis, DamageType, Severity
 
 client = TestClient(app)
-client.headers.update({"X-Internal-Token": "field-secret-token"})
+response = client.post("/auth/login", data={"pin": "3333", "redirect_url": "/"}, follow_redirects=False)
+auth_cookie = response.cookies.get("auth_token")
+client.cookies.set("auth_token", auth_cookie)
 
 @pytest.fixture(autouse=True)
 def setup_dirs(tmp_path, monkeypatch):
@@ -39,7 +41,7 @@ def setup_dirs(tmp_path, monkeypatch):
 
 def test_field_routes_deny_unauthorized_token():
     """Should return 401 Unauthorized if using an invalid token."""
-    response = client.get("/api/field/jobs/TEST-123/inspection", headers={"X-Internal-Token": "invalid-token"})
+    response = client.get("/api/field/jobs/TEST-123/inspection", cookies={"auth_token": "invalid-token"})
     assert response.status_code == 401
 
 def test_create_new_job_lead_intake():

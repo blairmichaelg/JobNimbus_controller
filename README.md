@@ -108,6 +108,15 @@ python -m pytest tests/test_supplement_engine.py -v
 python -m pytest tests/test_climate_gate.py -v
 ```
 
+## Zero-Code Cloud Backup via Google Drive for Desktop
+
+To ensure data resilience without relying on third-party SaaS pipelines or AWS S3 (`boto3`), the V4 Truck Server utilizes a "Zero-Code" backup strategy using Google Drive for Desktop.
+
+1. **Install Google Drive for Desktop** on the Windows machine hosting the Truck Server.
+2. **Configure Folder Sync**: Open Drive settings and select the `JobNimbus_controller/data/backups` directory to sync automatically with Google Drive.
+3. **Automated SQLite Exports**: The system's cron job natively executes `VACUUM INTO` to safely dump WAL-mode snapshots into the `data/backups` folder.
+4. **Hands-Free Reliability**: Google Drive for Desktop seamlessly uploads these new snapshots to the cloud in the background, providing off-site retention and disaster recovery without any custom cloud SDKs in the codebase.
+
 ## License
 
 Proprietary — Wickham Roofing LLC. All rights reserved.

@@ -109,6 +109,8 @@ class WorkerSettings:
         "app.workers.inspection_processor.process_inspection",
         "app.workers.rebuttal_processor.process_rebuttal",
         "app.workers.retail_quote_processor.process_retail_quote",
+        "app.workers.commission_processor.process_commission",
+        "app.workers.escalation_processor.process_escalation",
     ]
 
     # Redis connection

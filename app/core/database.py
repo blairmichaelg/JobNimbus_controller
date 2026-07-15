@@ -31,7 +31,6 @@ class JobStatus(str, Enum):
     EV_PARSED = "EV_PARSED"
     STATEMENT_OF_LOSS_RECEIVED = "STATEMENT_OF_LOSS_RECEIVED"
     PENDING_OPERATOR_REVIEW = "PENDING_OPERATOR_REVIEW"
-    PENDING_MANUAL_REVIEW = "PENDING_MANUAL_REVIEW"
     PIPELINE_FAILED = "PIPELINE_FAILED"
     INSPECTION_FAILED = "INSPECTION_FAILED"
 
@@ -171,7 +170,12 @@ def init_db() -> None:
             "ev_valley_lf REAL",
             "ev_eaves_lf REAL",
             "ev_rakes_lf REAL",
-            "invoice_id TEXT"
+            "invoice_id TEXT",
+            "commission_ready INTEGER DEFAULT 0",
+            "commission_pdf_path TEXT",
+            "commission_generated_at TIMESTAMP",
+            "escalation_sent_at TIMESTAMP",
+            "carrier_sla_days INTEGER DEFAULT 14"
         ]:
             try:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
@@ -384,6 +388,16 @@ def init_db() -> None:
         # TEXT values. Existing rows are unaffected. No ALTER TABLE required.
         # The is_operator_gate() classmethod enforces the two-track boundary
         # at the application layer, not the DB layer.
+
+        # V3 MIGRATION: PENDING_MANUAL_REVIEW retired Phase 7.
+        # Transition orphaned rows to PENDING_OPERATOR_REVIEW.
+        conn.execute("""
+            UPDATE jobs
+            SET status = 'PENDING_OPERATOR_REVIEW',
+                pipeline_error_message =
+                    'Migrated from PENDING_MANUAL_REVIEW (Phase 7)'
+            WHERE status = 'PENDING_MANUAL_REVIEW'
+        """)
         
         conn.execute('''
             CREATE TABLE IF NOT EXISTS job_tasks (
@@ -1133,8 +1147,21 @@ def toggle_payment_flag(job_id: str, flag: str) -> dict:
             (new_val, job_id)
         )
         conn.commit()
-        return {"flag": flag, "new_value": new_val,
-                "job_id": job_id}
+        row2 = conn.execute(
+            "SELECT acv_received, supplement_received "
+            "FROM jobs WHERE id = ?", (job_id,)
+        ).fetchone()
+        both_received = bool(
+            row2
+            and row2["acv_received"] == 1
+            and row2["supplement_received"] == 1
+        )
+        return {
+            "flag": flag,
+            "new_value": new_val,
+            "job_id": job_id,
+            "commission_triggered": both_received
+        }
     finally:
         conn.close()
 
@@ -1166,5 +1193,24 @@ def generate_invoice_id() -> str:
         conn.execute("ROLLBACK")
         logger.error("invoice_id_generation_failed", error=str(e))
         raise
+    finally:
+        conn.close()
+
+def get_aging_jobs() -> list[dict]:
+    """
+    Fetch jobs in AWAITING_CARRIER_RESPONSE status
+    where days since supplement_sent_at > carrier_sla_days.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.execute("""
+            SELECT id as job_id, invoice_id, homeowner_name,
+                   supplement_sent_at, carrier_sla_days, escalation_sent_at
+            FROM jobs
+            WHERE status = 'AWAITING_CARRIER_RESPONSE'
+              AND supplement_sent_at IS NOT NULL
+        """)
+        rows = [dict(r) for r in cursor.fetchall()]
+        return rows
     finally:
         conn.close()

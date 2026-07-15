@@ -15,9 +15,9 @@ def mock_background_tasks(monkeypatch):
     monkeypatch.setattr("app.api.office_routes.BackgroundTasks.add_task", MagicMock())
 
 @pytest.fixture
-def auth_headers():
-    settings = get_settings()
-    return {"x-internal-token": settings.INTERNAL_API_TOKEN}
+def set_auth():
+    response = client.post("/auth/login", data={"pin": "2222", "redirect_url": "/"}, follow_redirects=False)
+    client.cookies.set("auth_token", response.cookies.get("auth_token"))
 
 @pytest.fixture
 def db_conn():
@@ -49,20 +49,18 @@ def setup_test_financials(conn: sqlite3.Connection, job_id: str, qbo_exported: i
     )
     conn.execute("COMMIT")
 
-def test_material_flag_patch_requires_valid_uuid(auth_headers):
+def test_material_flag_patch_requires_valid_uuid(set_auth):
     response = client.patch(
         "/api/operations/job/not-a-uuid/materials",
-        headers=auth_headers,
         json={"materials_ordered": True}
     )
     assert response.status_code == 400
     assert "Invalid job_id format" in response.json()["detail"]
 
-def test_material_flag_patch_missing_both_flags(auth_headers):
+def test_material_flag_patch_missing_both_flags(set_auth):
     job_id = str(uuid.uuid4())
     response = client.patch(
         f"/api/operations/job/{job_id}/materials",
-        headers=auth_headers,
         json={}
     )
     assert response.status_code == 422

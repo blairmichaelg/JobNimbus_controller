@@ -11,6 +11,9 @@ from app.core.database import get_connection, atomic_qbo_export, JobStatus
 from app.workers.supplement_processor import process_supplement_event
 
 client = TestClient(app)
+response = client.post("/auth/login", data={"pin": "9999", "redirect_url": "/"}, follow_redirects=False)
+auth_cookie = response.cookies.get("auth_token")
+client.cookies.set("auth_token", auth_cookie)
 
 @pytest.fixture
 def db_conn():
@@ -89,9 +92,7 @@ def test_accounting_brief_rcv_is_live_not_mock(db_conn):
     job_id = setup_test_job(db_conn, "SUPPLEMENT_GENERATED")
     setup_test_financials(db_conn, job_id, carrier_rcv=5000.0)
 
-    from app.config import get_settings
-    settings = get_settings()
-    response = client.get("/api/office/accounting/brief", headers={"x-internal-token": settings.INTERNAL_API_TOKEN})
+    response = client.get("/api/office/accounting/brief")
     assert response.status_code == 200
     data = response.json()
     assert data["supplemented_rcv_added"] == "$5,000.00"
@@ -122,12 +123,7 @@ async def test_atomic_qbo_export_prevents_double_export(db_conn):
         assert row["qbo_exported"] == 1
 
 def test_download_export_path_traversal_blocked():
-    from app.config import get_settings
-    settings = get_settings()
-    response = client.get(
-        "/api/office/download/.env",
-        headers={"x-internal-token": settings.INTERNAL_API_TOKEN}
-    )
+    response = client.get("/api/office/download/.env")
     assert response.status_code == 400
 
 @pytest.mark.asyncio

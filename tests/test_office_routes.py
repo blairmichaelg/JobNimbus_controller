@@ -8,7 +8,11 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
-client.headers.update({"X-Internal-Token": "office-secret-token"})
+# Do not update headers directly, let the tests acquire cookies or we'll inject a cookie.
+# For simplicity in TestClient without stateful cookies, we can just login.
+response = client.post("/auth/login", data={"pin": "9999", "redirect_url": "/"}, follow_redirects=False)
+auth_cookie = response.cookies.get("auth_token")
+client.cookies.set("auth_token", auth_cookie)
 
 
 class TestOfficeJobsRoute:
@@ -16,7 +20,10 @@ class TestOfficeJobsRoute:
 
     def test_office_routes_deny_field_token(self):
         """Should return 403 Forbidden if using a field token."""
-        response = client.get("/api/office/jobs", headers={"X-Internal-Token": "field-secret-token"})
+        response = client.get("/api/office/jobs", headers={"x-internal-token": "1111"}) # This should fail or use cookie, wait, no. Let's just create a field token.
+        from app.api.auth import create_access_token
+        field_token = create_access_token("field")
+        response = client.get("/api/office/jobs", cookies={"auth_token": field_token})
         assert response.status_code == 403
 
     @patch("app.api.office_routes.get_connection")

@@ -736,7 +736,7 @@ def get_accounting_brief():
         supplemented_rcv = f"${rcv_row['total_rcv']:,.2f}"
         
         cursor = conn.execute("""
-            SELECT j.id, j.homeowner_name, j.status,
+            SELECT j.id, j.invoice_id, j.homeowner_name, j.status,
                    j.acv_received, j.acv_received_at,
                    j.supplement_received, j.supplement_received_at
             FROM jobs j
@@ -750,7 +750,7 @@ def get_accounting_brief():
         
         qbo_ready = len(rows)
         acct_rows = [{
-            "job_id": r["id"], "name": r["homeowner_name"], "status": r["status"],
+            "job_id": r["id"], "invoice_id": r["invoice_id"], "name": r["homeowner_name"], "status": r["status"],
             "acv_received": r["acv_received"],
             "acv_received_at": r["acv_received_at"],
             "supplement_received": r["supplement_received"],
@@ -815,7 +815,6 @@ async def export_qbo_csv(token=Depends(verify_accounting)):
             "ItemRate":              job["carrier_rcv"],
             "ItemAmount":            job["carrier_rcv"],
             "Memo":                  f"Invoice {job.get('invoice_id','N/A')} | "
-                                     f"Job {job['job_id'][:8]} | "
                                      f"Claim {job.get('claim_number','N/A')}"
         }
         writer.writerow(qbo_row)
@@ -911,10 +910,16 @@ async def mark_supplement_sent_route(job_id: str):
     "/accounting/jobs/{job_id}/toggle-payment",
     response_class=JSONResponse
 )
-async def toggle_payment(job_id: str, payload: dict = Body(...)):
+async def toggle_payment(request: Request, job_id: str, payload: dict = Body(...)):
     flag = payload.get("flag")
     from app.core.database import toggle_payment_flag
-    return toggle_payment_flag(job_id, flag)
+    result = toggle_payment_flag(job_id, flag)
+    if result.get("commission_triggered"):
+        await request.app.state.redis_pool.enqueue_job(
+            "process_commission",
+            job_id=job_id
+        )
+    return result
 
 @router.post(
     "/jobs/{job_id}/approve-supplement",
@@ -929,15 +934,22 @@ async def approve_supplement(
     Triggers a WebSocket broadcast to alert Scott and Debi.
     """
     note = payload.get("note", "Approved by operator.")
-    from app.core.database import update_job_status
-    update_job_status(
-        job_id, "SUPPLEMENT_APPROVED", note
-    )
-    # Broadcast over existing office WebSocket
-    from app.core.notifications import notifier
-    await notifier.broadcast({"type": "supplement_approved",
-                              "job_id": job_id})
-    return {"status": "approved", "job_id": job_id}
+    from app.core.database import update_job_status, JobStatus
+    try:
+        update_job_status(
+            job_id, JobStatus.SUPPLEMENT_APPROVED, note
+        )
+        # Broadcast over existing office WebSocket
+        from app.core.notifications import notifier
+        await notifier.broadcast({"type": "supplement_approved",
+                                  "job_id": job_id})
+        return {"status": "approved", "job_id": job_id}
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        logger.error("approve_supplement_failed",
+                     job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post(
     "/jobs/{job_id}/deny-supplement",
@@ -958,19 +970,26 @@ async def deny_supplement(request: Request, job_id: str,
             detail="Must provide denial_text or denial_pdf_doc_id."
         )
     note = f"Denied. Reason: {(denial_text or '')[:200]}"
-    from app.core.database import update_job_status
-    update_job_status(
-        job_id, "SUPPLEMENT_DENIED", note
-    )
-    # Enqueue rebuttal worker
-    await request.app.state.redis_pool.enqueue_job(
-        "process_rebuttal",
-        job_id=job_id,
-        denial_text=denial_text,
-        denial_pdf_doc_id=denial_pdf_doc_id
-    )
-    return {"status": "denied_rebuttal_queued",
-            "job_id": job_id}
+    from app.core.database import update_job_status, JobStatus
+    try:
+        update_job_status(
+            job_id, JobStatus.SUPPLEMENT_DENIED, note
+        )
+        # Enqueue rebuttal worker
+        await request.app.state.redis_pool.enqueue_job(
+            "process_rebuttal",
+            job_id=job_id,
+            denial_text=denial_text,
+            denial_pdf_doc_id=denial_pdf_doc_id
+        )
+        return {"status": "denied_rebuttal_queued",
+                "job_id": job_id}
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        logger.error("deny_supplement_failed",
+                     job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get(
     "/jobs/{job_id}/docs/rebuttal",
@@ -990,4 +1009,56 @@ async def download_rebuttal(job_id: str):
         path,
         filename=f"Rebuttal_{job_id[:8]}.pdf",
         media_type="application/pdf"
+    )
+
+@router.get("/accounting/commissions-ready", response_class=JSONResponse)
+def get_commissions_ready():
+    conn = get_connection()
+    try:
+        cursor = conn.execute("""
+            SELECT id as job_id, invoice_id, homeowner_name, canvasser_name, commission_generated_at
+            FROM jobs
+            WHERE commission_ready = 1
+            ORDER BY commission_generated_at DESC
+        """)
+        return [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+@router.get("/jobs/{job_id}/docs/commission", response_class=FileResponse)
+def download_commission(job_id: str):
+    from app.core.database import get_job_documents
+    docs = get_job_documents(job_id, file_type="COMMISSION_PDF")
+    if not docs:
+        raise HTTPException(404, "No commission statement found.")
+    path = docs[0]["storage_path"]
+    if not Path(path).exists():
+        raise HTTPException(404, "Commission PDF missing.")
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=f"Commission_Statement_{job_id[:8]}.pdf"
+    )
+
+@router.post("/jobs/{job_id}/escalate")
+async def queue_escalation(request: Request, job_id: str):
+    await request.app.state.redis_pool.enqueue_job(
+        "process_escalation",
+        job_id=job_id
+    )
+    return {"status": "escalation_queued"}
+
+@router.get("/jobs/{job_id}/docs/escalation", response_class=FileResponse)
+def download_escalation(job_id: str):
+    from app.core.database import get_job_documents
+    docs = get_job_documents(job_id, file_type="ESCALATION_PDF")
+    if not docs:
+        raise HTTPException(404, "No escalation letter found.")
+    path = docs[0]["storage_path"]
+    if not Path(path).exists():
+        raise HTTPException(404, "Escalation PDF missing.")
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=f"Escalation_Demand_{job_id[:8]}.pdf"
     )
