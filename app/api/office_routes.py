@@ -7,11 +7,14 @@ import json
 import asyncio
 from pathlib import Path
 import structlog
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Any
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks, Body
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+
+templates = Jinja2Templates(directory="app/templates")
 
 from app.core.database import get_connection, update_job_status
 from app.services.pdf_extractor import extract_eagleview_data
@@ -715,7 +718,7 @@ def get_operations_brief():
 class AccountingBrief(BaseModel):
     supplemented_rcv_added: str
     qbo_ready_count: int
-    rows: List[Dict[str, str]]
+    rows: List[Dict[str, Any]]
 
 @router.get("/accounting/brief", response_model=AccountingBrief)
 def get_accounting_brief():
@@ -733,7 +736,9 @@ def get_accounting_brief():
         supplemented_rcv = f"${rcv_row['total_rcv']:,.2f}"
         
         cursor = conn.execute("""
-            SELECT j.id, j.homeowner_name, j.status
+            SELECT j.id, j.homeowner_name, j.status,
+                   j.acv_received, j.acv_received_at,
+                   j.supplement_received, j.supplement_received_at
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
             WHERE j.status IN ('SUPPLEMENT_GENERATED', 'SUPPLEMENT_APPROVED',
@@ -744,7 +749,13 @@ def get_accounting_brief():
         rows = cursor.fetchall()
         
         qbo_ready = len(rows)
-        acct_rows = [{"job_id": r["id"], "name": r["homeowner_name"], "status": r["status"]} for r in rows]
+        acct_rows = [{
+            "job_id": r["id"], "name": r["homeowner_name"], "status": r["status"],
+            "acv_received": r["acv_received"],
+            "acv_received_at": r["acv_received_at"],
+            "supplement_received": r["supplement_received"],
+            "supplement_received_at": r["supplement_received_at"]
+        } for r in rows]
         
         return AccountingBrief(
             supplemented_rcv_added=supplemented_rcv,
@@ -774,15 +785,39 @@ async def export_qbo_csv(token=Depends(verify_accounting)):
             status_code=204
         )
 
+    import datetime
+    today_dt = datetime.datetime.now()
+    today_str = today_dt.strftime("%Y-%m-%d")
+    due_date_str = (today_dt + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=[
-        "job_id", "homeowner_name", "status", "revenue",
-        "carrier_rcv", "material_cost", "labor_cost",
-        "overhead_pct", "canvasser_commission_pct", "permits_fee"
-    ])
+    fieldnames = [
+        "*Customer",
+        "*InvoiceDate",
+        "*DueDate",
+        "Terms",
+        "Item(Product/Service)",
+        "ItemQuantity",
+        "ItemRate",
+        "ItemAmount",
+        "Memo"
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
-    for row in batch:
-        writer.writerow(row)
+    for job in batch:
+        qbo_row = {
+            "*Customer":             job["homeowner_name"],
+            "*InvoiceDate":          today_str,
+            "*DueDate":              due_date_str,
+            "Terms":                 "Net 30",
+            "Item(Product/Service)": "Roofing Services",
+            "ItemQuantity":          1,
+            "ItemRate":              job["carrier_rcv"],
+            "ItemAmount":            job["carrier_rcv"],
+            "Memo":                  f"Job {job['job_id'][:8]} | "
+                                     f"Claim {job.get('claim_number','N/A')}"
+        }
+        writer.writerow(qbo_row)
 
     output.seek(0)
     return StreamingResponse(
@@ -793,3 +828,92 @@ async def export_qbo_csv(token=Depends(verify_accounting)):
                 f"attachment; filename=wickham_qbo_export.csv"
         }
     )
+
+@router.get("/admin/triage", response_class=HTMLResponse)
+async def admin_triage_view(request: Request):
+    conn = get_connection()
+    try:
+        cursor = conn.execute("""
+            SELECT j.id, j.homeowner_name, j.address_line1,
+                   j.status, j.created_at,
+                   j.pipeline_error_message,
+                   j.ev_total_area_sf, j.ev_predominant_pitch,
+                   j.ev_ridge_lf, j.ev_hip_lf,
+                   j.ev_valley_lf, j.ev_eaves_lf, j.ev_rakes_lf
+            FROM jobs j
+            WHERE j.status = 'PENDING_OPERATOR_REVIEW'
+            ORDER BY j.created_at ASC
+        """)
+        stuck_jobs = [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+    return templates.TemplateResponse(
+        "admin_triage.html",
+        {"request": request, "stuck_jobs": stuck_jobs}
+    )
+
+@router.post("/admin/triage/{job_id}/resolve",
+             response_class=JSONResponse)
+async def admin_triage_resolve(job_id: str, payload: dict = Body(...)):
+    """
+    Accepts a dict of corrected geometry fields, writes them to
+    the jobs table, resets status to EV_PARSED, and enqueues
+    the ARQ worker to re-run from the reconcile step.
+    """
+    allowed_fields = {
+        "ev_total_area_sf", "ev_predominant_pitch",
+        "ev_ridge_lf", "ev_hip_lf", "ev_valley_lf",
+        "ev_eaves_lf", "ev_rakes_lf"
+    }
+    updates = {k: v for k, v in payload.items()
+               if k in allowed_fields and v is not None}
+    if not updates:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid fields provided."
+        )
+    conn = get_connection()
+    try:
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + ["EV_PARSED",
+                      None, job_id]
+        conn.execute(
+            f"""UPDATE jobs
+                SET {set_clause},
+                    status = ?,
+                    pipeline_error_message = ?
+                WHERE id = ?""",
+            values
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Re-enqueue the ARQ worker for this job (resume=True)
+    from app.core.arq_pool import get_arq_pool
+    pool = await get_arq_pool()
+    await pool.enqueue_job(
+        "process_supplement_event",
+        job_id=job_id,
+        resume=True
+    )
+    return {"status": "queued", "job_id": job_id}
+
+@router.post(
+    "/jobs/{job_id}/mark-supplement-sent",
+    response_class=JSONResponse
+)
+async def mark_supplement_sent_route(job_id: str):
+    from app.core.database import mark_supplement_sent
+    mark_supplement_sent(job_id)
+    return {"status": "ok", "job_id": job_id}
+
+@router.post(
+    "/accounting/jobs/{job_id}/toggle-payment",
+    response_class=JSONResponse
+)
+async def toggle_payment(job_id: str, payload: dict = Body(...)):
+    flag = payload.get("flag")
+    from app.core.database import toggle_payment_flag
+    return toggle_payment_flag(job_id, flag)
+

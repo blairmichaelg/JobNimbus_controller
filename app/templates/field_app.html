@@ -35,6 +35,16 @@
                 <input type="text" id="homeowner_name" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
             </div>
             
+            <div class="mb-2">
+                <button type="button" id="gpsBtn"
+                        class="w-full bg-gray-700 hover:bg-gray-600 text-gray-300
+                               py-3 rounded-lg text-sm font-semibold
+                               transition-colors border border-gray-600">
+                    📍 Auto-Fill Address from GPS
+                </button>
+                <p id="gpsStatus" class="text-xs text-gray-500 mt-1 text-center
+                                          hidden"></p>
+            </div>
             <div>
                 <label class="block text-sm font-medium text-gray-400 mb-2">Address Line 1</label>
                 <input type="text" id="address_line1" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
@@ -67,9 +77,26 @@
                     <label class="block text-sm font-medium text-gray-400 mb-2">Date of Loss (Optional)</label>
                     <input type="date" id="loss_date" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg">
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-2">Property Photo (Optional)</label>
-                    <input type="file" id="photo" accept="image/jpeg, image/png" class="w-full text-lg text-gray-400 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 cursor-pointer">
+                <div id="photoSection" class="pt-4 border-t border-gray-700">
+                    <label class="block text-sm font-medium text-gray-400 mb-2">
+                        Property Photos (up to 15)
+                    </label>
+                    <label for="photoInput"
+                           class="block w-full p-4 rounded-lg bg-gray-800
+                                  text-gray-400 border border-dashed
+                                  border-gray-600 hover:border-blue-500
+                                  cursor-pointer text-center transition-colors">
+                        📷 Tap to add photos
+                    </label>
+                    <input type="file" id="photoInput" accept="image/*"
+                           multiple capture="environment"
+                           class="hidden">
+                    <div id="photoGrid"
+                         class="grid grid-cols-3 gap-2 mt-3"></div>
+                    <p id="photoCount"
+                       class="text-xs text-gray-500 mt-1 text-right">
+                        0 / 15 photos
+                    </p>
                 </div>
             </div>
 
@@ -121,6 +148,104 @@
         const ctx = canvas.getContext('2d');
         let isDrawing = false;
         let isSignatureLocked = false;
+        let photoFiles = [];
+
+        // GPS Auto-Fill
+        document.getElementById('gpsBtn')?.addEventListener('click', async () => {
+            const btn = document.getElementById('gpsBtn');
+            const status = document.getElementById('gpsStatus');
+            btn.disabled = true;
+            btn.textContent = '📍 Locating...';
+            status.classList.add('hidden');
+
+            if (!navigator.geolocation) {
+                status.textContent = "Geolocation is not supported by this browser.";
+                status.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = '📍 Auto-Fill Address from GPS';
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    const resp = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+                    );
+                    const data = await resp.json();
+                    if (data && data.address) {
+                        const addr = data.address;
+                        document.getElementById('address_line1').value =
+                            (addr.house_number ? addr.house_number + ' ' : '') +
+                            (addr.road || '');
+                        document.getElementById('city').value =
+                            addr.city || addr.town || addr.village || '';
+                        document.getElementById('state').value =
+                            addr.state || '';
+                        document.getElementById('postal_code').value =
+                            addr.postcode || '';
+                        showToast("Address populated from GPS", "success");
+                    }
+                } catch (err) {
+                    status.textContent = "Failed to reverse geocode.";
+                    status.classList.remove('hidden');
+                }
+                btn.disabled = false;
+                btn.textContent = '📍 Auto-Fill Address from GPS';
+            }, (error) => {
+                status.textContent = `GPS Error: ${error.message}`;
+                status.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = '📍 Auto-Fill Address from GPS';
+            }, { timeout: 10000 });
+        });
+
+        // Photo Burst
+        document.getElementById('photoInput')?.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0 && photoFiles.length > 0) return; // ignore empty triggers when re-rendering
+
+            const remaining = 15 - photoFiles.length;
+            const toAdd = files.slice(0, remaining);
+            photoFiles = photoFiles.concat(toAdd);
+            
+            const grid = document.getElementById('photoGrid');
+            grid.innerHTML = '';
+            photoFiles.forEach((file, index) => {
+                const url = URL.createObjectURL(file);
+                grid.innerHTML += `
+                    <div class="relative group">
+                        <img src="${url}" class="w-full h-24 object-cover rounded-lg border border-gray-600">
+                        <button type="button" onclick="removePhoto(${index})"
+                                class="absolute top-1 right-1 bg-red-600 text-white
+                                       rounded-full w-6 h-6 flex items-center justify-center
+                                       opacity-80 hover:opacity-100">×</button>
+                    </div>`;
+            });
+            document.getElementById('photoCount').textContent =
+                `${photoFiles.length} / 15 photos`;
+            e.target.value = '';
+        });
+
+        window.removePhoto = (index) => {
+            photoFiles.splice(index, 1);
+            // Re-render
+            const grid = document.getElementById('photoGrid');
+            grid.innerHTML = '';
+            photoFiles.forEach((file, idx) => {
+                const url = URL.createObjectURL(file);
+                grid.innerHTML += `
+                    <div class="relative group">
+                        <img src="${url}" class="w-full h-24 object-cover rounded-lg border border-gray-600">
+                        <button type="button" onclick="removePhoto(${idx})"
+                                class="absolute top-1 right-1 bg-red-600 text-white
+                                       rounded-full w-6 h-6 flex items-center justify-center
+                                       opacity-80 hover:opacity-100">×</button>
+                    </div>`;
+            });
+            document.getElementById('photoCount').textContent =
+                `${photoFiles.length} / 15 photos`;
+        };
 
         // --- PWA & IndexedDB Setup ---
         if ('serviceWorker' in navigator) {
@@ -186,7 +311,7 @@
                 const items = req.result;
                 for (const item of items) {
                     try {
-                        await processSubmission(item.payload.lead, item.payload.photo, item.payload.signature, item.payload.signer_name);
+                        await processSubmission(item.payload.lead, item.payload.photos, item.payload.signature, item.payload.signer_name);
                         // Remove from DB
                         const delTx = idb.transaction("offline_queue", "readwrite");
                         delTx.objectStore("offline_queue").delete(item.id);
@@ -333,14 +458,7 @@
                     loss_date: document.getElementById('loss_date').value || null
                 };
 
-                const photoInput = document.getElementById('photo');
-                let photoFile = null;
-                if (photoInput.files && photoInput.files.length > 0) {
-                    photoFile = photoInput.files[0];
-                    if (photoFile.type !== 'image/jpeg' && photoFile.type !== 'image/png') {
-                        throw new Error('Photo must be a JPEG or PNG image.');
-                    }
-                }
+
 
                 let signatureBase64 = null;
                 let signerName = null;
@@ -356,7 +474,7 @@
                     store.add({
                         payload: {
                             lead: payload,
-                            photo: photoFile,
+                            photos: photoFiles,
                             signature: signatureBase64,
                             signer_name: signerName
                         },
@@ -377,7 +495,7 @@
                 }
 
                 // Online Mode
-                await processSubmission(payload, photoFile, signatureBase64, signerName);
+                await processSubmission(payload, photoFiles, signatureBase64, signerName);
 
                 loadingProgress.style.width = '100%';
                 
@@ -395,7 +513,7 @@
             }
         };
 
-        async function processSubmission(payload, photoFile, signatureBase64, signerName) {
+        async function processSubmission(payload, photoFiles, signatureBase64, signerName) {
             const loadingTitle = document.getElementById('loadingTitle');
             const loadingProgress = document.getElementById('loadingProgress');
             
@@ -438,27 +556,30 @@
 
             if (loadingProgress) loadingProgress.style.width = '40%';
 
-            // 2. Submit Photo if exists
-            if (photoFile) {
-                if (loadingTitle) loadingTitle.innerText = 'Uploading Photo...';
-                if (loadingProgress) loadingProgress.style.width = '60%';
-                
+            // 2. Submit Photos if exists
+            for (let i = 0; i < photoFiles.length; i++) {
+                if (loadingTitle) loadingTitle.innerText =
+                    `Uploading Photo ${i+1} of ${photoFiles.length}...`;
+                if (loadingProgress) loadingProgress.style.width =
+                    `${60 + Math.round((i / photoFiles.length) * 20)}%`;
+
                 const photoData = new FormData();
-                photoData.append('file', photoFile);
-
-                const photoResponse = await fetch(`/api/field/jobs/${jobId}/photos`, {
-                    method: 'POST',
-                    headers: {
-                        'x-internal-token': FIELD_TOKEN
-                    },
-                    body: photoData
-                });
-
-                if (!photoResponse.ok) {
-                    const err = await photoResponse.text();
-                    showToast(`⚠️ Photo upload failed (lead saved): ${err}`, 'error');
+                photoData.append('file', photoFiles[i]);
+                const photoResp = await fetch(
+                    `/api/field/jobs/${jobId}/photos`,
+                    {
+                        method: 'POST',
+                        headers: {'x-internal-token': FIELD_TOKEN},
+                        body: photoData
+                    }
+                );
+                if (!photoResp.ok) {
+                    const err = await photoResp.text();
+                    showToast(
+                        `⚠️ Photo ${i+1} failed (lead saved): ${err}`,
+                        'error'
+                    );
                 }
-                if (loadingProgress) loadingProgress.style.width = '80%';
             }
 
             // 3. Submit Contingency Signature (if applicable)

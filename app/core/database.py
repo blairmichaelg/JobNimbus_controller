@@ -144,6 +144,27 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
             except sqlite3.OperationalError:
                 pass  # Column already exists
+                
+        # Phase 5: Operations columns on the jobs table
+        for col in [
+            "supplement_sent_at TIMESTAMP",
+            "acv_received INTEGER DEFAULT 0",
+            "supplement_received INTEGER DEFAULT 0",
+            "acv_received_at TIMESTAMP",
+            "supplement_received_at TIMESTAMP",
+            "pipeline_error_message TEXT",
+            "ev_total_area_sf REAL",
+            "ev_predominant_pitch TEXT",
+            "ev_ridge_lf REAL",
+            "ev_hip_lf REAL",
+            "ev_valley_lf REAL",
+            "ev_eaves_lf REAL",
+            "ev_rakes_lf REAL"
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass
         
         conn.execute('''
             CREATE TABLE IF NOT EXISTS material_orders (
@@ -1002,5 +1023,59 @@ def atomic_qbo_export() -> list[dict]:
         conn.execute("ROLLBACK")
         logger.error("atomic_qbo_export_failed", error=str(e))
         raise
+    finally:
+        conn.close()
+
+def mark_supplement_sent(job_id: str) -> None:
+    """
+    Transitions job from SUPPLEMENT_GENERATED to
+    AWAITING_CARRIER_RESPONSE and records the sent timestamp.
+    Idempotent — safe to call multiple times.
+    """
+    conn = get_connection()
+    try:
+        conn.execute("""
+            UPDATE jobs
+            SET status = 'AWAITING_CARRIER_RESPONSE',
+                supplement_sent_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+              AND status = 'SUPPLEMENT_GENERATED'
+        """, (job_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+def toggle_payment_flag(job_id: str, flag: str) -> dict:
+    """
+    Toggles acv_received or supplement_received for a job.
+    Returns the new state. flag must be one of the two allowed
+    values — hard-coded whitelist, no dynamic SQL construction.
+    """
+    allowed = {"acv_received", "supplement_received"}
+    if flag not in allowed:
+        raise ValueError(f"Invalid flag: {flag}")
+
+    ts_col = flag + "_at"
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            f"SELECT {flag} FROM jobs WHERE id = ?", (job_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError(f"Job {job_id} not found.")
+
+        new_val = 0 if row[flag] else 1
+        ts_val = "CURRENT_TIMESTAMP" if new_val else "NULL"
+        conn.execute(
+            f"""UPDATE jobs
+                SET {flag} = ?,
+                    {ts_col} = {ts_val}
+                WHERE id = ?""",
+            (new_val, job_id)
+        )
+        conn.commit()
+        return {"flag": flag, "new_value": new_val,
+                "job_id": job_id}
     finally:
         conn.close()

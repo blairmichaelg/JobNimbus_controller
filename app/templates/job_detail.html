@@ -130,6 +130,83 @@
                             <a href="/api/office/jobs/{{ job.id }}/evidence_grid" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Evidence Grid (PDF)</a>
                         </div>
                     </div>
+                    {% if job.status == 'SUPPLEMENT_GENERATED' %}
+                    <div class="mt-6 p-4 bg-blue-950 border border-blue-700
+                                rounded-lg">
+                        <h3 class="text-blue-300 font-bold mb-3">
+                            Supplement Ready for Transmission
+                        </h3>
+                        <p class="text-gray-400 text-sm mb-4">
+                            Download the PDF and send from your email client.
+                            Click below to mark it as sent and start the
+                            carrier follow-up timer.
+                        </p>
+                        <div class="flex gap-3">
+                            <a href="/api/office/jobs/{{ job.id }}/supplement/download"
+                               class="flex-1 bg-blue-600 hover:bg-blue-500 text-white
+                                      font-bold py-3 rounded-lg text-center
+                                      transition-colors">
+                                ⬇ Download Supplement PDF
+                            </a>
+                            <button onclick="markSent('{{ job.id }}')"
+                                    id="markSentBtn"
+                                    class="flex-1 bg-green-700 hover:bg-green-600
+                                           text-white font-bold py-3 rounded-lg
+                                           transition-colors">
+                                ✓ Mark as Sent → Start Timer
+                            </button>
+                        </div>
+                        <script>
+                        async function markSent(jobId) {
+                            const btn = document.getElementById('markSentBtn');
+                            btn.disabled = true;
+                            btn.textContent = 'Saving...';
+                            const resp = await fetch(
+                                `/api/office/jobs/${jobId}/mark-supplement-sent`,
+                                {method: 'POST'}
+                            );
+                            if (resp.ok) {
+                                btn.textContent = '✓ Sent — Timer Started';
+                                btn.className =
+                                    'flex-1 bg-gray-700 text-gray-400 font-bold ' +
+                                    'py-3 rounded-lg cursor-not-allowed';
+                                setTimeout(() => window.location.reload(), 1200);
+                            } else {
+                                btn.disabled = false;
+                                btn.textContent = 'Error — Try Again';
+                            }
+                        }
+                        </script>
+                    </div>
+                    {% endif %}
+
+                    {% if job.status == 'AWAITING_CARRIER_RESPONSE' %}
+                    <div class="mt-6 p-4 bg-yellow-950 border border-yellow-700
+                                rounded-lg">
+                        <h3 class="text-yellow-300 font-bold mb-1">
+                            Awaiting Carrier Response
+                        </h3>
+                        {% if job.supplement_sent_at %}
+                        <p class="text-gray-300 text-sm">
+                            Supplement sent:
+                            <span class="font-bold text-yellow-400">
+                                {{ job.supplement_sent_at[:10] }}
+                            </span>
+                            —
+                            <span id="agingDays" class="font-bold text-yellow-200">
+                            </span> days aging
+                        </p>
+                        <script>
+                        const sentDate = new Date("{{ job.supplement_sent_at }}");
+                        const today = new Date();
+                        const diffDays = Math.floor(
+                            (today - sentDate) / (1000 * 60 * 60 * 24)
+                        );
+                        document.getElementById('agingDays').textContent = diffDays;
+                        </script>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                     <!-- Document Vault Section -->
                     <div class="mt-6">
                         <h3 class="text-md font-medium text-gray-300 mb-3">Document Vault</h3>

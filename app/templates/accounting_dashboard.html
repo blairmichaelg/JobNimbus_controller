@@ -38,6 +38,8 @@
                             <th class="py-3 px-4">Job ID</th>
                             <th class="py-3 px-4">Homeowner</th>
                             <th class="py-3 px-4 text-right">Status</th>
+                            <th class="px-4 py-3 text-left">ACV Check</th>
+                            <th class="px-4 py-3 text-left">Supplement Check</th>
                         </tr>
                     </thead>
                     <tbody id="acct-table" class="divide-y divide-gray-800">
@@ -62,11 +64,29 @@
                 tbody.innerHTML = '';
                 data.rows.forEach(row => {
                     const statusColor = row.status.includes('INVOICED') ? 'text-green-400' : 'text-yellow-400';
+                    const acvColor = row.acv_received ? 'bg-green-700 text-green-200' : 'bg-gray-700 text-gray-400';
+                    const acvText = row.acv_received ? '✓ Received' : 'Pending';
+                    const suppColor = row.supplement_received ? 'bg-green-700 text-green-200' : 'bg-gray-700 text-gray-400';
+                    const suppText = row.supplement_received ? '✓ Received' : 'Pending';
                     tbody.innerHTML += `
                         <tr class="hover:bg-gray-800 transition-colors">
                             <td class="py-4 px-4 text-gray-300 font-mono">${row.job_id.substring(0,8)}</td>
                             <td class="py-4 px-4 text-white font-bold">${row.name}</td>
                             <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
+                            <td class="px-4 py-3">
+                                <button
+                                  onclick="togglePayment('${row.job_id}','acv_received',this)"
+                                  class="px-4 py-2 rounded font-bold text-sm transition-colors ${acvColor}">
+                                  ${acvText}
+                                </button>
+                            </td>
+                            <td class="px-4 py-3">
+                                <button
+                                  onclick="togglePayment('${row.job_id}','supplement_received',this)"
+                                  class="px-4 py-2 rounded font-bold text-sm transition-colors ${suppColor}">
+                                  ${suppText}
+                                </button>
+                            </td>
                         </tr>
                     `;
                 });
@@ -105,6 +125,31 @@
                 btn.disabled = false;
                 btn.innerText = 'Export QBO CSV';
             }
+        }
+
+        async function togglePayment(jobId, flag, btn) {
+            btn.disabled = true;
+            const resp = await fetch(
+                `/api/office/accounting/jobs/${jobId}/toggle-payment`,
+                {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({flag: flag})
+                }
+            );
+            if (resp.ok) {
+                const data = await resp.json();
+                const isOn = data.new_value === 1;
+                btn.textContent = isOn ? '✓ Received' : 'Pending';
+                btn.className =
+                    'px-4 py-2 rounded font-bold text-sm transition-colors '
+                    + (isOn
+                       ? 'bg-green-700 text-green-200'
+                       : 'bg-gray-700 text-gray-400');
+            } else {
+                btn.textContent = 'Error';
+            }
+            btn.disabled = false;
         }
 
         fetchAccounting();

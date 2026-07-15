@@ -16,17 +16,25 @@
 <body class="bg-gray-900 text-gray-100 h-screen flex flex-col overflow-hidden font-sans">
     <div class="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900">
         <h1 class="text-2xl font-bold text-white tracking-wide">Wickham Roofing - Pipeline Orchestrator</h1>
-        <a href="/login" class="text-gray-400 hover:text-white px-4 py-2 border border-gray-700 rounded transition-colors">Logout</a>
+        <div class="flex items-center gap-4">
+            <a href="/admin/triage" class="text-yellow-400 hover:text-white px-4 py-2 border border-yellow-700 rounded transition-colors font-bold">⚠ Triage</a>
+            <a href="/login" class="text-gray-400 hover:text-white px-4 py-2 border border-gray-700 rounded transition-colors">Logout</a>
+        </div>
     </div>
     
     <div class="flex-1 overflow-x-auto overflow-y-hidden p-6 flex space-x-6 bg-gray-950">
         <!-- Kanban Columns defined dynamically based on jobs grouped by status -->
         
-        {% set statuses = ['LEAD_CAPTURED', 'CONTINGENCY_SIGNED', 'EV_PARSED', 'MATERIAL_ORDERED', 'INSTALL_SCHEDULED', 'FINAL_INSPECTION', 'INVOICED'] %}
+        {% set statuses = [
+            'LEAD_CAPTURED', 'CONTINGENCY_SIGNED', 'EV_ORDERED',
+            'EV_PARSED', 'SUPPLEMENT_GENERATED', 'AWAITING_CARRIER_RESPONSE',
+            'SUPPLEMENT_APPROVED', 'MATERIAL_ORDERED', 'INSTALL_SCHEDULED',
+            'FINAL_INSPECTION', 'INVOICED', 'PENDING_OPERATOR_REVIEW'
+        ] %}
         
         {% for status in statuses %}
         <div class="kanban-col flex flex-col h-full bg-gray-900 rounded-lg border border-gray-800 shadow-lg">
-            <div class="p-4 border-b border-gray-800 bg-gray-800 rounded-t-lg">
+            <div class="p-4 border-b border-gray-800 {{ 'bg-red-900 kanban-col-alert' if status == 'PENDING_OPERATOR_REVIEW' else 'bg-gray-800' }} rounded-t-lg">
                 <h2 class="font-bold text-gray-300 uppercase tracking-wider text-sm">{{ status | replace('_', ' ') }}</h2>
             </div>
             
