@@ -100,6 +100,25 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: Ea
     finally:
         conn.close()
 
+import json as _json
+
+def _fetch_latest_report_sync(job_id: str) -> dict | None:
+    """
+    Fetches the most recently committed reconciliation snapshot
+    for a job. Returns None if no snapshot exists yet.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            """SELECT report_json FROM supplement_reports
+               WHERE job_id = ? ORDER BY created_at DESC LIMIT 1""",
+            (job_id,)
+        )
+        row = cursor.fetchone()
+        return _json.loads(row["report_json"]) if row else None
+    finally:
+        conn.close()
+
 async def process_supplement_event(
     ctx: dict, job_id: str, 
     ev_pdf_path: Optional[str] = None, sol_pdf_path: Optional[str] = None, 
@@ -118,29 +137,37 @@ async def process_supplement_event(
     # 0. Fetch Job Context (Threaded)
     job_dict = await asyncio.to_thread(_fetch_job_context_sync, job_id)
 
+    from pathlib import Path
+    SUPPLEMENT_VAULT = Path("data/field_docs")
+    vault_dir = SUPPLEMENT_VAULT / job_id
+    vault_dir.mkdir(parents=True, exist_ok=True)
+    permanent_pdf_path = vault_dir / "Supplement_Request.pdf"
+
     temp_pdf_path = None
     try:
         if resume:
             # Verify no flags are pending manual review
-            conn = await asyncio.to_thread(get_connection)
+            conn = get_connection()
             try:
                 cursor = conn.execute("SELECT COUNT(*) FROM supplement_flags WHERE job_id = ? AND notes LIKE 'MANUAL REVIEW REQUIRED%'", (job_id,))
                 if cursor.fetchone()[0] > 0:
                     log.warning("resume_rejected_unresolved_flags")
                     return {"status": "rejected", "reason": "unresolved_manual_flags"}
                 
-                # Fetch report data (simplified mock for resume since we skipped steps 1-4)
-                # In a full implementation, the report would be fully reconstructed from DB
-                from app.core.supplement_models import DiscrepancyReport, MaterialBOM
-                report = DiscrepancyReport(
-                    job_id=job_id, ev_normalized_squares=0.0, sol_total_rfg_squares=0.0,
-                    square_variance=0.0, waste_explanation="", 
-                    material_bom=MaterialBOM(field_shingle_bundles=0, starter_bundles=0, ridge_cap_bundles=0, ice_water_rolls=0, underlayment_rolls=0, drip_edge_pieces=0)
-                )
+                from app.core.supplement_models import DiscrepancyReport
+                report_dict = await asyncio.to_thread(_fetch_latest_report_sync, job_id)
+                if not report_dict:
+                    log.error("resume_rejected_no_report", job_id=job_id)
+                    await asyncio.to_thread(
+                        update_job_status, job_id, JobStatus.PIPELINE_FAILED,
+                        "Resume attempted but no saved report found. Re-run from scratch."
+                    )
+                    return {"status": "failed", "reason": "no_saved_report"}
+
+                report = DiscrepancyReport.model_validate(report_dict)
             finally:
                 conn.close()
             
-            ai_service = AIService()
             code_index = await asyncio.to_thread(parse_code_files)
             codes = "" # No codes needed if resuming or fetch from DB if needed
         else:
@@ -165,7 +192,7 @@ async def process_supplement_event(
 
             unverified_items = [li for li in sol_data.line_items if not li.verified]
             if unverified_items:
-                conn = await asyncio.to_thread(get_connection)
+                conn = get_connection()
                 try:
                     import uuid
                     flags_to_insert = []
@@ -204,6 +231,22 @@ async def process_supplement_event(
 
             # 3. Reconcile
             report = await asyncio.to_thread(reconcile, ev_data, sol_data, job_id=job_id)
+            
+            # Persist report snapshot for potential resume
+            def _save_report_sync():
+                _conn = get_connection()
+                try:
+                    import uuid as _uuid
+                    _conn.execute(
+                        """INSERT INTO supplement_reports
+                           (id, job_id, report_json, created_at)
+                           VALUES (?, ?, ?, CURRENT_TIMESTAMP)""",
+                        (str(_uuid.uuid4()), job_id, report.model_dump_json())
+                    )
+                    _conn.commit()
+                finally:
+                    _conn.close()
+            await asyncio.to_thread(_save_report_sync)
 
             # 4. Load Target Building Codes (Zero-Cost RAG)
             code_index = await asyncio.to_thread(parse_code_files)
@@ -219,15 +262,20 @@ async def process_supplement_event(
                 return {"status": "halted_for_review"}
 
         # 5. Generate Narrative
+        ai_service = AIService()
         narrative = await ai_service.generate_supplement_narrative(report, codes)
 
         # 6. Generate PDF
         pdf_gen = PDFGenerator()
         temp_pdf_path = await pdf_gen.generate_supplement_pdf(report, narrative, job=job_dict)
+        
+        import shutil
+        shutil.move(temp_pdf_path, permanent_pdf_path)
+        temp_pdf_path = None  # Nullify so finally block skips deletion
 
         # 7. Vault Document & Update State (Threaded)
         if not ctx.get("is_test"):
-            await asyncio.to_thread(insert_job_document, job_id, "Supplement_Request.pdf", "application/pdf", temp_pdf_path)
+            await asyncio.to_thread(insert_job_document, job_id, "Supplement_Request.pdf", "application/pdf", str(permanent_pdf_path))
             await asyncio.to_thread(update_job_status, job_id, JobStatus.SUPPLEMENT_GENERATED)
 
         log.info("supplement_processing_complete")

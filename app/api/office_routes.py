@@ -286,12 +286,8 @@ async def upload_supplement_docs(
         return {"status": "success", "message": "Duplicate files detected. Skipped enqueue."}
 
     try:
-        import hashlib
-        
-        # We already have ev_hash and sol_hash from stream_upload_safely, but the instructions
-        # explicitly ask to calculate them and create the doc_id to pass to enqueue.
-        ev_sha256 = hashlib.sha256(ev_path.read_bytes()).hexdigest()
-        sol_sha256 = hashlib.sha256(sol_path.read_bytes()).hexdigest()
+        ev_sha256 = ev_hash   # Already computed by stream_upload_safely
+        sol_sha256 = sol_hash # Already computed by stream_upload_safely
         
         # Insert them right away
         ev_doc_id = await asyncio.to_thread(
@@ -379,6 +375,9 @@ def download_export(filename: str):
     """
     Download a generated CSV or PDF from the exports directory.
     """
+    filename = Path(filename).name
+    if not filename or filename.startswith('.'):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
     file_path = EXPORT_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -723,10 +722,25 @@ def get_accounting_brief():
     """Zero-click read projection for accounting dashboard."""
     conn = get_connection()
     try:
-        # Mock calculation for supplemented RCV
-        supplemented_rcv = "$14,500.00"
+        cursor = conn.execute("""
+            SELECT COALESCE(SUM(f.carrier_rcv), 0.0) as total_rcv
+            FROM financials f
+            JOIN jobs j ON j.id = f.job_id
+            WHERE j.status IN ('SUPPLEMENT_GENERATED', 'SUPPLEMENT_APPROVED')
+              AND f.qbo_exported = 0
+        """)
+        rcv_row = cursor.fetchone()
+        supplemented_rcv = f"${rcv_row['total_rcv']:,.2f}"
         
-        cursor = conn.execute("SELECT id, homeowner_name, status FROM jobs WHERE status = 'EV_PARSED' OR status = 'FINAL_INSPECTION'")
+        cursor = conn.execute("""
+            SELECT j.id, j.homeowner_name, j.status
+            FROM jobs j
+            JOIN financials f ON j.id = f.job_id
+            WHERE j.status IN ('SUPPLEMENT_GENERATED', 'SUPPLEMENT_APPROVED',
+                               'INVOICED')
+              AND f.qbo_exported = 0
+            ORDER BY j.created_at ASC
+        """)
         rows = cursor.fetchall()
         
         qbo_ready = len(rows)
@@ -742,7 +756,7 @@ def get_accounting_brief():
 
 from fastapi.responses import StreamingResponse
 import csv, io
-from app.core.database import get_qbo_export_batch, mark_qbo_exported
+from app.core.database import atomic_qbo_export
 from app.api.auth import verify_accounting
 
 @router.get("/accounting/qbo-export")
@@ -752,7 +766,7 @@ async def export_qbo_csv(token=Depends(verify_accounting)):
     generates CSV, sets idempotency lock, returns file download.
     Returns 204 with message if no jobs are pending export.
     """
-    batch = get_qbo_export_batch()
+    batch = atomic_qbo_export()
     if not batch:
         from fastapi import Response
         return Response(
@@ -769,9 +783,6 @@ async def export_qbo_csv(token=Depends(verify_accounting)):
     writer.writeheader()
     for row in batch:
         writer.writerow(row)
-
-    job_ids = [r["job_id"] for r in batch]
-    mark_qbo_exported(job_ids)
 
     output.seek(0)
     return StreamingResponse(

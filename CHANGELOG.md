@@ -14,6 +14,10 @@
 - **Strict Role-Based Routing**: Deployed `operations_routes.py` with restricted token authentication ensuring operations can only patch material flags and nothing else.
 - **QBO Batch Export Queue**: Added an idempotent bulk export endpoint for accounting and wired it into the dashboard to safely generate and download QBO CSVs while preventing duplicate exports.
 - **Offline-First Field App**: Completely overhauled the service worker to use an IndexedDB-backed caching engine. Field agents can now submit leads offline (intercepted with a 202 status) which are automatically synchronized via Background Sync when connectivity returns.
+- **Production Threading Hardening**: Replaced illegal async-wrapped `get_connection()` calls with sync execution inside `process_supplement_event` ARQ workers to prevent connection pool poisoning.
+- **Atomic QBO Batch Exports**: Wrapped QuickBooks batched status updates in a single `BEGIN IMMEDIATE` transaction, totally eliminating TOCTOU race conditions and ensuring idempotency.
+- **Path Traversal Security**: Explicitly stripped path elements via `Path(filename).name` in the export download route to block LFI (Local File Inclusion) attempts.
+- **Resilient AI Pipelines**: Built a local `supplement_reports` SQL cache to persist state for the ARQ worker. Resuming a halted worker now bypasses network requests to Gemini/EagleView and reconstructs the narrative seamlessly from local cache.
 
 ## [0.6.1] - 2026-07-13
 ### Added & Fixed

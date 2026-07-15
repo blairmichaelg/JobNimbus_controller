@@ -272,6 +272,19 @@ def init_db() -> None:
             pass # Column already exists
             
         conn.execute('''
+            CREATE TABLE IF NOT EXISTS supplement_reports (
+                id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL REFERENCES jobs(id),
+                report_json TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_supplement_reports_job "
+            "ON supplement_reports(job_id, created_at DESC)"
+        )
+            
+        conn.execute('''
             CREATE TABLE IF NOT EXISTS ai_usage_logs (
                 id TEXT PRIMARY KEY,
                 job_id TEXT,
@@ -946,5 +959,48 @@ def log_ai_usage(job_id: str | None, tokens_used: int, model_name: str, operatio
         conn.execute("COMMIT")
     except Exception as e:
         logger.error("failed_to_log_ai_usage", error=str(e))
+    finally:
+        conn.close()
+
+def atomic_qbo_export() -> list[dict]:
+    """
+    Atomically fetch all QBO-eligible jobs and mark them exported
+    in a single IMMEDIATE transaction, preventing double-export
+    race conditions from concurrent requests.
+
+    Returns the batch rows (as dicts) that were locked.
+    Returns empty list if nothing pending.
+    """
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.execute("""
+            SELECT j.id as job_id, j.homeowner_name, j.status,
+                   f.revenue, f.carrier_rcv, f.material_cost,
+                   f.labor_cost, f.overhead_pct,
+                   f.canvasser_commission_pct, f.permits_fee
+            FROM jobs j
+            JOIN financials f ON j.id = f.job_id
+            WHERE j.status IN ('SUPPLEMENT_APPROVED', 'INVOICED')
+              AND f.qbo_exported = 0
+            ORDER BY j.created_at ASC
+        """)
+        batch = [dict(r) for r in cursor.fetchall()]
+        if batch:
+            job_ids = [r["job_id"] for r in batch]
+            conn.executemany(
+                """UPDATE financials
+                   SET qbo_exported = 1,
+                       qbo_exported_at = CURRENT_TIMESTAMP
+                   WHERE job_id = ?""",
+                [(jid,) for jid in job_ids],
+            )
+        conn.execute("COMMIT")
+        logger.info("atomic_qbo_export_complete", count=len(batch))
+        return batch
+    except Exception as e:
+        conn.execute("ROLLBACK")
+        logger.error("atomic_qbo_export_failed", error=str(e))
+        raise
     finally:
         conn.close()
