@@ -92,7 +92,7 @@ def test_full_job_lifecycle(tmp_path):
         predominant_pitch="6/12"
     )
     
-    with patch("app.core.pipeline.extract_eagleview_data", return_value=mock_ev_data):
+    with patch("app.core.pipeline.extract_eagleview_data", return_value=(mock_ev_data, "fake_sha256")):
         with open(fake_pdf, "rb") as f:
             upload_resp = client.post(
                 f"/api/office/jobs/{job_id}/eagleview",

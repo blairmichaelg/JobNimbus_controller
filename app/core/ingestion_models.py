@@ -64,6 +64,20 @@ class UniversalClaimAST(BaseModel):
     line_items: List[ClaimLineItem]
     roof_geometry: RoofGeometry
     financials: ClaimFinancials
+    source_doc_sha256: str = Field(
+        description="SHA256 hash of the source PDF that produced this AST. "
+                    "Written at API boundary, passed through ARQ worker payload, "
+                    "printed in supplement PDF footer for legal provenance."
+    )
+    source_doc_id: str = Field(
+        description="job_documents.id FK of the source PDF row. "
+                    "Enables direct DB lookup of the originating file."
+    )
+    ast_version: int = Field(
+        default=1,
+        description="Monotonically incrementing version. Increment on each "
+                    "re-ingestion of a revised SoL to maintain append-only ledger."
+    )
 
     @model_validator(mode='after')
     def validate_total(self) -> 'UniversalClaimAST':

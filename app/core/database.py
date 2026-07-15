@@ -667,7 +667,7 @@ async def backup_database() -> None:
 
     await asyncio.to_thread(_do_backup)
 
-def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str, sha256_hash: str | None = None) -> None:
+def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str, sha256_hash: str | None = None) -> str:
     """Register a generated or uploaded file in the universal document vault."""
     conn = get_connection()
     try:
@@ -680,6 +680,7 @@ def insert_job_document(job_id: str, filename: str, file_type: str, storage_path
         )
         conn.execute("COMMIT")
         logger.info("job_document_registered", doc_id=doc_id, job_id=job_id, file_type=file_type)
+        return doc_id
     except Exception as e:
         logger.error("job_document_registration_failed", error=str(e))
         raise

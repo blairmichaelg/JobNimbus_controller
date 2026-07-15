@@ -100,7 +100,13 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: Ea
     finally:
         conn.close()
 
-async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: Optional[str] = None, sol_pdf_path: Optional[str] = None, resume: bool = False) -> dict:
+async def process_supplement_event(
+    ctx: dict, job_id: str, 
+    ev_pdf_path: Optional[str] = None, sol_pdf_path: Optional[str] = None, 
+    resume: bool = False,
+    ev_sha256: Optional[str] = None, ev_doc_id: Optional[str] = None,
+    sol_sha256: Optional[str] = None, sol_doc_id: Optional[str] = None
+) -> dict:
     """
     ARQ Task to handle the complete supplement request flow.
     If resume=True, it skips parsing and gating, validates flags are resolved,
@@ -142,11 +148,59 @@ async def process_supplement_event(ctx: dict, job_id: str, ev_pdf_path: Optional
                 raise ValueError("PDF paths must be provided when not resuming")
             
             # 1. Extract EV Data
-            ev_data = await extract_eagleview_data(str(ev_pdf_path))
+            ev_data, ev_hash = await extract_eagleview_data(str(ev_pdf_path))
 
             # 2. Extract SoL Data
-            ai_service = AIService()
-            sol_data = await ai_service.extract_sol_from_pdf(str(sol_pdf_path), job_id=job_id)
+            from app.services.document_parser import parse_statement_of_loss
+            from pathlib import Path
+            try:
+                sol_data = await parse_statement_of_loss(
+                    Path(sol_pdf_path), 
+                    source_doc_sha256=sol_sha256 or "unknown", 
+                    source_doc_id=sol_doc_id or "unknown"
+                )
+            except ValueError as e:
+                await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_MANUAL_REVIEW, f"SoL Parse failed: {str(e)}")
+                return {"status": "halted_for_review"}
+
+            unverified_items = [li for li in sol_data.line_items if not li.verified]
+            if unverified_items:
+                conn = await asyncio.to_thread(get_connection)
+                try:
+                    import uuid
+                    flags_to_insert = []
+                    for item in unverified_items:
+                        flag_note = (
+                            f"Carrier math mismatch on line item: {item.activity_code} "
+                            f"'{item.description}'. "
+                            f"Expected: (qty={item.quantity.value} × "
+                            f"rate={item.unit_price.value}) + tax={item.tax.value} "
+                            f"= {item.claimed_rcv.value}. "
+                            f"Source page: {item.quantity.evidence[0].page if item.quantity.evidence else 'unknown'}. "
+                            f"MANUAL VERIFICATION REQUIRED before supplement generation."
+                        )
+                        log.warning("sol_math_mismatch_flagged", code=item.activity_code)
+                        flags_to_insert.append((
+                            str(uuid.uuid4()), job_id, "synthetic_math_rule", 1, 0.0, flag_note
+                        ))
+                    
+                    if flags_to_insert:
+                        conn.executemany('''
+                            INSERT INTO supplement_flags (id, job_id, rule_id, triggered, quantity_delta, notes)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        ''', flags_to_insert)
+                        conn.commit()
+                finally:
+                    conn.close()
+
+                await asyncio.to_thread(
+                    update_job_status,
+                    job_id,
+                    JobStatus.PENDING_MANUAL_REVIEW,
+                    f"{len(unverified_items)} carrier line items failed math verification."
+                )
+                return {"status": "halted_for_review"}
+
 
             # 3. Reconcile
             report = await asyncio.to_thread(reconcile, ev_data, sol_data, job_id=job_id)

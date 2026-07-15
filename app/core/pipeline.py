@@ -33,7 +33,7 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
     
     try:
         # 1. Parse EV PDF
-        ev_data = await extract_eagleview_data(ev_pdf_path)
+        ev_data, ev_hash = await extract_eagleview_data(ev_pdf_path)
         log.info("pipeline_ev_parsed", sq=ev_data.total_area_sf / 100.0)
         
         # 2. Calculate BOM

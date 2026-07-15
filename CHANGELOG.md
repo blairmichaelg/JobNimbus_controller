@@ -6,6 +6,10 @@
 - **Strict Schedule Guards**: Added database-level SQLite blockers preventing installation scheduling before `MATERIALS_ON_SITE` is confirmed.
 - **Append-Only Document Vault**: Refactored `job_documents` from a destructive UPSERT model to an immutable, append-only architecture for complete historical versioning.
 - **Orchestrator Halt**: Modified the Master Office Pipeline to halt at `PENDING_OPERATOR_REVIEW` instead of automatically advancing states, ensuring human-in-the-loop validation.
+- **Strict EagleView Extraction**: Upgraded the `pdf_extractor` to deterministically extract `Hips` and `Predominant Pitch`, failing loudly on unsupported formats, and returning SHA256 fingerprints natively.
+- **Evidence-Bearing AST**: Expanded `UniversalClaimAST` to enforce strict provenance tracking (`source_doc_sha256`, `source_doc_id`, `ast_version`).
+- **Anti-Hallucination Parser**: Replaced the obsolete ESX parser with a three-layer Statement of Loss (SoL) ingestion pipeline featuring structural (`pdfplumber`), semantic (`Gemini`), and mathematical (`Pydantic`) verification.
+- **Automated Carrier Math Audits**: Wired the `process_supplement` ARQ worker to automatically flag carrier math inconsistencies from SoL parsing, intentionally halting the job into `PENDING_MANUAL_REVIEW` to prevent bad data progression.
 
 ## [0.6.1] - 2026-07-13
 ### Added & Fixed

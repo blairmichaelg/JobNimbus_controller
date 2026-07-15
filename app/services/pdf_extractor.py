@@ -25,7 +25,7 @@ def _parse_strict_float(text: str, pattern: str, metric_name: str) -> float:
     except ValueError:
         raise ValueError(f"Extracted invalid float for metric: {metric_name}")
 
-async def extract_eagleview_data(pdf_path: str | Path) -> EagleViewData:
+async def extract_eagleview_data(pdf_path: str | Path) -> tuple[EagleViewData, str]:
     """
     Extract structured measurement data from an EagleView Premium Roof Report PDF.
     Only focuses on the 4 metrics needed for V4 CRM QBO Export.
@@ -40,6 +40,9 @@ async def extract_eagleview_data(pdf_path: str | Path) -> EagleViewData:
     log.info("eagleview_extraction_started")
 
     def _extract():
+        import hashlib
+        sha256_hash = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+        
         with pdfplumber.open(str(pdf_path)) as pdf:
             # We must search all pages because we don't know exactly where the summary is
             full_text = []
@@ -81,22 +84,38 @@ async def extract_eagleview_data(pdf_path: str | Path) -> EagleViewData:
                 "Rakes Length"
             )
 
-            # We only strictly require the 4 metrics for the BOM, but EagleViewData has more fields.
-            # We will populate the required ones, and set the rest to 0.
+            hips = _parse_strict_float(
+                combined_text,
+                r"Hips\*?\*?\s*=\s*([\d,]+(?:\.\d+)?)\s*ft",
+                "Hip Length"
+            )
+
+            pitch_match = re.search(
+                r"(?:Predominant|Primary)\s+Pitch\s*[=:]\s*([\d]+/12)",
+                combined_text,
+                re.IGNORECASE
+            )
+            if not pitch_match:
+                raise ValueError(
+                    "Failed to parse EagleView metric: Predominant Pitch. "
+                    "Upload a Premium or Full Hover report with pitch data."
+                )
+            predominant_pitch = pitch_match.group(1)
+
             return EagleViewData(
                 total_area_sf=total_area,
                 rake_lf=rakes,
                 valley_lf=valleys,
                 ridge_lf=ridges,
-                hip_lf=0.0,
+                hip_lf=hips,
                 eaves_lf=eaves,
-                drip_edge_lf=eaves + rakes,  # Often considered Eaves + Rakes
-                flashing_lf=0.0,
-                step_flashing_lf=0.0,
-                total_facets=0,
-                predominant_pitch="unknown"
-            )
+                drip_edge_lf=eaves + rakes,
+                flashing_lf=0.0,       # TODO Phase 3: Operator inputs flashing at PENDING_OPERATOR_REVIEW gate before supplement is triggered.
+                step_flashing_lf=0.0,  # TODO Phase 3: Operator inputs flashing at PENDING_OPERATOR_REVIEW gate before supplement is triggered.
+                total_facets=0,        # Not extractable from text layer; reserved
+                predominant_pitch=predominant_pitch
+            ), sha256_hash
 
-    result = await asyncio.to_thread(_extract)
-    log.info("eagleview_extraction_complete")
-    return result
+    result, sha256_hash = await asyncio.to_thread(_extract)
+    log.info("eagleview_extraction_complete", sha256=sha256_hash)
+    return result, sha256_hash

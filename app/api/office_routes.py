@@ -286,15 +286,31 @@ async def upload_supplement_docs(
         return {"status": "success", "message": "Duplicate files detected. Skipped enqueue."}
 
     try:
+        import hashlib
+        
+        # We already have ev_hash and sol_hash from stream_upload_safely, but the instructions
+        # explicitly ask to calculate them and create the doc_id to pass to enqueue.
+        ev_sha256 = hashlib.sha256(ev_path.read_bytes()).hexdigest()
+        sol_sha256 = hashlib.sha256(sol_path.read_bytes()).hexdigest()
+        
+        # Insert them right away
+        ev_doc_id = await asyncio.to_thread(
+            insert_job_document, job_id, ev_path.name, "EAGLEVIEW_PDF", str(ev_path), ev_sha256
+        )
+        sol_doc_id = await asyncio.to_thread(
+            insert_job_document, job_id, sol_path.name, "SOL_PDF", str(sol_path), sol_sha256
+        )
+
         await request.app.state.redis_pool.enqueue_job(
             "process_supplement_event",
             job_id=job_id,
             ev_pdf_path=str(ev_path),
-            sol_pdf_path=str(sol_path)
+            sol_pdf_path=str(sol_path),
+            ev_sha256=ev_sha256,
+            ev_doc_id=ev_doc_id,
+            sol_sha256=sol_sha256,
+            sol_doc_id=sol_doc_id
         )
-        # We don't insert here directly because the worker might fail, but let's register the upload
-        await asyncio.to_thread(insert_job_document, job_id, "eagleview.pdf", "application/pdf", str(ev_path), ev_hash)
-        await asyncio.to_thread(insert_job_document, job_id, "statement_of_loss.pdf", "application/pdf", str(sol_path), sol_hash)
         
         logger.info("supplement_task_enqueued", job_id=job_id)
     except Exception as e:

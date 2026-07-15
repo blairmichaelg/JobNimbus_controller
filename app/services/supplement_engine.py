@@ -19,33 +19,13 @@ class SupplementEngine:
         Extract code, category, and quantity from an Xactimate .ESX archive.
         ESX is a ZIP file containing an estimate.xml.
         """
-        parsed_items: List[Dict[str, Union[str, float]]] = []
-        with zipfile.ZipFile(file_path, 'r') as zf:
-            # Assuming 'estimate.xml' is the standard file name inside an ESX archive
-            xml_files = [name for name in zf.namelist() if name.lower().endswith('.xml')]
-            if not xml_files:
-                raise ValueError("No XML file found inside ESX archive")
-                
-            xml_data = zf.read(xml_files[0])
-            root = ET.fromstring(xml_data)
-            
-            # This is a generic XPath for demonstration, real Xactimate XML structure may vary
-            # We look for nodes representing line items
-            for item in root.findall('.//ITEM'):
-                cat = str(item.get('cat', ''))
-                sel = str(item.get('sel', ''))
-                qty_str = str(item.get('qty', '0'))
-                try:
-                    qty = float(qty_str)
-                except ValueError:
-                    qty = 0.0
-                
-                parsed_items.append({
-                    "category": cat,
-                    "code": sel,
-                    "quantity": qty
-                })
-        return parsed_items
+        raise NotImplementedError(
+            "ESX parsing is retired as of Phase 2 hardening. "
+            "Adjusters in this market use Xactimate PDF exports (SoL), "
+            "not raw .ESX archives. Use the SoL PDF ingestion pipeline. "
+            "To re-enable, implement against the actual Xactimate XML "
+            "schema v28+ spec before removing this guard."
+        )
         
     @staticmethod
     def evaluate_multi_trade_op(items: List[Dict[str, Union[str, float]]]) -> bool:

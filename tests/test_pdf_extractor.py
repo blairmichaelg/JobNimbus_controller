@@ -22,8 +22,9 @@ class TestExtractEagleviewData:
 
     @patch("app.services.pdf_extractor.pdfplumber.open")
     @patch("app.services.pdf_extractor.Path.exists", return_value=True)
-    def test_successful_extraction(self, mock_exists, mock_pdfplumber_open):
-        """Should extract the 4 required metrics successfully."""
+    @patch("app.services.pdf_extractor.Path.read_bytes", return_value=b"fake data")
+    def test_successful_extraction(self, mock_read_bytes, mock_exists, mock_pdfplumber_open):
+        """Should extract the required metrics successfully."""
         mock_page = MagicMock()
         mock_page.extract_text.return_value = (
             "Total Roof Area = 3,000.5 sq ft\n"
@@ -31,6 +32,8 @@ class TestExtractEagleviewData:
             "Valleys = 75 ft\n"
             "Rakes = 40 ft\n"
             "Eaves** = 80 ft\n"
+            "Hips = 10 ft\n"
+            "Predominant Pitch = 6/12\n"
         )
 
         mock_pdf = MagicMock()
@@ -38,18 +41,21 @@ class TestExtractEagleviewData:
         mock_pdf.__enter__.return_value = mock_pdf
         mock_pdfplumber_open.return_value = mock_pdf
 
-        result = asyncio.run(extract_eagleview_data("fake.pdf"))
+        result, sha256 = asyncio.run(extract_eagleview_data("fake.pdf"))
 
         assert result.total_area_sf == 3000.5
         assert result.ridge_lf == 50.0
         assert result.valley_lf == 75.0
         assert result.rake_lf == 40.0
         assert result.eaves_lf == 80.0
+        assert result.hip_lf == 10.0
         assert result.drip_edge_lf == 120.0
+        assert result.predominant_pitch == "6/12"
 
     @patch("app.services.pdf_extractor.pdfplumber.open")
     @patch("app.services.pdf_extractor.Path.exists", return_value=True)
-    def test_missing_metric_raises_value_error(self, mock_exists, mock_pdfplumber_open):
+    @patch("app.services.pdf_extractor.Path.read_bytes", return_value=b"fake data")
+    def test_missing_metric_raises_value_error(self, mock_read_bytes, mock_exists, mock_pdfplumber_open):
         """Should raise ValueError if any of the required patterns fail."""
         mock_page = MagicMock()
         # Missing Ridges
@@ -83,7 +89,7 @@ class TestRealPDFExtraction:
     )
     def test_extract_from_real_eagleview_pdf(self):
         """Validate extraction against known values from the sample report."""
-        result = asyncio.run(extract_eagleview_data(str(self.SAMPLE_PDF)))
+        result, sha256 = asyncio.run(extract_eagleview_data(str(self.SAMPLE_PDF)))
 
         assert result.total_area_sf == 6788.0
         assert result.ridge_lf == 120.0
