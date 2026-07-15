@@ -50,8 +50,8 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
         csv_path = await asyncio.to_thread(generate_qbo_invoice, job_id, bom, customer_name)
         log.info("pipeline_qbo_generated", csv_path=csv_path)
         
-        # 4. Transition Status to EV_PARSED (not INVOICED — invoicing is a separate manual step)
-        await asyncio.to_thread(update_job_status, job_id, JobStatus.EV_PARSED, "EagleView parsed, BOM calculated, QBO CSV generated.")
+        # 4. Transition Status to PENDING_OPERATOR_REVIEW
+        await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_OPERATOR_REVIEW, "EagleView parsed. BOM calculated. Awaiting operator review.")
         log.info("master_pipeline_completed")
         
         return {

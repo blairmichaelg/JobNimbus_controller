@@ -22,6 +22,7 @@ def get_db_path() -> Path:
     return Path(get_settings().get_db_path)
 
 class JobStatus(str, Enum):
+    # PROCESSING STATES (ARQ workers may write these autonomously)
     LEAD_CAPTURED = "LEAD_CAPTURED"
     CONTINGENCY_SIGNED = "CONTINGENCY_SIGNED"
     CLAIM_FILED = "CLAIM_FILED"
@@ -29,12 +30,19 @@ class JobStatus(str, Enum):
     PHOTOS_UPLOADED = "PHOTOS_UPLOADED"
     EV_PARSED = "EV_PARSED"
     STATEMENT_OF_LOSS_RECEIVED = "STATEMENT_OF_LOSS_RECEIVED"
+    PENDING_OPERATOR_REVIEW = "PENDING_OPERATOR_REVIEW"
+    PENDING_MANUAL_REVIEW = "PENDING_MANUAL_REVIEW"
+    PIPELINE_FAILED = "PIPELINE_FAILED"
+    INSPECTION_FAILED = "INSPECTION_FAILED"
+
+    # BUSINESS STATES (Operator-only manual gates)
     SUPPLEMENT_GENERATED = "SUPPLEMENT_GENERATED"
     SUPPLEMENT_SUBMITTED = "SUPPLEMENT_SUBMITTED"
     SUPPLEMENT_DENIED = "SUPPLEMENT_DENIED"
     SUPPLEMENT_APPROVED = "SUPPLEMENT_APPROVED"
     SCOPE_APPROVED = "SCOPE_APPROVED"
     MATERIAL_ORDERED = "MATERIAL_ORDERED"
+    MATERIALS_ON_SITE = "MATERIALS_ON_SITE"
     INSTALL_SCHEDULED = "INSTALL_SCHEDULED"
     INSTALL_COMPLETED = "INSTALL_COMPLETED"
     INSPECTION_COMPLETED = "INSPECTION_COMPLETED"
@@ -42,9 +50,19 @@ class JobStatus(str, Enum):
     INVOICED = "INVOICED"
     PAYMENT_RECEIVED = "PAYMENT_RECEIVED"
     CLOSED = "CLOSED"
-    PIPELINE_FAILED = "PIPELINE_FAILED"
-    INSPECTION_FAILED = "INSPECTION_FAILED"
-    PENDING_MANUAL_REVIEW = "PENDING_MANUAL_REVIEW"
+
+    @classmethod
+    def is_operator_gate(cls, status: "JobStatus") -> bool:
+        _OPERATOR_GATES = {
+            cls.SUPPLEMENT_GENERATED, cls.SUPPLEMENT_SUBMITTED,
+            cls.SUPPLEMENT_DENIED, cls.SUPPLEMENT_APPROVED,
+            cls.SCOPE_APPROVED, cls.MATERIAL_ORDERED,
+            cls.MATERIALS_ON_SITE, cls.INSTALL_SCHEDULED,
+            cls.INSTALL_COMPLETED, cls.INSPECTION_COMPLETED,
+            cls.FINAL_INSPECTION, cls.INVOICED,
+            cls.PAYMENT_RECEIVED, cls.CLOSED
+        }
+        return status in _OPERATOR_GATES
 
 def get_connection() -> sqlite3.Connection:
     """Get a SQLite connection with WAL mode enabled for concurrency."""
@@ -282,6 +300,12 @@ def init_db() -> None:
             )
         ''')
         
+        # STATE MACHINE V2 MIGRATION NOTE:
+        # JobStatus.PENDING_OPERATOR_REVIEW and MATERIALS_ON_SITE are new 
+        # TEXT values. Existing rows are unaffected. No ALTER TABLE required.
+        # The is_operator_gate() classmethod enforces the two-track boundary
+        # at the application layer, not the DB layer.
+        
         conn.execute('''
             CREATE TABLE IF NOT EXISTS job_tasks (
                 job_id TEXT,
@@ -292,7 +316,11 @@ def init_db() -> None:
             )
         ''')
         
-        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_job_docs_unique ON job_documents(job_id, filename)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_job_docs_job ON job_documents(job_id)")
+        try:
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_job_docs_hash ON job_documents(job_id, sha256_hash)")
+        except sqlite3.OperationalError:
+            pass
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_supp_flags_unique ON supplement_flags(job_id, rule_id)")
 
         conn.execute('''
@@ -444,7 +472,17 @@ def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
             fin_cursor = conn.execute("SELECT revenue FROM financials WHERE job_id = ?", (job_id,))
             if not fin_cursor.fetchone():
                 raise RuntimeError("ILLEGAL TRANSITION: Cannot order materials without calculated financials.")
-        
+        elif new_status == JobStatus.INSTALL_SCHEDULED:
+            sched_cursor = conn.execute(
+                "SELECT status FROM jobs WHERE id = ?", (job_id,)
+            )
+            row = sched_cursor.fetchone()
+            if not row or row["status"] != JobStatus.MATERIALS_ON_SITE:
+                raise RuntimeError(
+                    "ILLEGAL TRANSITION: Cannot schedule install until "
+                    "MATERIALS_ON_SITE is confirmed."
+                )
+
         elif new_status == JobStatus.INVOICED:
             # Ensure the pipeline doesn't invoice a lead that wasn't built
             valid_priors = [JobStatus.MATERIAL_ORDERED, JobStatus.INSTALL_SCHEDULED, JobStatus.INSTALL_COMPLETED, JobStatus.FINAL_INSPECTION, JobStatus.INVOICED]
@@ -637,12 +675,7 @@ def insert_job_document(job_id: str, filename: str, file_type: str, storage_path
         doc_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO job_documents (id, job_id, filename, file_type, storage_path, sha256_hash) 
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(job_id, filename) DO UPDATE SET
-            file_type=excluded.file_type,
-            storage_path=excluded.storage_path,
-            sha256_hash=excluded.sha256_hash,
-            created_at=CURRENT_TIMESTAMP""",
+            VALUES (?, ?, ?, ?, ?, ?)""",
             (doc_id, job_id, filename, file_type, storage_path, sha256_hash)
         )
         conn.execute("COMMIT")
@@ -650,6 +683,33 @@ def insert_job_document(job_id: str, filename: str, file_type: str, storage_path
     except Exception as e:
         logger.error("job_document_registration_failed", error=str(e))
         raise
+    finally:
+        conn.close()
+
+def get_job_documents(job_id: str, file_type: str | None = None) -> list[dict]:
+    """Return all document versions for a job, newest first.
+    
+    This is the canonical read path. Because documents are append-only,
+    the most recent row for a given filename is the authoritative version.
+    Pass file_type to filter (e.g., 'SUPPLEMENT_PDF', 'EAGLEVIEW_PDF').
+    """
+    conn = get_connection()
+    try:
+        if file_type:
+            cursor = conn.execute(
+                """SELECT * FROM job_documents 
+                   WHERE job_id = ? AND file_type = ?
+                   ORDER BY created_at DESC""",
+                (job_id, file_type)
+            )
+        else:
+            cursor = conn.execute(
+                """SELECT * FROM job_documents 
+                   WHERE job_id = ? 
+                   ORDER BY created_at DESC""",
+                (job_id,)
+            )
+        return [dict(r) for r in cursor.fetchall()]
     finally:
         conn.close()
 

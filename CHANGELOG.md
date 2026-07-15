@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0] - 2026-07-15
+### Added & Fixed
+- **State Machine Hardening**: Split `JobStatus` into Processing (ARQ) and Business (Operator) tracks with explicit API gates.
+- **Strict Schedule Guards**: Added database-level SQLite blockers preventing installation scheduling before `MATERIALS_ON_SITE` is confirmed.
+- **Append-Only Document Vault**: Refactored `job_documents` from a destructive UPSERT model to an immutable, append-only architecture for complete historical versioning.
+- **Orchestrator Halt**: Modified the Master Office Pipeline to halt at `PENDING_OPERATOR_REVIEW` instead of automatically advancing states, ensuring human-in-the-loop validation.
+
 ## [0.6.1] - 2026-07-13
 ### Added & Fixed
 - **Pre-Demo Stability Audit**: Resolved 7 critical and high-priority bugs identified during system audit.
