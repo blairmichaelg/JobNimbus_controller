@@ -1062,3 +1062,41 @@ def download_escalation(job_id: str):
         media_type="application/pdf",
         filename=f"Escalation_Demand_{job_id[:8]}.pdf"
     )
+
+
+@router.patch(
+    "/jobs/{job_id}/canvasser",
+    response_class=JSONResponse,
+    dependencies=[Depends(verify_admin)]
+)
+def reassign_canvasser(job_id: str, payload: dict = Body(...)):
+    """
+    Admin-only override to reassign canvasser_name.
+    Used when a lead comes in through another channel and commission
+    credit needs to be transferred to the originating rep.
+    """
+    name = payload.get("canvasser_name", "").strip()
+    if not name:
+        raise HTTPException(400, "canvasser_name must not be empty.")
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        result = conn.execute(
+            "UPDATE jobs SET canvasser_name = ? WHERE id = ?",
+            (name, job_id)
+        )
+        if result.rowcount == 0:
+            conn.execute("ROLLBACK")
+            raise HTTPException(404, "Job not found.")
+        conn.execute("COMMIT")
+        logger.info("canvasser_reassigned", job_id=job_id, canvasser_name=name)
+        return {"status": "updated", "job_id": job_id, "canvasser_name": name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.execute("ROLLBACK")
+        logger.error("canvasser_reassign_failed", job_id=job_id, error=str(e))
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+

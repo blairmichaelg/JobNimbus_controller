@@ -1,26 +1,162 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Office Login</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wickham Roofing — Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+    * { font-family: 'Inter', sans-serif; }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      15%       { transform: translateX(-8px); }
+      30%       { transform: translateX(8px); }
+      45%       { transform: translateX(-6px); }
+      60%       { transform: translateX(6px); }
+      75%       { transform: translateX(-4px); }
+      90%       { transform: translateX(4px); }
+    }
+    .shake { animation: shake 0.5s ease-in-out; }
+
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); }
+      50%       { transform: scale(1.25); }
+    }
+    .dot-filled { animation: pulse-dot 0.15s ease-in-out; }
+
+    .key-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      transition: background 0.12s, transform 0.08s, border-color 0.12s;
+    }
+    .key-btn:hover  { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.18); }
+    .key-btn:active { background: rgba(255,255,255,0.22); transform: scale(0.94); }
+  </style>
 </head>
-<body class="bg-gray-900 flex items-center justify-center h-screen">
-    <div class="bg-gray-800 p-8 rounded-lg shadow-lg w-96">
-        <h2 class="text-white text-2xl font-bold mb-6 text-center">Office Access</h2>
-        {% if error %}
-        <div class="bg-red-500 text-white p-2 rounded mb-4 text-sm text-center">
-            {{ error }}
-        </div>
-        {% endif %}
-        <form method="POST" action="/office/login">
-            <div class="mb-4">
-                <label class="block text-gray-400 mb-2" for="access_code">Access Code</label>
-                <input type="password" id="access_code" name="access_code" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 focus:outline-none focus:border-blue-500" required>
-            </div>
-            <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold">Log In</button>
-        </form>
+<body class="bg-gray-950 min-h-screen flex items-center justify-center">
+
+  <!-- Subtle grid background -->
+  <div class="absolute inset-0 opacity-5"
+       style="background-image:linear-gradient(rgba(255,255,255,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.1) 1px,transparent 1px);background-size:40px 40px"></div>
+
+  <div class="relative w-full max-w-xs px-6 py-10 text-center">
+
+    <!-- Logo / Header -->
+    <div class="mb-8">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
+           style="background:linear-gradient(135deg,#f97316,#dc2626)">
+        <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+      </div>
+      <h1 class="text-xl font-black text-white uppercase tracking-widest leading-tight">
+        Wickham Roofing
+      </h1>
+      <p class="text-gray-500 text-xs mt-1 uppercase tracking-widest">Truck Server v4</p>
     </div>
+
+    <p class="text-gray-400 text-sm mb-6 tracking-wide">Enter Your PIN</p>
+
+    <!-- PIN Dot Indicator -->
+    <div class="flex justify-center gap-5 mb-3" id="dots">
+      <div class="w-4 h-4 rounded-full border-2 border-gray-700 transition-all duration-150" id="d0"></div>
+      <div class="w-4 h-4 rounded-full border-2 border-gray-700 transition-all duration-150" id="d1"></div>
+      <div class="w-4 h-4 rounded-full border-2 border-gray-700 transition-all duration-150" id="d2"></div>
+      <div class="w-4 h-4 rounded-full border-2 border-gray-700 transition-all duration-150" id="d3"></div>
+    </div>
+
+    <!-- Error Message -->
+    {% if request.query_params.get('error') %}
+    <p id="error-msg" class="text-red-400 text-sm mb-4 animate-pulse font-medium">
+      ✕ Incorrect PIN. Try again.
+    </p>
+    {% else %}
+    <div class="h-8 mb-4"></div>
+    {% endif %}
+
+    <!-- Hidden Form -->
+    <form id="pin-form" method="POST" action="/auth/login" class="hidden">
+      <input type="hidden" name="pin" id="pin-input">
+      <input type="hidden" name="redirect_url" value="{{ redirect_url | default('/') }}">
+    </form>
+
+    <!-- Keypad -->
+    <div class="grid grid-cols-3 gap-3" id="keypad">
+      {% for n in range(1, 10) %}
+      <button type="button"
+              onclick="pressKey('{{ n }}')"
+              class="key-btn text-white text-2xl font-bold rounded-2xl h-16 cursor-pointer select-none">
+        {{ n }}
+      </button>
+      {% endfor %}
+      <!-- Bottom row -->
+      <button type="button"
+              onclick="pressKey('back')"
+              class="key-btn text-gray-400 text-xl font-bold rounded-2xl h-16 cursor-pointer select-none">
+        ⌫
+      </button>
+      <button type="button"
+              onclick="pressKey('0')"
+              class="key-btn text-white text-2xl font-bold rounded-2xl h-16 cursor-pointer select-none">
+        0
+      </button>
+      <div></div>
+    </div>
+
+    <p class="text-gray-700 text-xs mt-8">Secured · Local Network Only</p>
+  </div>
+
+<script>
+let pin = '';
+const dots = [
+  document.getElementById('d0'),
+  document.getElementById('d1'),
+  document.getElementById('d2'),
+  document.getElementById('d3'),
+];
+
+// If there's an error, shake the dots on load
+{% if request.query_params.get('error') %}
+setTimeout(() => {
+  document.getElementById('dots').classList.add('shake');
+  setTimeout(() => document.getElementById('dots').classList.remove('shake'), 600);
+}, 100);
+{% endif %}
+
+function updateDots() {
+  dots.forEach((d, i) => {
+    if (i < pin.length) {
+      d.classList.add('bg-white', 'border-white', 'dot-filled');
+      d.classList.remove('border-gray-700', 'bg-transparent');
+    } else {
+      d.classList.remove('bg-white', 'border-white', 'dot-filled');
+      d.classList.add('border-gray-700');
+    }
+  });
+}
+
+function pressKey(k) {
+  if (k === 'back') {
+    pin = pin.slice(0, -1);
+  } else if (pin.length < 4) {
+    pin += k;
+  }
+  updateDots();
+  if (pin.length === 4) {
+    document.getElementById('pin-input').value = pin;
+    // Brief delay so the 4th dot lights up before submit
+    setTimeout(() => document.getElementById('pin-form').submit(), 120);
+  }
+}
+
+// Hardware keyboard support
+document.addEventListener('keydown', (e) => {
+  if (e.key >= '0' && e.key <= '9') pressKey(e.key);
+  if (e.key === 'Backspace') pressKey('back');
+});
+</script>
 </body>
 </html>

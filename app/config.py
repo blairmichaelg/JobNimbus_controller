@@ -34,10 +34,6 @@ class Settings(BaseSettings):
         default="9999",
         description="Access PIN for the Admin persona.",
     )
-    INTERNAL_API_TOKEN: str = Field(
-        default="office-secret-token",
-        description="Internal token for system-to-system operations.",
-    )
     accounting_pin: str = Field(
         default="1111",
         description="Access PIN for the Accounting persona.",

@@ -5,44 +5,45 @@ Issues HttpOnly cookies upon successful PIN validation.
 Replaces the old token-based backdoors.
 """
 
-from fastapi import APIRouter, Form, Response, HTTPException
+from fastapi import APIRouter, Form, Response
 from fastapi.responses import RedirectResponse
 from app.config import get_settings
 from app.api.auth import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
 @router.post("/login")
 async def login(response: Response, pin: str = Form(...), redirect_url: str = Form("/")):
     settings = get_settings()
-    
-    # Map PINs to roles
+
+    # Map PINs to roles — .env is the ONLY source of truth.
+    # No hardcoded fallbacks. If a PIN env var is missing, Pydantic
+    # crashes at startup, which is the correct behavior.
     role = None
     if pin == settings.admin_pin:
         role = "admin"
     elif pin == settings.accounting_pin:
         role = "accounting"
-    elif hasattr(settings, "operations_pin") and pin == settings.operations_pin:
+    elif pin == settings.operations_pin:
         role = "operations"
-    elif hasattr(settings, "field_pin") and pin == settings.field_pin:
+    elif pin == settings.field_pin:
         role = "field"
-        
-    # Default fallback if the env vars are missing
-    if not role:
-        if pin == "9999": role = "admin"
-        elif pin == "8888": role = "accounting"
-        elif pin == "7777": role = "operations"
-        elif pin == "1111": role = "field"
 
     if not role:
-        # If it's an API request, return 401
-        # If it's a browser form submission, we might want to redirect,
-        # but 401 is standard. We'll raise 401.
-        raise HTTPException(status_code=401, detail="Invalid PIN")
+        # Brute-force delay: 10,000 attempts × 1s ≈ 2.7 hours via Ngrok
+        import asyncio
+        await asyncio.sleep(1)
+        # Redirect back to login page with inline error flag
+        safe_redirect = redirect_url if redirect_url.startswith("/") else "/"
+        return RedirectResponse(
+            url=f"/login?redirect_url={safe_redirect}&error=1",
+            status_code=303,
+        )
 
     token = create_access_token(role)
-    
-    # We want to redirect back to the page that requested login
+
+    # Redirect to the page that originally requested authentication
     res = RedirectResponse(url=redirect_url, status_code=303)
     res.set_cookie(
         key="auth_token",
@@ -50,9 +51,10 @@ async def login(response: Response, pin: str = Form(...), redirect_url: str = Fo
         httponly=True,
         secure=True if settings.app_env == "prod" else False,
         samesite="lax",
-        max_age=12 * 3600
+        max_age=12 * 3600,
     )
     return res
+
 
 @router.get("/logout")
 async def logout():

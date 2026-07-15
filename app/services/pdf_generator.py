@@ -1404,35 +1404,83 @@ class PDFGenerator:
         await asyncio.to_thread(build_pdf)
         return filepath
 
-    async def generate_escalation_letter(self, job: dict, letter_body: str) -> str:
+    async def generate_escalation_letter(
+        self,
+        job: dict,
+        days_elapsed: int,
+        narrative: str,
+    ) -> str:
+        """
+        Generate a formal Second Request / Notice of Intent to Appraise PDF.
+
+        Args:
+            job: Full job record dict.
+            days_elapsed: Number of days since supplement was submitted.
+            narrative: AI-generated letter body text.
+
+        Returns:
+            str: Absolute path to the generated PDF file.
+        """
         job_id = job.get("id", "UNKNOWN")
         job_dir = FIELD_DOCS_DIR / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
-        filepath = str(job_dir / "Escalation_Demand.pdf")
+        filepath = str(job_dir / "Escalation_Demand_Letter.pdf")
 
         def build_pdf():
             doc = self._get_doc_template(filepath, job_id=job_id)
             story = []
 
-            story.append(Paragraph("FORMAL DEMAND FOR CLAIM STATUS UPDATE", self.custom_styles["Title"]))
+            story.append(
+                Paragraph(
+                    "SECOND REQUEST \u2014 NOTICE OF INTENT TO APPRAISE",
+                    self.custom_styles["Title"],
+                )
+            )
             story.append(Spacer(1, 8))
             story.append(self._build_metadata_table(job))
             story.append(Spacer(1, 16))
-            
-            story.append(Paragraph("VIA ELECTRONIC SUBMISSION", self.custom_styles["BodyText"]))
+
+            # Red SLA warning banner
+            warning_table = Table(
+                [[
+                    f"\u26a0  {days_elapsed} DAYS WITHOUT CARRIER RESPONSE "
+                    f"\u2014 APPRAISAL PENDING"
+                ]],
+                colWidths=[450],
+            )
+            warning_table.setStyle(
+                TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.darkred),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
+                    ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 13),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                ])
+            )
+            story.append(warning_table)
             story.append(Spacer(1, 12))
 
-            for paragraph in letter_body.split('\n\n'):
+            story.append(
+                Paragraph("VIA ELECTRONIC SUBMISSION", self.custom_styles["BodyText"])
+            )
+            story.append(Spacer(1, 12))
+
+            for paragraph in narrative.split("\n\n"):
                 if paragraph.strip():
-                    story.append(Paragraph(paragraph.strip(), self.custom_styles["BodyText"]))
+                    story.append(
+                        Paragraph(paragraph.strip(), self.custom_styles["BodyText"])
+                    )
                     story.append(Spacer(1, 10))
 
             story.append(Spacer(1, 24))
-            story.append(self._build_signature_block(
-                title1="Authorized Representative — Wickham Roofing",
-                title2="Date"
-            ))
-
+            story.append(
+                self._build_signature_block(
+                    title1="Authorized Representative \u2014 Wickham Roofing",
+                    title2="Date",
+                )
+            )
             doc.build(story)
 
         await asyncio.to_thread(build_pdf)

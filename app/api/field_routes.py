@@ -48,6 +48,7 @@ class LeadIntakePayload(BaseModel):
     insurer_name: str | None = None
     job_type: str = Field(default="INSURANCE")
     loss_date: str | None = None
+    canvasser_name: str | None = None
 
 class SignaturePayload(BaseModel):
     job_id: str = Field(..., description="JobNimbus entity ID")
@@ -66,7 +67,7 @@ class FlagResolutionPayload(BaseModel):
     quantity_delta: float = Field(..., description="The corrected, manually determined quantity")
     resolution_note: str = Field(..., description="Audit note explaining the manual override")
 
-def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, ice_barrier: bool | None):
+def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, ice_barrier: bool | None, canvasser_name: str):
     conn = get_connection()
     try:
         initial_history = [{
@@ -79,14 +80,14 @@ def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, i
             INSERT INTO jobs (
                 id, invoice_id, homeowner_name, address_line1, city, state, postal_code, 
                 phone, email, claim_number, insurer_name, status, status_history, job_type,
-                ice_barrier_required, jurisdiction_code_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ice_barrier_required, jurisdiction_code_version, canvasser_name
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             job_id, inv_id, payload.homeowner_name, payload.address_line1, payload.city,
             payload.state, payload.postal_code, payload.phone, payload.email,
             payload.claim_number, payload.insurer_name, "LEAD_CAPTURED",
             json.dumps(initial_history), payload.job_type,
-            ice_barrier, "2021_IRC"
+            ice_barrier, "2021_IRC", canvasser_name
         ))
         
         if payload.loss_date:
@@ -103,7 +104,7 @@ def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, i
 from fastapi import Request
 
 @router.post("/jobs")
-async def create_new_job(payload: LeadIntakePayload, request: Request):
+async def create_new_job(payload: LeadIntakePayload, request: Request, role: str = Depends(verify_field)):
     """
     Intake hook for new leads. Replaces JobNimbus lead creation.
     Generates UUID, creates directories, and initializes local SQLite record.
@@ -116,10 +117,13 @@ async def create_new_job(payload: LeadIntakePayload, request: Request):
     # Generate invoice ID
     from app.core.database import generate_invoice_id
     inv_id = generate_invoice_id()
+
+    # Resolve canvasser identity: explicit name from form, fall back to JWT role
+    canvasser_name = (payload.canvasser_name or "").strip() or role
     
     # Insert into database using background thread
     try:
-        await asyncio.to_thread(_sync_create_new_job, job_id, inv_id, payload, ice_barrier)
+        await asyncio.to_thread(_sync_create_new_job, job_id, inv_id, payload, ice_barrier, canvasser_name)
         
         await notifier.broadcast({
             "type": "new_lead",

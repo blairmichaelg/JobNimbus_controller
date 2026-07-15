@@ -57,6 +57,7 @@ class JobStatus(str, Enum):
     
     # OTHER
     AWAITING_CARRIER_RESPONSE = "AWAITING_CARRIER_RESPONSE"
+    APPRAISAL_INVOKED = "APPRAISAL_INVOKED"
 
     @classmethod
     def is_operator_gate(cls, status: "JobStatus") -> bool:
@@ -69,7 +70,7 @@ class JobStatus(str, Enum):
             cls.FINAL_INSPECTION, cls.INVOICED,
             cls.PAYMENT_RECEIVED, cls.CLOSED,
             cls.RETAIL_QUOTE_GENERATED, cls.RETAIL_QUOTE_ACCEPTED,
-            cls.RETAIL_QUOTE_DECLINED
+            cls.RETAIL_QUOTE_DECLINED, cls.APPRAISAL_INVOKED
         }
         return status in _OPERATOR_GATES
 
@@ -397,6 +398,17 @@ def init_db() -> None:
                 pipeline_error_message =
                     'Migrated from PENDING_MANUAL_REVIEW (Phase 7)'
             WHERE status = 'PENDING_MANUAL_REVIEW'
+        """)
+
+        # V4 MIGRATION: APPRAISAL_INVOKED is a new terminal state (Phase 8).
+        # No orphaned rows expected. Included for audit trail completeness.
+        conn.execute("""
+            UPDATE jobs
+            SET status = 'APPRAISAL_INVOKED',
+                pipeline_error_message =
+                    'Escalation SLA exceeded twice (Phase 8)'
+            WHERE status = 'APPRAISAL_INVOKED'
+              AND 1=0
         """)
         
         conn.execute('''
@@ -1198,19 +1210,33 @@ def generate_invoice_id() -> str:
 
 def get_aging_jobs() -> list[dict]:
     """
-    Fetch jobs in AWAITING_CARRIER_RESPONSE status
-    where days since supplement_sent_at > carrier_sla_days.
+    Returns ONLY jobs in AWAITING_CARRIER_RESPONSE where
+    the number of days since supplement_sent_at is
+    greater than or equal to carrier_sla_days.
+    All filtering is done in SQL - callers get only
+    genuinely overdue jobs.
     """
     conn = get_connection()
     try:
         cursor = conn.execute("""
-            SELECT id as job_id, invoice_id, homeowner_name,
-                   supplement_sent_at, carrier_sla_days, escalation_sent_at
+            SELECT id as job_id, invoice_id,
+                   homeowner_name,
+                   supplement_sent_at,
+                   escalation_sent_at,
+                   carrier_sla_days,
+                   CAST(
+                       julianday('now') -
+                       julianday(supplement_sent_at)
+                   AS INTEGER) AS days_waiting
             FROM jobs
             WHERE status = 'AWAITING_CARRIER_RESPONSE'
               AND supplement_sent_at IS NOT NULL
+              AND CAST(
+                      julianday('now') -
+                      julianday(supplement_sent_at)
+                  AS INTEGER) >= carrier_sla_days
+            ORDER BY supplement_sent_at ASC
         """)
-        rows = [dict(r) for r in cursor.fetchall()]
-        return rows
+        return [dict(r) for r in cursor.fetchall()]
     finally:
         conn.close()

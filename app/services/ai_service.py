@@ -392,4 +392,55 @@ Rules:
         if usage > 0:
             await asyncio.to_thread(log_ai_usage, job_id, usage, self.model_name, "photo_analysis")
 
-        return response.parsed # type: ignore
+        return response.parsed  # type: ignore
+
+    async def generate_text(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        job_id: str | None = None,
+        operation_type: str = "generate_text",
+    ) -> str:
+        """
+        Generic plain-text generation method.
+
+        Sends a system prompt + user prompt to Gemini and returns
+        the raw text response. Used by escalation_processor and
+        any worker that needs unstructured narrative output.
+
+        Args:
+            system_prompt: Instruction context for the model.
+            user_prompt: The specific request content.
+            job_id: Optional job ID for usage logging.
+            operation_type: Label for the AI usage log entry.
+
+        Returns:
+            str: The model's text response, stripped of whitespace.
+        """
+        log = logger.bind(job_id=job_id, operation=operation_type)
+        log.info("generate_text_started")
+
+        contents = [
+            system_prompt + "\n\n" + user_prompt
+        ]
+
+        try:
+            response = await asyncio.to_thread(
+                self._call_with_backoff,
+                self.client.models.generate_content,
+                model=self.model_name,
+                contents=contents,
+                config=genai_types.GenerateContentConfig(
+                    temperature=0.4,
+                ),
+            )
+            usage = getattr(response.usage_metadata, "total_token_count", 0)
+            if usage > 0:
+                await asyncio.to_thread(
+                    log_ai_usage, job_id, usage, self.model_name, operation_type
+                )
+            log.info("generate_text_complete")
+            return response.text.strip()
+        except Exception as exc:
+            log.error("generate_text_failed", error=str(exc))
+            raise

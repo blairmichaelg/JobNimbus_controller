@@ -33,10 +33,12 @@ def test_auth_login_success():
     assert res.status_code == 303
     assert "auth_token" in res.cookies
 
-# 2. Test Auth Login Failure
+# 2. Test Auth Login Failure — now redirects to /login?error=1 (Phase 8)
 def test_auth_login_failure():
     res = client.post("/auth/login", data={"pin": "wrong", "redirect_url": "/"}, follow_redirects=False)
-    assert res.status_code == 401
+    # Phase 8: bad PIN returns 303 redirect to /login?error=1, not bare 401
+    assert res.status_code == 303
+    assert "error=1" in res.headers.get("location", "")
 
 # 3. Test Auth Logout
 def test_auth_logout():
@@ -69,6 +71,7 @@ def test_get_aging_jobs():
 
     aging_jobs = get_aging_jobs()
     job_ids = [j["job_id"] for j in aging_jobs]
+    # With the Phase 8 SQL SLA filter, only jobs >= carrier_sla_days appear
     assert job_id_aged in job_ids
 
 # 6. Test days_since jinja filter

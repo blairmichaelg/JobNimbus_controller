@@ -192,6 +192,36 @@ app.include_router(office_router)
 app.include_router(operations_router)
 app.include_router(auth_router)
 
+@app.middleware("http")
+async def auth_redirect_middleware(request: Request, call_next):
+    """Redirect unauthenticated browser requests to /login.
+    API routes (/api/*) always return JSON 401 — no redirect.
+    """
+    response = await call_next(request)
+    if (
+        response.status_code == 401
+        and not request.url.path.startswith("/api/")
+        and not request.url.path.startswith("/auth/")
+        and not request.url.path.startswith("/login")
+        and not request.url.path.startswith("/health")
+        and not request.url.path.startswith("/static/")
+        and "text/html" in request.headers.get("accept", "")
+    ):
+        return RedirectResponse(
+            url=f"/login?redirect_url={request.url.path}",
+            status_code=303,
+        )
+    return response
+
+@app.get("/login")
+async def login_page(request: Request, redirect_url: str = "/"):
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"redirect_url": redirect_url},
+    )
+
+
 @app.websocket("/ws/office")
 async def office_ws(websocket: WebSocket):
     # Using generic client_id for now, can be extracted from query params or headers if needed
