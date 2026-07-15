@@ -124,6 +124,26 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
             except sqlite3.OperationalError:
                 pass # Column already exists
+                
+        # Operations material confirmation flags on the jobs table
+        for col in [
+            "materials_ordered INTEGER NOT NULL DEFAULT 0",
+            "materials_on_site INTEGER NOT NULL DEFAULT 0",
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+                
+        # Operations material confirmation flags on the jobs table
+        for col in [
+            "materials_ordered INTEGER NOT NULL DEFAULT 0",
+            "materials_on_site INTEGER NOT NULL DEFAULT 0",
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
         
         conn.execute('''
             CREATE TABLE IF NOT EXISTS material_orders (
@@ -170,6 +190,19 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE financials ADD COLUMN {col}")
             except sqlite3.OperationalError:
                 pass # Column already exists
+                
+        # Idempotency lock on financials for QBO batch export
+        try:
+            conn.execute(
+                "ALTER TABLE financials ADD COLUMN "
+                "qbo_exported INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.execute(
+                "ALTER TABLE financials ADD COLUMN "
+                "qbo_exported_at TIMESTAMP"
+            )
+        except sqlite3.OperationalError:
+            pass
             
         conn.execute('''
             CREATE TABLE IF NOT EXISTS qbo_credentials (
@@ -757,6 +790,128 @@ def get_monthly_financials(month: int, year: int) -> list[dict]:
     except Exception as e:
         logger.error("get_monthly_financials_failed", error=str(e))
         return []
+    finally:
+        conn.close()
+
+def update_material_flags(
+    job_id: str,
+    materials_ordered: bool | None = None,
+    materials_on_site: bool | None = None,
+) -> None:
+    """
+    Restricted toggle for operational material confirmation flags.
+    Called exclusively by PATCH /api/operations/job/{id}/materials.
+
+    If materials_on_site transitions to True, this function ALSO
+    calls update_job_status() to advance the job to MATERIALS_ON_SITE,
+    making it eligible for crew scheduling.
+
+    If materials_on_site transitions to False (rollback), the job
+    status is reverted to MATERIAL_ORDERED.
+
+    Raises ValueError if job_id not found.
+    """
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.execute(
+            "SELECT id FROM jobs WHERE id = ?", (job_id,)
+        )
+        if not cursor.fetchone():
+            raise ValueError(f"Job {job_id} not found.")
+
+        if materials_ordered is not None:
+            conn.execute(
+                "UPDATE jobs SET materials_ordered = ? WHERE id = ?",
+                (1 if materials_ordered else 0, job_id),
+            )
+        if materials_on_site is not None:
+            conn.execute(
+                "UPDATE jobs SET materials_on_site = ? WHERE id = ?",
+                (1 if materials_on_site else 0, job_id),
+            )
+        conn.execute("COMMIT")
+
+        # Drive the state machine from the flag transitions
+        if materials_on_site is True:
+            update_job_status(
+                job_id,
+                JobStatus.MATERIALS_ON_SITE,
+                "Materials confirmed on-site via Operations Board toggle.",
+            )
+        elif materials_on_site is False:
+            update_job_status(
+                job_id,
+                JobStatus.MATERIAL_ORDERED,
+                "Materials on-site confirmation rolled back via Operations Board.",
+            )
+
+        logger.info(
+            "material_flags_updated",
+            job_id=job_id,
+            ordered=materials_ordered,
+            on_site=materials_on_site,
+        )
+    except Exception as e:
+        logger.error("material_flags_update_failed", job_id=job_id, error=str(e))
+        raise
+    finally:
+        conn.close()
+
+
+def get_qbo_export_batch() -> list[dict]:
+    """
+    Returns all jobs eligible for QBO batch export:
+    status IN (SUPPLEMENT_APPROVED, INVOICED) AND qbo_exported = 0.
+    Joins jobs + financials. Returns empty list if none pending.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            """
+            SELECT j.id as job_id, j.homeowner_name, j.status,
+                   f.revenue, f.carrier_rcv, f.material_cost,
+                   f.labor_cost, f.overhead_pct,
+                   f.canvasser_commission_pct, f.permits_fee
+            FROM jobs j
+            JOIN financials f ON j.id = f.job_id
+            WHERE j.status IN ('SUPPLEMENT_APPROVED', 'INVOICED')
+              AND f.qbo_exported = 0
+            ORDER BY j.created_at ASC
+            """
+        )
+        return [dict(r) for r in cursor.fetchall()]
+    except Exception as e:
+        logger.error("get_qbo_export_batch_failed", error=str(e))
+        return []
+    finally:
+        conn.close()
+
+
+def mark_qbo_exported(job_ids: list[str]) -> None:
+    """
+    Idempotency lock: mark a batch of jobs as QBO-exported.
+    Sets qbo_exported=1 and qbo_exported_at=NOW for each job_id.
+    Safe to call multiple times — subsequent calls are no-ops due
+    to the qbo_exported=0 filter in get_qbo_export_batch().
+    """
+    if not job_ids:
+        return
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.executemany(
+            """UPDATE financials
+               SET qbo_exported = 1,
+                   qbo_exported_at = CURRENT_TIMESTAMP
+               WHERE job_id = ?""",
+            [(jid,) for jid in job_ids],
+        )
+        conn.execute("COMMIT")
+        logger.info("qbo_batch_marked_exported", count=len(job_ids))
+    except Exception as e:
+        logger.error("qbo_mark_exported_failed", error=str(e))
+        raise
     finally:
         conn.close()
 

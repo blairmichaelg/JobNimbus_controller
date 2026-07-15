@@ -22,7 +22,10 @@
                 <div class="text-right">
                     <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">QBO Export Queue</div>
                     <div id="acct-ready" class="text-3xl text-white font-bold mb-4">0</div>
-                    <button class="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-6 rounded uppercase tracking-wider transition-colors">
+                    <button
+                        id="qbo-export-btn"
+                        onclick="runQboExport()"
+                        class="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-6 rounded uppercase tracking-wider transition-colors">
                         Export QBO CSV
                     </button>
                 </div>
@@ -68,6 +71,40 @@
                     `;
                 });
             } catch(e) { console.error(e); }
+        }
+
+        async function runQboExport() {
+            const btn = document.getElementById('qbo-export-btn');
+            btn.disabled = true;
+            btn.innerText = 'Exporting...';
+            try {
+                const res = await fetch('/api/office/accounting/qbo-export', {
+                    method: 'GET',
+                    headers: { 'X-Internal-Token': AUTH_TOKEN }
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert('Export failed: ' + (err.detail || 'Unknown error'));
+                    return;
+                }
+                // Trigger file download from blob
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `wickham_qbo_export_${new Date().toISOString().slice(0,10)}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                // Refresh accounting view to clear exported jobs from queue
+                fetchAccounting();
+            } catch(e) {
+                alert('Network error during export.');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Export QBO CSV';
+            }
         }
 
         fetchAccounting();

@@ -10,6 +10,10 @@
 - **Evidence-Bearing AST**: Expanded `UniversalClaimAST` to enforce strict provenance tracking (`source_doc_sha256`, `source_doc_id`, `ast_version`).
 - **Anti-Hallucination Parser**: Replaced the obsolete ESX parser with a three-layer Statement of Loss (SoL) ingestion pipeline featuring structural (`pdfplumber`), semantic (`Gemini`), and mathematical (`Pydantic`) verification.
 - **Automated Carrier Math Audits**: Wired the `process_supplement` ARQ worker to automatically flag carrier math inconsistencies from SoL parsing, intentionally halting the job into `PENDING_MANUAL_REVIEW` to prevent bad data progression.
+- **Operations Board Interface**: Created a new read-only departure board for operations with a secured action modal containing `materials_ordered` and `materials_on_site` toggle flags.
+- **Strict Role-Based Routing**: Deployed `operations_routes.py` with restricted token authentication ensuring operations can only patch material flags and nothing else.
+- **QBO Batch Export Queue**: Added an idempotent bulk export endpoint for accounting and wired it into the dashboard to safely generate and download QBO CSVs while preventing duplicate exports.
+- **Offline-First Field App**: Completely overhauled the service worker to use an IndexedDB-backed caching engine. Field agents can now submit leads offline (intercepted with a 202 status) which are automatically synchronized via Background Sync when connectivity returns.
 
 ## [0.6.1] - 2026-07-13
 ### Added & Fixed

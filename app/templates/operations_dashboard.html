@@ -9,10 +9,12 @@
 <body class="bg-black text-gray-100 h-screen flex flex-col overflow-hidden font-mono">
     <div class="p-8 h-full flex flex-col">
         <div class="flex justify-between items-center border-b border-gray-800 pb-4 mb-8">
-            <h1 class="text-3xl font-bold text-blue-400 uppercase tracking-widest">Operations Departure Board</h1>
+            <h1 class="text-3xl font-bold text-blue-400 uppercase tracking-widest">
+                Operations Departure Board
+            </h1>
             <a href="/login" class="text-gray-500 hover:text-white">Logout</a>
         </div>
-        
+
         <div class="flex-1 bg-gray-900 border border-gray-700 rounded p-6 shadow-2xl flex flex-col">
             <div class="flex space-x-12 mb-8 text-xl">
                 <div>
@@ -24,14 +26,16 @@
                     <div id="ops-crews" class="text-4xl text-white font-bold mt-2">0</div>
                 </div>
             </div>
-            
+
             <div class="flex-1 overflow-auto">
                 <table class="w-full text-left uppercase text-sm">
                     <thead class="sticky top-0 bg-gray-900 shadow">
                         <tr class="text-gray-500 border-b border-gray-800">
-                            <th class="py-3 px-4">Job ID</th>
+                            <th class="py-3 px-4">Homeowner</th>
                             <th class="py-3 px-4">Supplier</th>
                             <th class="py-3 px-4">Delivery Date</th>
+                            <th class="py-3 px-4 text-center">Mat. Ordered</th>
+                            <th class="py-3 px-4 text-center">On Site</th>
                             <th class="py-3 px-4 text-right">Status</th>
                         </tr>
                     </thead>
@@ -43,34 +47,162 @@
         </div>
     </div>
 
+    <!-- Action Drawer Modal -->
+    <div id="action-modal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+        <div class="bg-gray-900 border border-gray-700 rounded-lg p-8 w-full max-w-md shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-blue-400 uppercase tracking-widest">
+                    Confirm Materials
+                </h2>
+                <button onclick="closeModal()" class="text-gray-500 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div id="modal-job-name" class="text-white font-bold text-lg mb-8"></div>
+
+            <div class="space-y-6">
+                <!-- Toggle: Materials Ordered -->
+                <div class="flex items-center justify-between">
+                    <label class="text-gray-300 uppercase text-sm tracking-wider">
+                        Materials Ordered
+                    </label>
+                    <button
+                        id="toggle-ordered"
+                        onclick="patchFlag('materials_ordered')"
+                        class="w-16 h-8 rounded-full transition-colors duration-200 focus:outline-none"
+                    ></button>
+                </div>
+
+                <!-- Toggle: Materials On-Site -->
+                <div class="flex items-center justify-between">
+                    <label class="text-gray-300 uppercase text-sm tracking-wider">
+                        Materials On-Site
+                        <span class="text-yellow-400 text-xs block normal-case">
+                            Unlocks crew scheduling
+                        </span>
+                    </label>
+                    <button
+                        id="toggle-onsite"
+                        onclick="patchFlag('materials_on_site')"
+                        class="w-16 h-8 rounded-full transition-colors duration-200 focus:outline-none"
+                    ></button>
+                </div>
+            </div>
+
+            <div id="modal-error" class="text-red-400 text-sm mt-4 hidden"></div>
+        </div>
+    </div>
+
     <script>
         const AUTH_TOKEN = "{{ auth_token }}";
+        let activeJobId = null;
+        let activeFlags = { materials_ordered: false, materials_on_site: false };
+
+        function statusBadge(status) {
+            const green = ['MATERIALS_ON_SITE', 'INSTALL_SCHEDULED', 'INSTALL_COMPLETED'];
+            const yellow = ['MATERIAL_ORDERED', 'SCOPE_APPROVED'];
+            const red = ['PENDING_MANUAL_REVIEW', 'PIPELINE_FAILED'];
+            if (green.includes(status)) return 'text-green-400';
+            if (red.includes(status)) return 'text-red-400';
+            return 'text-yellow-400';
+        }
+
+        function boolDot(val) {
+            return val
+                ? '<span class="text-green-400 text-xl">&#9679;</span>'
+                : '<span class="text-gray-600 text-xl">&#9675;</span>';
+        }
 
         async function fetchOperations() {
             try {
-                const res = await fetch('/api/office/operations/brief', { headers: { 'X-Internal-Token': AUTH_TOKEN } });
+                const res = await fetch('/api/office/operations/brief', {
+                    headers: { 'X-Internal-Token': AUTH_TOKEN }
+                });
                 const data = await res.json();
                 document.getElementById('ops-deliveries').innerText = data.deliveries_today;
                 document.getElementById('ops-crews').innerText = data.crews_today;
-                
+
                 const tbody = document.getElementById('ops-table');
                 tbody.innerHTML = '';
                 data.material_rows.forEach(row => {
-                    const statusColor = row.status === 'Ready' ? 'text-green-400' : 'text-yellow-400';
+                    const color = statusBadge(row.status);
                     tbody.innerHTML += `
-                        <tr class="hover:bg-gray-800 transition-colors">
-                            <td class="py-4 px-4 text-gray-300 font-mono">${row.job_id.substring(0,8)}</td>
-                            <td class="py-4 px-4 text-white font-bold">${row.supplier_name}</td>
+                        <tr class="hover:bg-gray-800 transition-colors cursor-pointer"
+                            onclick="openModal('${row.job_id}', '${row.homeowner_name}',
+                                ${row.materials_ordered}, ${row.materials_on_site})">
+                            <td class="py-4 px-4 text-white font-bold">${row.homeowner_name}</td>
+                            <td class="py-4 px-4 text-gray-300">${row.supplier_name}</td>
                             <td class="py-4 px-4 text-gray-400">${row.delivery_date}</td>
-                            <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
-                        </tr>
-                    `;
+                            <td class="py-4 px-4 text-center">${boolDot(row.materials_ordered)}</td>
+                            <td class="py-4 px-4 text-center">${boolDot(row.materials_on_site)}</td>
+                            <td class="py-4 px-4 text-right font-bold ${color}">${row.status}</td>
+                        </tr>`;
                 });
             } catch(e) { console.error(e); }
         }
 
+        function openModal(jobId, name, ordered, onSite) {
+            activeJobId = jobId;
+            activeFlags = {
+                materials_ordered: !!ordered,
+                materials_on_site: !!onSite
+            };
+            document.getElementById('modal-job-name').innerText = name;
+            document.getElementById('modal-error').classList.add('hidden');
+            renderToggles();
+            document.getElementById('action-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('action-modal').classList.add('hidden');
+            activeJobId = null;
+        }
+
+        function renderToggles() {
+            const orderedBtn = document.getElementById('toggle-ordered');
+            const onsiteBtn = document.getElementById('toggle-onsite');
+            orderedBtn.className = \`w-16 h-8 rounded-full transition-colors duration-200 focus:outline-none
+                \${activeFlags.materials_ordered ? 'bg-blue-500' : 'bg-gray-700'}\`;
+            onsiteBtn.className = \`w-16 h-8 rounded-full transition-colors duration-200 focus:outline-none
+                \${activeFlags.materials_on_site ? 'bg-green-500' : 'bg-gray-700'}\`;
+        }
+
+        async function patchFlag(flagName) {
+            if (!activeJobId) return;
+            const newVal = !activeFlags[flagName];
+            const errEl = document.getElementById('modal-error');
+            errEl.classList.add('hidden');
+
+            try {
+                const body = {};
+                body[flagName] = newVal;
+                const res = await fetch(\`/api/operations/job/\${activeJobId}/materials\`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Internal-Token': AUTH_TOKEN
+                    },
+                    body: JSON.stringify(body)
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    errEl.innerText = err.detail || 'Error updating flag.';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+                activeFlags[flagName] = newVal;
+                renderToggles();
+                // Refresh board data in background
+                fetchOperations();
+            } catch(e) {
+                errEl.innerText = 'Network error. Try again.';
+                errEl.classList.remove('hidden');
+            }
+        }
+
         fetchOperations();
-        const ws = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/api/office/ws/office');
+        const ws = new WebSocket(
+            (window.location.protocol === 'https:' ? 'wss:' : 'ws:') +
+            '//' + window.location.host + '/ws/office'
+        );
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
             if (data.type === 'stale' || data.type === 'new_lead') fetchOperations();

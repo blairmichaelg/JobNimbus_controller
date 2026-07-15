@@ -161,6 +161,21 @@
                 setTimeout(() => toast.remove(), 300);
             }, 5000);
         }
+        
+        function showOfflineBanner(msg) {
+            let banner = document.getElementById('offline-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'offline-banner';
+                banner.className =
+                    'fixed top-0 left-0 right-0 bg-yellow-600 text-black ' +
+                    'text-center py-3 font-bold uppercase tracking-wider z-50';
+                document.body.prepend(banner);
+            }
+            banner.innerText = msg;
+            banner.classList.remove('hidden');
+            setTimeout(() => banner.classList.add('hidden'), 8000);
+        }
 
         window.addEventListener('online', async () => {
             showToast("Connection restored. Syncing offline data...", "success");
@@ -392,6 +407,22 @@
                 },
                 body: JSON.stringify(payload)
             });
+
+            if (leadResponse.status === 202) {
+                const data = await leadResponse.json();
+                if (data.status === 'queued_offline') {
+                    showOfflineBanner(
+                        'No connection. Lead saved locally and will sync automatically.'
+                    );
+                    document.getElementById('loadingModal').classList.add('hidden');
+                    document.getElementById('intakeForm').reset();
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    if (isSignatureLocked) document.getElementById('lockBtn').click(); // unlock
+                    submitBtn.innerText = originalText;
+                    submitBtn.disabled = false;
+                    return;
+                }
+            }
 
             if (!leadResponse.ok) {
                 const err = await leadResponse.text();

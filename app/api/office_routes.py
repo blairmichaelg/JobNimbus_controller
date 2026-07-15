@@ -657,8 +657,11 @@ async def download_contingency(job_id: str):
 
 class MaterialRow(BaseModel):
     job_id: str
+    homeowner_name: str
     supplier_name: str
     delivery_date: str
+    materials_ordered: int
+    materials_on_site: int
     status: str
 
 class OperationsBrief(BaseModel):
@@ -671,7 +674,12 @@ def get_operations_brief():
     """Zero-click read projection for operations dashboard."""
     conn = get_connection()
     try:
-        cursor = conn.execute("SELECT job_id, supplier_name, delivery_date FROM material_orders")
+        cursor = conn.execute("""
+            SELECT m.job_id, j.homeowner_name, m.supplier_name, m.delivery_date,
+                   j.materials_ordered, j.materials_on_site, j.status AS job_status
+            FROM material_orders m
+            JOIN jobs j ON m.job_id = j.id
+        """)
         m_rows = cursor.fetchall()
         
         material_rows = []
@@ -681,14 +689,16 @@ def get_operations_brief():
         
         for r in m_rows:
             d_date = r["delivery_date"]
-            status = "Ready" if d_date == today_str else "Upcoming"
             if d_date == today_str:
                 deliveries_today += 1
             material_rows.append(MaterialRow(
                 job_id=r["job_id"],
+                homeowner_name=r["homeowner_name"],
                 supplier_name=r["supplier_name"],
                 delivery_date=d_date,
-                status=status
+                materials_ordered=r["materials_ordered"],
+                materials_on_site=r["materials_on_site"],
+                status=r["job_status"]
             ))
             
         cursor = conn.execute("SELECT COUNT(*) as crews FROM schedule WHERE install_date LIKE ?", (f"{today_str}%",))
@@ -729,3 +739,46 @@ def get_accounting_brief():
         )
     finally:
         conn.close()
+
+from fastapi.responses import StreamingResponse
+import csv, io
+from app.core.database import get_qbo_export_batch, mark_qbo_exported
+from app.api.auth import verify_accounting
+
+@router.get("/accounting/qbo-export")
+async def export_qbo_csv(token=Depends(verify_accounting)):
+    """
+    Batch QBO export. Queries all eligible jobs (qbo_exported=0),
+    generates CSV, sets idempotency lock, returns file download.
+    Returns 204 with message if no jobs are pending export.
+    """
+    batch = get_qbo_export_batch()
+    if not batch:
+        from fastapi import Response
+        return Response(
+            content="No jobs pending QBO export.",
+            status_code=204
+        )
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=[
+        "job_id", "homeowner_name", "status", "revenue",
+        "carrier_rcv", "material_cost", "labor_cost",
+        "overhead_pct", "canvasser_commission_pct", "permits_fee"
+    ])
+    writer.writeheader()
+    for row in batch:
+        writer.writerow(row)
+
+    job_ids = [r["job_id"] for r in batch]
+    mark_qbo_exported(job_ids)
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition":
+                f"attachment; filename=wickham_qbo_export.csv"
+        }
+    )
