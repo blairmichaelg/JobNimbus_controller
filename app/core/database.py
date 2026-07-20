@@ -1377,6 +1377,7 @@ def update_field_rep(
             (rep_id,)
         ).fetchone()
         if not row:
+            conn.execute("ROLLBACK")
             raise ValueError(f"Rep {rep_id} not found.")
         new_name   = name      if name      is not None else row["name"]
         new_pin    = pin       if pin       is not None else row["pin"]
