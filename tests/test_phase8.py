@@ -49,6 +49,14 @@ def admin_cookie():
 
 @pytest.fixture(scope="module")
 def field_cookie():
+    # Phase 9: static field_pin is retired from auth.
+    # Seed a field rep with PIN 3333 so the login succeeds.
+    from app.core.database import create_field_rep, get_field_rep_by_pin
+    if not get_field_rep_by_pin("3333"):
+        try:
+            create_field_rep("Phase8 Test Rep", "3333")
+        except ValueError:
+            pass  # Already exists
     res = client.post(
         "/auth/login",
         data={"pin": "3333", "redirect_url": "/"},

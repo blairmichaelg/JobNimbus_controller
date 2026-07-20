@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     )
     field_pin: str = Field(
         default="3333",
-        description="Access PIN for Field Salesmen.",
+        description="Access PIN for Field Salesmen. Retired Phase 9. Use field_reps table via Admin UI instead.",
     )
 
     # --- Redis ---

@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Field Rep Management — Wickham Roofing</title>
+    <meta name="description" content="Manage canvasser identities and PINs for Wickham Roofing field representatives.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+
+        /* PIN box input styling */
+        .pin-boxes {
+            display: flex;
+            gap: 10px;
+        }
+        .pin-box {
+            width: 52px;
+            height: 64px;
+            background: #1f2937;
+            border: 2px solid #374151;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #f3f4f6;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+        .pin-box.filled {
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
+        }
+        .pin-box.dot::after {
+            content: '●';
+            font-size: 0.8rem;
+            color: #a78bfa;
+        }
+
+        /* Modal backdrop */
+        .modal-backdrop {
+            backdrop-filter: blur(4px);
+        }
+
+        /* Table row hover */
+        tbody tr {
+            transition: background-color 0.15s;
+        }
+        tbody tr:hover {
+            background-color: #1e293b;
+        }
+
+        /* Pulse animation for success */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in-up {
+            animation: fadeInUp 0.3s ease-out;
+        }
+
+        /* Toggle switch */
+        .toggle-label { cursor: pointer; }
+        .toggle-input:checked + .toggle-label .toggle-thumb {
+            transform: translateX(1.5rem);
+            background-color: #7c3aed;
+        }
+        .toggle-input:checked + .toggle-label .toggle-track {
+            background-color: #5b21b6;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+    <!-- ─── HEADER ─────────────────────────────────────────────── -->
+    <header class="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <a href="/admin" class="text-gray-400 hover:text-white transition-colors text-sm">← Admin Dashboard</a>
+            <span class="text-gray-700">|</span>
+            <h1 class="text-xl font-bold text-white">👥 Field Rep Management</h1>
+        </div>
+        <div class="flex items-center gap-3">
+            <p class="text-sm text-gray-400">Manage canvasser identities and PINs</p>
+            <button
+                id="open-add-modal-btn"
+                onclick="openAddModal()"
+                class="bg-purple-600 hover:bg-purple-500 text-white font-semibold px-5 py-2 rounded-lg transition-all duration-200 shadow-lg shadow-purple-900/40 hover:shadow-purple-800/60 flex items-center gap-2">
+                <span class="text-lg">+</span> Add New Rep
+            </button>
+        </div>
+    </header>
+
+    <!-- ─── STATS BAR ───────────────────────────────────────────── -->
+    <div class="px-6 py-4 flex gap-6 border-b border-gray-800 bg-gray-900/60">
+        <div class="text-sm">
+            <span class="text-gray-400">Total: </span>
+            <span id="stat-total" class="font-bold text-white">—</span>
+        </div>
+        <div class="text-sm">
+            <span class="text-gray-400">Active: </span>
+            <span id="stat-active" class="font-bold text-green-400">—</span>
+        </div>
+        <div class="text-sm">
+            <span class="text-gray-400">Inactive: </span>
+            <span id="stat-inactive" class="font-bold text-gray-500">—</span>
+        </div>
+    </div>
+
+    <!-- ─── TOAST NOTIFICATION ──────────────────────────────────── -->
+    <div id="toast" class="fixed top-6 right-6 z-50 hidden fade-in-up">
+        <div class="bg-gray-800 border border-gray-700 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+            <span id="toast-icon" class="text-xl">✅</span>
+            <span id="toast-msg" class="text-sm font-medium"></span>
+        </div>
+    </div>
+
+    <!-- ─── MAIN TABLE ──────────────────────────────────────────── -->
+    <main class="px-6 py-6">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-800 bg-gray-800/50">
+                        <th class="text-left px-5 py-4 text-gray-400 font-semibold uppercase tracking-wider text-xs">Name</th>
+                        <th class="text-left px-5 py-4 text-gray-400 font-semibold uppercase tracking-wider text-xs">PIN</th>
+                        <th class="text-left px-5 py-4 text-gray-400 font-semibold uppercase tracking-wider text-xs">Status</th>
+                        <th class="text-left px-5 py-4 text-gray-400 font-semibold uppercase tracking-wider text-xs">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="reps-tbody">
+                    <tr>
+                        <td colspan="4" class="px-5 py-12 text-center text-gray-500">
+                            <div class="animate-pulse">Loading reps…</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Empty state -->
+        <div id="empty-state" class="hidden text-center py-20">
+            <div class="text-6xl mb-4">👤</div>
+            <h2 class="text-xl font-semibold text-gray-300 mb-2">No Field Reps Yet</h2>
+            <p class="text-gray-500 mb-6">Add your first canvasser to get started.</p>
+            <button onclick="openAddModal()" class="bg-purple-600 hover:bg-purple-500 text-white font-semibold px-6 py-3 rounded-lg transition-all">
+                + Add First Rep
+            </button>
+        </div>
+    </main>
+
+    <!-- ─── ADD REP MODAL ───────────────────────────────────────── -->
+    <div id="add-modal" class="fixed inset-0 z-40 hidden modal-backdrop bg-black/70 flex items-center justify-center">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 fade-in-up">
+            <div class="px-6 py-5 border-b border-gray-800 flex items-center justify-between">
+                <h2 class="text-lg font-bold text-white">Add New Field Rep</h2>
+                <button onclick="closeAddModal()" class="text-gray-500 hover:text-white transition-colors text-xl leading-none">&times;</button>
+            </div>
+
+            <div class="px-6 py-6 space-y-5">
+                <!-- Name -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Full Name <span class="text-red-400">*</span></label>
+                    <input
+                        id="add-name"
+                        type="text"
+                        placeholder="e.g. Mike B."
+                        class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 placeholder-gray-500 transition-all">
+                </div>
+
+                <!-- PIN visual input -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">4-Digit PIN <span class="text-red-400">*</span></label>
+                    <div class="pin-boxes mb-3" id="add-pin-boxes">
+                        <div class="pin-box" id="add-pbox-0"></div>
+                        <div class="pin-box" id="add-pbox-1"></div>
+                        <div class="pin-box" id="add-pbox-2"></div>
+                        <div class="pin-box" id="add-pbox-3"></div>
+                    </div>
+                    <input
+                        id="add-pin"
+                        type="password"
+                        inputmode="numeric"
+                        maxlength="4"
+                        placeholder="Enter 4 digits"
+                        class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 placeholder-gray-500 transition-all font-mono tracking-widest text-center text-lg"
+                        oninput="syncPinBoxes('add')">
+                </div>
+
+                <!-- Error message -->
+                <div id="add-error" class="hidden bg-red-900/50 border border-red-700 text-red-300 text-sm px-4 py-3 rounded-lg"></div>
+            </div>
+
+            <div class="px-6 pb-6 flex gap-3 justify-end">
+                <button onclick="closeAddModal()" class="px-5 py-2.5 text-gray-400 hover:text-white border border-gray-700 rounded-lg transition-all">Cancel</button>
+                <button id="create-btn" onclick="createRep()" class="bg-purple-600 hover:bg-purple-500 text-white font-semibold px-6 py-2.5 rounded-lg transition-all shadow-lg shadow-purple-900/40">
+                    Create Rep
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── EDIT REP MODAL ──────────────────────────────────────── -->
+    <div id="edit-modal" class="fixed inset-0 z-40 hidden modal-backdrop bg-black/70 flex items-center justify-center">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 fade-in-up">
+            <div class="px-6 py-5 border-b border-gray-800 flex items-center justify-between">
+                <h2 class="text-lg font-bold text-white">Edit Field Rep</h2>
+                <button onclick="closeEditModal()" class="text-gray-500 hover:text-white transition-colors text-xl leading-none">&times;</button>
+            </div>
+
+            <div class="px-6 py-6 space-y-5">
+                <input type="hidden" id="edit-id">
+
+                <!-- Name -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
+                    <input
+                        id="edit-name"
+                        type="text"
+                        class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all">
+                </div>
+
+                <!-- PIN -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">4-Digit PIN</label>
+                    <div class="pin-boxes mb-3" id="edit-pin-boxes">
+                        <div class="pin-box" id="edit-pbox-0"></div>
+                        <div class="pin-box" id="edit-pbox-1"></div>
+                        <div class="pin-box" id="edit-pbox-2"></div>
+                        <div class="pin-box" id="edit-pbox-3"></div>
+                    </div>
+                    <input
+                        id="edit-pin"
+                        type="password"
+                        inputmode="numeric"
+                        maxlength="4"
+                        class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 font-mono tracking-widest text-center text-lg transition-all"
+                        oninput="syncPinBoxes('edit')">
+                </div>
+
+                <!-- Active toggle -->
+                <div class="flex items-center justify-between">
+                    <label class="text-sm font-medium text-gray-300">Active Status</label>
+                    <div class="flex items-center gap-3">
+                        <span id="active-label" class="text-sm text-gray-400">Active</span>
+                        <div class="relative inline-flex items-center">
+                            <input type="checkbox" id="edit-active" class="toggle-input sr-only" onchange="updateActiveLabel()">
+                            <label for="edit-active" class="toggle-label flex items-center">
+                                <div class="toggle-track w-12 h-6 bg-gray-700 rounded-full transition-colors duration-200 relative">
+                                    <div class="toggle-thumb absolute top-1 left-1 w-4 h-4 bg-gray-400 rounded-full transition-all duration-200 shadow"></div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error message -->
+                <div id="edit-error" class="hidden bg-red-900/50 border border-red-700 text-red-300 text-sm px-4 py-3 rounded-lg"></div>
+            </div>
+
+            <div class="px-6 pb-6 flex gap-3 justify-end">
+                <button onclick="closeEditModal()" class="px-5 py-2.5 text-gray-400 hover:text-white border border-gray-700 rounded-lg transition-all">Cancel</button>
+                <button id="save-btn" onclick="saveEdit()" class="bg-purple-600 hover:bg-purple-500 text-white font-semibold px-6 py-2.5 rounded-lg transition-all shadow-lg shadow-purple-900/40">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── JAVASCRIPT ──────────────────────────────────────────── -->
+    <script>
+        let currentReps = [];
+
+        // ── PIN Box Sync ──────────────────────────────────────────
+        function syncPinBoxes(prefix) {
+            const input = document.getElementById(prefix + '-pin');
+            const val   = input.value;
+            for (let i = 0; i < 4; i++) {
+                const box = document.getElementById(prefix + '-pbox-' + i);
+                box.classList.remove('filled', 'dot');
+                box.textContent = '';
+                if (i < val.length) {
+                    box.classList.add('filled', 'dot');
+                }
+            }
+        }
+
+        // ── Stats ─────────────────────────────────────────────────
+        function updateStats(reps) {
+            const active   = reps.filter(r => r.is_active).length;
+            const inactive = reps.length - active;
+            document.getElementById('stat-total').textContent   = reps.length;
+            document.getElementById('stat-active').textContent  = active;
+            document.getElementById('stat-inactive').textContent = inactive;
+        }
+
+        // ── Load & Render ─────────────────────────────────────────
+        async function loadReps() {
+            try {
+                const res  = await fetch('/api/admin/reps/?include_inactive=true');
+                const reps = await res.json();
+                currentReps = reps;
+                renderTable(reps);
+                updateStats(reps);
+            } catch (e) {
+                console.error('Failed to load reps:', e);
+            }
+        }
+
+        function renderTable(reps) {
+            const tbody = document.getElementById('reps-tbody');
+            const empty = document.getElementById('empty-state');
+
+            if (reps.length === 0) {
+                tbody.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+
+            tbody.innerHTML = reps.map(rep => `
+                <tr class="${rep.is_active ? 'text-white' : 'text-gray-600'}">
+                    <td class="px-5 py-4">
+                        <div class="font-semibold ${rep.is_active ? 'text-white' : 'text-gray-500'}">${escHtml(rep.name)}</div>
+                    </td>
+                    <td class="px-5 py-4">
+                        <span class="font-mono text-lg tracking-widest ${rep.is_active ? 'text-purple-400' : 'text-gray-600'}">••••</span>
+                    </td>
+                    <td class="px-5 py-4">
+                        ${rep.is_active
+                            ? '<span class="inline-flex items-center gap-1.5 bg-green-900/40 text-green-400 text-xs font-semibold px-3 py-1 rounded-full border border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>Active</span>'
+                            : '<span class="inline-flex items-center gap-1.5 bg-gray-800/60 text-gray-500 text-xs font-semibold px-3 py-1 rounded-full border border-gray-700"><span class="w-1.5 h-1.5 rounded-full bg-gray-500 inline-block"></span>Inactive</span>'
+                        }
+                    </td>
+                    <td class="px-5 py-4">
+                        <div class="flex items-center gap-3">
+                            <button
+                                onclick="openEdit('${escHtml(rep.id)}', '${escHtml(rep.name)}', '${escHtml(rep.pin)}', ${rep.is_active ? 'true' : 'false'})"
+                                class="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-900/30">
+                                ✏ Edit
+                            </button>
+                            ${rep.is_active ? `
+                            <button
+                                onclick="deactivate('${escHtml(rep.id)}', '${escHtml(rep.name)}')"
+                                class="text-sm font-medium text-red-400 hover:text-red-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-900/30">
+                                🚫 Deactivate
+                            </button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function escHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // ── Toasts ─────────────────────────────────────────────────
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-icon').textContent = isError ? '❌' : '✅';
+            document.getElementById('toast-msg').textContent  = msg;
+            toast.classList.remove('hidden');
+            toast.classList.add('fade-in-up');
+            setTimeout(() => { toast.classList.add('hidden'); }, 3500);
+        }
+
+        // ── Add Modal ──────────────────────────────────────────────
+        function openAddModal() {
+            document.getElementById('add-name').value = '';
+            document.getElementById('add-pin').value  = '';
+            document.getElementById('add-error').classList.add('hidden');
+            syncPinBoxes('add');
+            document.getElementById('add-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('add-name').focus(), 100);
+        }
+
+        function closeAddModal() {
+            document.getElementById('add-modal').classList.add('hidden');
+        }
+
+        function showAddError(msg) {
+            const el = document.getElementById('add-error');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+        }
+
+        async function createRep() {
+            const name = document.getElementById('add-name').value.trim();
+            const pin  = document.getElementById('add-pin').value.trim();
+
+            if (!name) { showAddError('Name is required.'); return; }
+            if (pin.length !== 4 || !/^\d+$/.test(pin)) {
+                showAddError('PIN must be exactly 4 digits.'); return;
+            }
+
+            const btn = document.getElementById('create-btn');
+            btn.disabled = true;
+            btn.textContent = 'Creating…';
+
+            try {
+                const res = await fetch('/api/admin/reps/', {
+                    method:  'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body:    JSON.stringify({name, pin}),
+                });
+                if (res.ok) {
+                    closeAddModal();
+                    await loadReps();
+                    showToast(`${name} added successfully.`);
+                } else {
+                    const err = await res.json();
+                    showAddError(err.detail || 'Unknown error.');
+                }
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Create Rep';
+            }
+        }
+
+        // ── Edit Modal ─────────────────────────────────────────────
+        function openEdit(id, name, pin, isActive) {
+            document.getElementById('edit-id').value   = id;
+            document.getElementById('edit-name').value = name;
+            document.getElementById('edit-pin').value  = pin;
+            document.getElementById('edit-active').checked = isActive;
+            document.getElementById('edit-error').classList.add('hidden');
+            syncPinBoxes('edit');
+            updateActiveLabel();
+            document.getElementById('edit-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('edit-name').focus(), 100);
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.add('hidden');
+        }
+
+        function showEditError(msg) {
+            const el = document.getElementById('edit-error');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+        }
+
+        function updateActiveLabel() {
+            const checked = document.getElementById('edit-active').checked;
+            document.getElementById('active-label').textContent = checked ? 'Active' : 'Inactive';
+        }
+
+        async function saveEdit() {
+            const rep_id   = document.getElementById('edit-id').value;
+            const name     = document.getElementById('edit-name').value.trim();
+            const pin      = document.getElementById('edit-pin').value.trim();
+            const isActive = document.getElementById('edit-active').checked;
+
+            if (!name) { showEditError('Name is required.'); return; }
+            if (pin && (pin.length !== 4 || !/^\d+$/.test(pin))) {
+                showEditError('PIN must be exactly 4 digits.'); return;
+            }
+
+            const btn = document.getElementById('save-btn');
+            btn.disabled    = true;
+            btn.textContent = 'Saving…';
+
+            try {
+                const body = {name, is_active: isActive};
+                if (pin) body.pin = pin;
+
+                const res = await fetch(`/api/admin/reps/${rep_id}`, {
+                    method:  'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body:    JSON.stringify(body),
+                });
+                if (res.ok) {
+                    closeEditModal();
+                    await loadReps();
+                    showToast('Rep updated successfully.');
+                } else {
+                    const err = await res.json();
+                    showEditError(err.detail || 'Unknown error.');
+                }
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Save Changes';
+            }
+        }
+
+        // ── Deactivate ─────────────────────────────────────────────
+        async function deactivate(rep_id, name) {
+            if (!confirm(
+                `Deactivate ${name}?\n\n` +
+                `They will not be able to log in. ` +
+                `Commission history is preserved.`
+            )) return;
+
+            await fetch(`/api/admin/reps/${rep_id}/deactivate`, {method: 'PATCH'});
+            await loadReps();
+            showToast(`${name} deactivated.`);
+        }
+
+        // ── Keyboard shortcuts ──────────────────────────────────────
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                closeAddModal();
+                closeEditModal();
+            }
+        });
+
+        // ── Boot ────────────────────────────────────────────────────
+        window.onload = loadReps;
+    </script>
+</body>
+</html>

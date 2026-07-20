@@ -26,11 +26,12 @@ from app.api.field_routes import router as field_router
 from app.api.office_routes import router as office_router, _fetch_job_sync
 from app.api.operations_routes import router as operations_router
 from app.api.auth_routes import router as auth_router
-from app.api.auth import verify_admin, verify_accounting, verify_operations
+from app.api.admin_reps_routes import router as admin_reps_router
+from app.api.auth import verify_admin, verify_accounting, verify_operations, get_current_role
 from app.config import get_settings
 from app.core.notifications import notifier
 from app.core.cache import init_db as init_cache_db
-from app.core.database import init_db as init_crm_db, get_connection
+from app.core.database import init_db as init_crm_db, get_connection, list_field_reps
 import os
 import asyncio
 
@@ -191,6 +192,7 @@ app.include_router(field_router)
 app.include_router(office_router)
 app.include_router(operations_router)
 app.include_router(auth_router)
+app.include_router(admin_reps_router)
 
 @app.middleware("http")
 async def auth_redirect_middleware(request: Request, call_next):
@@ -273,6 +275,8 @@ async def process_login(request: Request, access_code: str = Form(...)):
     
     role = None
     redirect_url = "/"
+    rep_name: str | None = None
+    rep_id: str | None = None
     
     if access_code == settings.admin_pin:
         role = "admin"
@@ -283,9 +287,15 @@ async def process_login(request: Request, access_code: str = Form(...)):
     elif access_code == settings.operations_pin:
         role = "operations"
         redirect_url = "/operations"
-    elif access_code == settings.field_pin:
-        role = "field"
-        redirect_url = "/field"
+    else:
+        # Dynamic field rep lookup (Phase 9)
+        from app.core.database import get_field_rep_by_pin
+        rep = get_field_rep_by_pin(access_code)
+        if rep:
+            role = "field"
+            rep_name = rep["name"]
+            rep_id = rep["id"]
+            redirect_url = "/field"
         
     # Support backward compatibility for old local testing
     if access_code == "office-secret-token":
@@ -297,7 +307,11 @@ async def process_login(request: Request, access_code: str = Form(...)):
         
     if role:
         from app.api.auth import create_access_token
-        token = create_access_token(role)
+        token = create_access_token(
+            role,
+            rep_name=rep_name if role == "field" else None,
+            rep_id=rep_id if role == "field" else None,
+        )
         
         response = RedirectResponse(url=redirect_url, status_code=303)
         response.set_cookie(
@@ -334,6 +348,22 @@ async def serve_admin_dashboard(request: Request, role: str = Depends(verify_adm
         "jobs": jobs,
         "auth_token": request.cookies.get("auth_token", "")
     })
+
+@app.get("/admin/reps", tags=["frontend"])
+async def admin_reps_page(request: Request, role: str = Depends(get_current_role)):
+    """Serve the Field Rep Management page (admin only)."""
+    from fastapi import HTTPException
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Admins only.")
+    reps = await asyncio.to_thread(list_field_reps, True)
+    return templates.TemplateResponse(
+        "admin_reps.html",
+        {
+            "request": request,
+            "reps": reps,
+            "role": role,
+        },
+    )
 
 @app.get("/accounting", tags=["frontend"])
 async def serve_accounting_dashboard(request: Request, role: str = Depends(verify_accounting)):

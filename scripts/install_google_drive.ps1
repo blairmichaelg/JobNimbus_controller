@@ -1,4 +1,4 @@
-# Wickham Roofing V4 — Google Drive Setup Script
+# Wickham Roofing V4 - Google Drive Setup Script
 # Run from the project root directory.
 # Requires PowerShell 5.1+ and internet access.
 # Right-click -> Run as Administrator.
@@ -10,36 +10,36 @@ Write-Host ""
 Write-Host "=== Wickham Roofing V4: Google Drive for Desktop Setup ===" -ForegroundColor Cyan
 Write-Host ""
 
-# ── STEP 1: Check if already installed ────────────────────────────────────────
+# -- STEP 1: Check if already installed --
 if (Test-Path $gdrivePath) {
-    Write-Host "✓ Google Drive already installed. Skipping download." -ForegroundColor Green
+    Write-Host "V Google Drive already installed. Skipping download." -ForegroundColor Green
 } else {
-    # ── STEP 2: Download installer ─────────────────────────────────────────────
+    # -- STEP 2: Download installer --
     Write-Host "Downloading Google Drive for Desktop installer..." -ForegroundColor Yellow
     $url = "https://dl.google.com/drive-file-stream/GoogleDriveSetup.exe"
     $out = "$env:TEMP\GoogleDriveSetup.exe"
 
     try {
         Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-        Write-Host "✓ Download complete: $out" -ForegroundColor Green
+        Write-Host "V Download complete: $out" -ForegroundColor Green
     } catch {
         Write-Host "ERROR: Download failed. Check your internet connection." -ForegroundColor Red
         Write-Host "Download manually from: https://google.com/drive/download"
         exit 1
     }
 
-    # ── STEP 3: Run the installer silently ────────────────────────────────────
+    # -- STEP 3: Run the installer silently --
     Write-Host "Installing Google Drive for Desktop (silent mode)..." -ForegroundColor Yellow
     Start-Process -FilePath $out -ArgumentList "--silent --desktop_shortcut" -Wait
-    Write-Host "✓ Installation complete." -ForegroundColor Green
+    Write-Host "V Installation complete." -ForegroundColor Green
 }
 
-# ── STEP 4: Launch Google Drive ───────────────────────────────────────────────
+# -- STEP 4: Launch Google Drive --
 if (Test-Path $gdrivePath) {
     Write-Host ""
     Write-Host "Launching Google Drive for Desktop..." -ForegroundColor Yellow
     Start-Process $gdrivePath
-    Write-Host "✓ Google Drive launched." -ForegroundColor Green
+    Write-Host "V Google Drive launched." -ForegroundColor Green
     Write-Host ""
     Write-Host "ACTION REQUIRED:" -ForegroundColor Magenta
     Write-Host "  Sign in with the Wickham Roofing Google account"
@@ -51,7 +51,7 @@ if (Test-Path $gdrivePath) {
     Write-Host "  Please install manually from: https://google.com/drive/download"
 }
 
-# ── STEP 5: Print folder sync instructions ────────────────────────────────────
+# -- STEP 5: Print folder sync instructions --
 Write-Host ""
 Write-Host "=== STEP 2: Configure Folder Sync ===" -ForegroundColor Cyan
 Write-Host ""

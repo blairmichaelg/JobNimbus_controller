@@ -11,6 +11,18 @@ from app.core.cache import set_cached_analysis, init_db
 from app.core.inspection_models import PhotoAnalysis, DamageType, Severity
 
 client = TestClient(app)
+
+# Phase 9: static field_pin is retired. Seed a field rep before login.
+from app.core.database import create_field_rep, get_field_rep_by_pin  # noqa: E402
+from app.core.cache import init_db as _init_cache
+from app.core.database import init_db as _init_crm
+_init_cache()
+_init_crm()
+if not get_field_rep_by_pin("3333"):
+    try:
+        create_field_rep("Field Test Rep", "3333")
+    except Exception:
+        pass  # Already exists or other error
 response = client.post("/auth/login", data={"pin": "3333", "redirect_url": "/"}, follow_redirects=False)
 auth_cookie = response.cookies.get("auth_token")
 client.cookies.set("auth_token", auth_cookie)

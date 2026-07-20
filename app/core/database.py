@@ -176,7 +176,8 @@ def init_db() -> None:
             "commission_pdf_path TEXT",
             "commission_generated_at TIMESTAMP",
             "escalation_sent_at TIMESTAMP",
-            "carrier_sla_days INTEGER DEFAULT 14"
+            "carrier_sla_days INTEGER DEFAULT 14",
+            "canvasser_rep_id TEXT"
         ]:
             try:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
@@ -420,6 +421,20 @@ def init_db() -> None:
                 PRIMARY KEY(job_id, task_type)
             )
         ''')
+
+        # V5 MIGRATION: field_reps table introduced Phase 9.
+        # No data migration required. Existing static field_pin
+        # in config.py remains as a config-level default only.
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS field_reps (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                pin         TEXT NOT NULL UNIQUE,
+                is_active   INTEGER NOT NULL DEFAULT 1,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         
         conn.execute("CREATE INDEX IF NOT EXISTS idx_job_docs_job ON job_documents(job_id)")
         try:
@@ -427,6 +442,10 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_supp_flags_unique ON supplement_flags(job_id, rule_id)")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "idx_field_reps_pin ON field_reps(pin)"
+        )
 
         conn.execute('''
             CREATE VIEW IF NOT EXISTS live_material_board AS
@@ -1238,5 +1257,145 @@ def get_aging_jobs() -> list[dict]:
             ORDER BY supplement_sent_at ASC
         """)
         return [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+# ============================================================
+# FIELD REP CRUD — Phase 9
+# ============================================================
+
+def create_field_rep(name: str, pin: str) -> dict:
+    """
+    Create a new field rep. Raises ValueError if the PIN is already in
+    use by another rep OR if the PIN conflicts with any static system
+    PIN (admin_pin, accounting_pin, operations_pin) in config.py.
+    PIN must be exactly 4 digits.
+    Returns the created rep as a dict.
+    """
+    if not pin.isdigit() or len(pin) != 4:
+        raise ValueError("PIN must be exactly 4 digits.")
+    settings = get_settings()
+    reserved = {
+        settings.admin_pin,
+        settings.accounting_pin,
+        settings.operations_pin,
+    }
+    if pin in reserved:
+        raise ValueError("PIN conflicts with a reserved system PIN.")
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        rep_id = str(uuid.uuid4())
+        conn.execute(
+            """INSERT INTO field_reps
+               (id, name, pin, is_active)
+               VALUES (?, ?, ?, 1)""",
+            (rep_id, name.strip(), pin)
+        )
+        conn.execute("COMMIT")
+        logger.info("field_rep_created", rep_id=rep_id, name=name)
+        return {"id": rep_id, "name": name.strip(),
+                "pin": pin, "is_active": 1}
+    except sqlite3.IntegrityError:
+        conn.execute("ROLLBACK")
+        raise ValueError("PIN is already in use.")
+    finally:
+        conn.close()
+
+
+def list_field_reps(include_inactive: bool = False) -> list[dict]:
+    """Return all field reps, active only by default."""
+    conn = get_connection()
+    try:
+        if include_inactive:
+            cursor = conn.execute(
+                "SELECT * FROM field_reps "
+                "ORDER BY name ASC"
+            )
+        else:
+            cursor = conn.execute(
+                "SELECT * FROM field_reps "
+                "WHERE is_active = 1 "
+                "ORDER BY name ASC"
+            )
+        return [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_field_rep_by_pin(pin: str) -> dict | None:
+    """
+    Look up an active field rep by their PIN.
+    Returns None if not found, if rep is inactive,
+    or if the field_reps table does not yet exist
+    (graceful degradation during first-run migration).
+    This is the auth hot path -- keep it fast.
+    """
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM field_reps "
+            "WHERE pin = ? AND is_active = 1",
+            (pin,)
+        ).fetchone()
+        return dict(row) if row else None
+    except sqlite3.OperationalError:
+        # Table may not exist yet (first-run before init_db completes)
+        return None
+    finally:
+        conn.close()
+
+
+def update_field_rep(
+    rep_id: str,
+    name: str | None = None,
+    pin: str | None = None,
+    is_active: bool | None = None,
+) -> dict:
+    """
+    Update a field rep's name, PIN, and/or active status.
+    PIN uniqueness and system-PIN conflict checks apply.
+    Returns the updated rep dict.
+    Raises ValueError if rep_id not found.
+    """
+    if pin is not None:
+        if not pin.isdigit() or len(pin) != 4:
+            raise ValueError("PIN must be exactly 4 digits.")
+        settings = get_settings()
+        reserved = {
+            settings.admin_pin,
+            settings.accounting_pin,
+            settings.operations_pin,
+        }
+        if pin in reserved:
+            raise ValueError("PIN conflicts with a reserved system PIN.")
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT * FROM field_reps WHERE id = ?",
+            (rep_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError(f"Rep {rep_id} not found.")
+        new_name   = name      if name      is not None else row["name"]
+        new_pin    = pin       if pin       is not None else row["pin"]
+        new_active = (1 if is_active else 0) \
+                     if is_active is not None \
+                     else row["is_active"]
+        conn.execute(
+            """UPDATE field_reps
+               SET name = ?, pin = ?,
+                   is_active = ?,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?""",
+            (new_name, new_pin, new_active, rep_id)
+        )
+        conn.execute("COMMIT")
+        return {"id": rep_id, "name": new_name,
+                "pin": new_pin, "is_active": new_active}
+    except sqlite3.IntegrityError:
+        conn.execute("ROLLBACK")
+        raise ValueError("PIN is already in use.")
     finally:
         conn.close()

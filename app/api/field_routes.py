@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 from app.core.inspection_models import get_stable_photos, InspectionJob
 from app.core.cache import get_cached_analyses_for_job
 from app.core.database import get_connection, update_job_status
-from app.api.auth import verify_field
+from app.api.auth import verify_field, get_current_claims
 from app.core.upload_utils import stream_upload_safely
 from app.core.notifications import notifier
 
@@ -67,7 +67,7 @@ class FlagResolutionPayload(BaseModel):
     quantity_delta: float = Field(..., description="The corrected, manually determined quantity")
     resolution_note: str = Field(..., description="Audit note explaining the manual override")
 
-def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, ice_barrier: bool | None, canvasser_name: str):
+def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, ice_barrier: bool | None, canvasser_name: str, canvasser_rep_id: str | None = None):
     conn = get_connection()
     try:
         initial_history = [{
@@ -80,14 +80,14 @@ def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, i
             INSERT INTO jobs (
                 id, invoice_id, homeowner_name, address_line1, city, state, postal_code, 
                 phone, email, claim_number, insurer_name, status, status_history, job_type,
-                ice_barrier_required, jurisdiction_code_version, canvasser_name
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ice_barrier_required, jurisdiction_code_version, canvasser_name, canvasser_rep_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             job_id, inv_id, payload.homeowner_name, payload.address_line1, payload.city,
             payload.state, payload.postal_code, payload.phone, payload.email,
             payload.claim_number, payload.insurer_name, "LEAD_CAPTURED",
             json.dumps(initial_history), payload.job_type,
-            ice_barrier, "2021_IRC", canvasser_name
+            ice_barrier, "2021_IRC", canvasser_name, canvasser_rep_id
         ))
         
         if payload.loss_date:
@@ -104,7 +104,12 @@ def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, i
 from fastapi import Request
 
 @router.post("/jobs")
-async def create_new_job(payload: LeadIntakePayload, request: Request, role: str = Depends(verify_field)):
+async def create_new_job(
+    payload: LeadIntakePayload,
+    request: Request,
+    role: str = Depends(verify_field),
+    claims: dict = Depends(get_current_claims),
+):
     """
     Intake hook for new leads. Replaces JobNimbus lead creation.
     Generates UUID, creates directories, and initializes local SQLite record.
@@ -118,12 +123,17 @@ async def create_new_job(payload: LeadIntakePayload, request: Request, role: str
     from app.core.database import generate_invoice_id
     inv_id = generate_invoice_id()
 
-    # Resolve canvasser identity: explicit name from form, fall back to JWT role
-    canvasser_name = (payload.canvasser_name or "").strip() or role
+    # Resolve canvasser identity from JWT claims first, then payload fallback
+    canvasser_name = (
+        claims.get("rep_name")           # from JWT (field rep identity)
+        or (payload.canvasser_name or "").strip()  # manual override in payload
+        or "Unassigned"                   # last resort
+    )
+    rep_id = claims.get("rep_id")
     
     # Insert into database using background thread
     try:
-        await asyncio.to_thread(_sync_create_new_job, job_id, inv_id, payload, ice_barrier, canvasser_name)
+        await asyncio.to_thread(_sync_create_new_job, job_id, inv_id, payload, ice_barrier, canvasser_name, rep_id)
         
         await notifier.broadcast({
             "type": "new_lead",
