@@ -193,7 +193,7 @@ async def process_supplement_event(
                     source_doc_id=sol_doc_id or "unknown"
                 )
             except ValueError as e:
-                await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_MANUAL_REVIEW, f"SoL Parse failed: {str(e)}")
+                await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_OPERATOR_REVIEW, f"SoL Parse failed: {str(e)}")
                 return {"status": "halted_for_review"}
 
             unverified_items = [li for li in sol_data.line_items if not li.verified]
@@ -229,14 +229,14 @@ async def process_supplement_event(
                 await asyncio.to_thread(
                     update_job_status,
                     job_id,
-                    JobStatus.PENDING_MANUAL_REVIEW,
+                    JobStatus.PENDING_OPERATOR_REVIEW,
                     f"{len(unverified_items)} carrier line items failed math verification."
                 )
                 return {"status": "halted_for_review"}
 
 
             # 3. Reconcile
-            report = await asyncio.to_thread(reconcile, ev_data, sol_data, job_id=job_id)
+            report = await asyncio.to_thread(reconcile, ev_data, sol_data, job_id)  # type: ignore
             
             # Persist report snapshot for potential resume
             def _save_report_sync():
@@ -263,7 +263,7 @@ async def process_supplement_event(
             manual_review_required = await asyncio.to_thread(generate_and_gate_flags, job_id, ice_barrier_required, ev_data)
             
             if manual_review_required:
-                await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_MANUAL_REVIEW, note="Manual flag entry required due to malformed extraction.")
+                await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_OPERATOR_REVIEW, note="Manual flag entry required due to malformed extraction.")
                 log.info("pipeline_halted_for_review")
                 return {"status": "halted_for_review"}
 

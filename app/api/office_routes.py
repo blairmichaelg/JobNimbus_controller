@@ -447,7 +447,7 @@ async def get_inspection_letter(job_id: str):
     if not ev_pdf.exists():
         raise HTTPException(400, "EagleView not yet uploaded. Cannot generate letter.")
         
-    ev_data_obj = await extract_eagleview_data(ev_pdf)
+    ev_data_obj, _ = await extract_eagleview_data(ev_pdf)
     ev_data = ev_data_obj.model_dump() if hasattr(ev_data_obj, 'model_dump') else dict(ev_data_obj)
 
     inspection_summary = {"damage_count": 0, "predominant_damage_type": "None", "severity": "Low"}
@@ -577,7 +577,7 @@ async def generate_material_order(job_id: str, payload: MaterialOrderPayload, bg
         
     try:
         # Rebuild BOM
-        ev_data = await extract_eagleview_data(pdf_path)
+        ev_data, _ = await extract_eagleview_data(pdf_path)
         sol_pdf_path = job_dir / "statement_of_loss.pdf"
         if sol_pdf_path.exists():
             from app.services.ai_service import AIService
@@ -848,13 +848,14 @@ async def admin_triage_view(request: Request):
     finally:
         conn.close()
     return templates.TemplateResponse(
+        request,
         "admin_triage.html",
         {"request": request, "stuck_jobs": stuck_jobs}
     )
 
 @router.post("/admin/triage/{job_id}/resolve",
              response_class=JSONResponse)
-async def admin_triage_resolve(job_id: str, payload: dict = Body(...)):
+async def admin_triage_resolve(request: Request, job_id: str, payload: dict = Body(...)):
     """
     Accepts a dict of corrected geometry fields, writes them to
     the jobs table, resets status to EV_PARSED, and enqueues
@@ -911,7 +912,7 @@ async def mark_supplement_sent_route(job_id: str):
     response_class=JSONResponse
 )
 async def toggle_payment(request: Request, job_id: str, payload: dict = Body(...)):
-    flag = payload.get("flag")
+    flag = str(payload.get("flag", ""))
     from app.core.database import toggle_payment_flag
     result = toggle_payment_flag(job_id, flag)
     if result.get("commission_triggered"):

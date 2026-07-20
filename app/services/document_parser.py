@@ -93,7 +93,7 @@ async def _gemini_extract(
     EvidenceRef for every field.
     """
     settings = get_settings()
-    genai.configure(api_key=settings.GEMINI_API_KEY)
+    genai.configure(api_key=settings.gemini_api_key)
     model = genai.GenerativeModel("gemini-2.5-flash")
 
     prompt = _SOL_EXTRACTION_PROMPT.format(

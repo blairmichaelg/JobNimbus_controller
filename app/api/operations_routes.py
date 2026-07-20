@@ -112,9 +112,9 @@ async def operations_board(request: Request):
         conn.close()
 
     return templates.TemplateResponse(
+        request,
         "operations_dashboard_v2.html",
         {
-            "request": request,
             "needs_materials": needs_materials,
             "ready_to_build": ready_to_build
         }

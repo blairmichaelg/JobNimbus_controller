@@ -43,6 +43,11 @@ The final evolution of the pipeline, transitioning the entire operational lifecy
 - **Paperwork Matrix**: Generates strict Georgia Statutory Compliance documents and Supplier Purchase Orders directly from deterministic `MaterialBOM` calculations.
 - **Robust Connection Manager**: Incorporates a self-healing WebSocket infrastructure with active background heartbeat monitoring to instantly sweep inactive connections.
 
+### Phase 9 — Field Rep Identity System ✅
+- **Dynamic Canvasser Identities**: Retired static `.env` PINs in favor of a dynamic `field_reps` SQLite table.
+- **Admin Management UI**: Added an integrated admin interface (`/admin/reps`) to securely onboard, edit, and offboard field personnel.
+- **Rich Identity JWTs**: Implemented JWT payloads that embed the canvasser's `rep_id` and `rep_name`, ensuring accurate attribution in the job intake and commission generation pipelines.
+
 ### V2 & V3 — AI Supplement & Vision Engines ✅
 The core artificial intelligence layers powering the system's logic.
 - **V2 Supplement Engine**: Deterministic insurance supplement generation. Extracts EagleView measurements via `pdfplumber`, reconciles discrepancies with pure-Python math, and generates professional supplement request PDFs with AI-written narratives.
@@ -61,7 +66,7 @@ The core artificial intelligence layers powering the system's logic.
 | PDF Generation | ReportLab | $0 |
 | PDF Parsing | pdfplumber | $0 |
 | Frontend | Vanilla JS + Tailwind CSS | $0 |
-| Testing | Pytest (130+ green tests) | $0 |
+| Testing | Pytest (209+ green tests) | $0 |
 
 ## Pre-Flight Operational Safeguards
 

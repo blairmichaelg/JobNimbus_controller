@@ -357,9 +357,9 @@ async def admin_reps_page(request: Request, role: str = Depends(get_current_role
         raise HTTPException(status_code=403, detail="Admins only.")
     reps = await asyncio.to_thread(list_field_reps, True)
     return templates.TemplateResponse(
+        request,
         "admin_reps.html",
         {
-            "request": request,
             "reps": reps,
             "role": role,
         },
