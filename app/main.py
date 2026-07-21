@@ -23,7 +23,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.webhooks import router as webhook_router
 from app.api.field_routes import router as field_router
-from app.api.office_routes import router as office_router, _fetch_job_sync
+from app.api.office_routes import router as office_router
 from app.api.operations_routes import router as operations_router
 from app.api.auth_routes import router as auth_router
 from app.api.admin_reps_routes import router as admin_reps_router
@@ -32,7 +32,7 @@ from app.api.auth import verify_admin, verify_accounting, verify_operations, get
 from app.config import get_settings
 from app.core.notifications import notifier
 from app.core.cache import init_db as init_cache_db
-from app.core.database import run_migrations as init_crm_db, get_connection, list_field_reps
+from app.core.database import run_migrations as init_crm_db, get_connection, list_field_reps, _fetch_job_sync
 import os
 import asyncio
 

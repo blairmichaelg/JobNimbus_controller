@@ -91,6 +91,18 @@ def get_connection() -> sqlite3.Connection:
     _configure_connection(conn)
     return conn
 
+def _fetch_job_sync(job_id: str) -> dict | None:
+    """
+    Fetch a complete job record synchronously.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
 def run_migrations() -> None:
     """Run versioned migrations."""
     conn = get_connection()
@@ -458,41 +470,6 @@ def insert_schedule(job_id: str, crew_name: str, install_date: str, delivery_dat
     finally:
         conn.close()
 
-async def backup_database() -> None:
-    """Safely creates a hot snapshot of the SQLite WAL database.
-    
-    Saves to data/backups/crm_backup_{timestamp}.db.
-    Enforces a backup retention limit based on application settings.
-    Runs asynchronously to avoid locking the event loop.
-    """
-    def _do_backup() -> None:
-        backup_dir = Path("data/backups")
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_id = uuid.uuid4().hex[:6]
-        backup_path = backup_dir / f"crm_backup_{timestamp}_{unique_id}.db"
-        
-        try:
-            with sqlite3.connect(get_db_path()) as source_conn:
-                with sqlite3.connect(backup_path) as dest_conn:
-                    source_conn.backup(dest_conn)
-            logger.info("database_backup_created", path=str(backup_path))
-            
-            # Enforce backup retention policy
-            limit = get_settings().BACKUP_RETENTION_LIMIT
-            backups = sorted(backup_dir.glob("crm_backup_*.db"), key=lambda p: p.stat().st_mtime)
-            while len(backups) > limit:
-                oldest = backups.pop(0)
-                try:
-                    oldest.unlink()
-                    logger.info("old_backup_pruned", path=str(oldest))
-                except Exception as prune_err:
-                    logger.warning("failed_to_prune_backup", path=str(oldest), error=str(prune_err))
-                    
-        except Exception as e:
-            logger.error("database_backup_failed", error=str(e))
-
-    await asyncio.to_thread(_do_backup)
 
 def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str, sha256_hash: str | None = None) -> str:
     """Register a generated or uploaded file in the universal document vault."""

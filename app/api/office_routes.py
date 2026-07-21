@@ -23,7 +23,8 @@ from app.core.supplement_models import StatementOfLoss
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
-from app.core.database import insert_material_order, insert_schedule, JobStatus, backup_database, upsert_financials, insert_job_document, get_job_document_by_hash
+from app.core.database import insert_material_order, insert_schedule, JobStatus, upsert_financials, insert_job_document, get_job_document_by_hash, _fetch_job_sync
+from app.core.backup import backup_database
 from app.core.pipeline import run_full_office_pipeline
 from app.api.auth import verify_admin
 from app.core.upload_utils import stream_upload_safely
@@ -34,7 +35,7 @@ router = APIRouter(prefix="/api/office", tags=["office_ux"], dependencies=[Depen
 
 
 
-FIELD_DOCS_DIR = Path("data/field_docs")
+from app.config import get_settings, FIELD_DOCS_DIR
 EXPORT_DIR = Path("generated_exports")
 
 def _fetch_homeowner_name_sync(job_id: str) -> str:
@@ -55,23 +56,7 @@ def _fetch_homeowner_name_sync(job_id: str) -> str:
     finally:
         conn.close()
 
-def _fetch_job_sync(job_id: str) -> Optional[Dict[str, Union[str, float, int, None]]]:
-    """
-    Fetch a complete job record synchronously.
 
-    Args:
-        job_id (str): The unique identifier of the job.
-
-    Returns:
-        Optional[Dict[str, Union[str, float, int, None]]]: A dictionary representing the job record, or None.
-    """
-    conn = get_connection()
-    try:
-        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        conn.close()
 
 class FinancialsPayload(BaseModel):
     revenue: float

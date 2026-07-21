@@ -33,7 +33,7 @@ router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends
 
 # Base directories (created on startup)
 FIELD_PHOTOS_DIR = Path("field_photos")
-FIELD_DOCS_DIR = Path("data/field_docs")
+from app.config import get_settings, FIELD_DOCS_DIR
 SIGNED_AGREEMENTS_DIR = Path("signed_agreements")
 
 class LeadIntakePayload(BaseModel):

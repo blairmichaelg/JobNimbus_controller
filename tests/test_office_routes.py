@@ -137,3 +137,18 @@ class TestUploadIdempotency:
         
         # 5. Verify the pipeline was completely bypassed
         mock_run_pipeline.assert_not_called()
+
+class TestMaterialOrderIntegration:
+    def test_material_order_route_integration(self):
+        """Verify the material_order route successfully imports its dependencies and runs."""
+        payload = {
+            "supplier_name": "ABC Supply",
+            "delivery_date": "2026-08-01"
+        }
+        
+        # We expect it to fail gracefully with a ValueError about the missing PDF,
+        # NOT crash with an ImportError (which returns 500).
+        response = client.post("/api/office/jobs/job-123/material_order", json=payload)
+        
+        assert response.status_code == 400
+        assert "EagleView PDF not found" in response.json()["detail"]
