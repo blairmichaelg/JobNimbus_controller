@@ -20,6 +20,7 @@ from PIL import Image
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Request, BackgroundTasks
 from app.api.auth import get_current_role
 from app.services.field_access import assert_field_rep_owns_job
+from app.services.rate_limit import check_rate_limit
 from app.core.climate_lookup import is_ice_barrier_required
 from pydantic import BaseModel, Field
 
@@ -258,7 +259,7 @@ async def get_inspection_summary(job_id: str, claims: dict = Depends(get_current
     return job
 
 
-@router.post("/jobs/{job_id}/resume-supplement", status_code=202)
+@router.post("/jobs/{job_id}/resume-supplement", status_code=202, dependencies=[Depends(check_rate_limit)])
 async def resume_supplement(job_id: str, request: Request, background_tasks: BackgroundTasks, role: str = Depends(get_current_role), claims: dict = Depends(get_current_claims)):
     assert_field_rep_owns_job(claims, job_id)
     """

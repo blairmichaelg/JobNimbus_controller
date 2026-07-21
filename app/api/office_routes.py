@@ -29,6 +29,7 @@ from app.core.backup import backup_database
 from app.core.pipeline import run_full_office_pipeline
 from app.api.auth import verify_admin, verify_accounting
 from app.core.upload_utils import stream_upload_safely
+from app.services.rate_limit import check_rate_limit
 
 logger = structlog.get_logger("app.api.office_routes")
 
@@ -237,7 +238,7 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
     return {"status": "success", "message": "Master Pipeline complete, QBO CSV generated.", "pipeline_result": result}
 
 
-@router.post("/jobs/{job_id}/supplement_docs", dependencies=[Depends(verify_admin)])
+@router.post("/jobs/{job_id}/supplement_docs", dependencies=[Depends(verify_admin), Depends(check_rate_limit)])
 async def upload_supplement_docs(
     request: Request,
     job_id: str, 
@@ -556,7 +557,7 @@ async def update_job_production(job_id: str, payload: ProductionPayload, bg_task
         logger.error("production_update_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to schedule production.")
 
-@router.post("/jobs/{job_id}/material_order", dependencies=[Depends(verify_admin)])
+@router.post("/jobs/{job_id}/material_order", dependencies=[Depends(verify_admin), Depends(check_rate_limit)])
 async def generate_material_order(job_id: str, payload: MaterialOrderPayload, bg_tasks: BackgroundTasks):
     """
     Triggers the generation of the supplier PO and updates job status to MATERIAL_ORDERED.
@@ -843,7 +844,7 @@ async def admin_triage_view(request: Request):
     )
 
 @router.post("/admin/triage/{job_id}/resolve",
-             response_class=JSONResponse, dependencies=[Depends(verify_admin)])
+             response_class=JSONResponse, dependencies=[Depends(verify_admin), Depends(check_rate_limit)])
 async def admin_triage_resolve(request: Request, job_id: str, payload: dict = Body(...), role: str = Depends(get_current_role)):
     """
     Accepts a dict of corrected geometry fields, writes them to
@@ -900,7 +901,7 @@ async def mark_supplement_sent_route(job_id: str):
 @router.post(
     "/accounting/jobs/{job_id}/toggle-payment",
     response_class=JSONResponse
-, dependencies=[Depends(verify_accounting)])
+, dependencies=[Depends(verify_accounting), Depends(check_rate_limit)])
 async def toggle_payment(request: Request, job_id: str, payload: dict = Body(...)):
     flag = str(payload.get("flag", ""))
     from app.core.database import toggle_payment_flag
@@ -945,7 +946,7 @@ async def approve_supplement(
 @router.post(
     "/jobs/{job_id}/deny-supplement",
     response_class=JSONResponse
-, dependencies=[Depends(verify_admin)])
+, dependencies=[Depends(verify_admin), Depends(check_rate_limit)])
 async def deny_supplement(request: Request, job_id: str,
                            payload: dict = Body(...)):
     """
@@ -1031,7 +1032,7 @@ def download_commission(job_id: str):
         filename=f"Commission_Statement_{job_id[:8]}.pdf"
     )
 
-@router.post("/jobs/{job_id}/escalate", dependencies=[Depends(verify_admin)])
+@router.post("/jobs/{job_id}/escalate", dependencies=[Depends(verify_admin), Depends(check_rate_limit)])
 async def queue_escalation(request: Request, job_id: str):
     await request.app.state.redis_pool.enqueue_job(
         "process_escalation",
