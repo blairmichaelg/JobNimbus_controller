@@ -15,6 +15,9 @@ from enum import Enum
 import asyncio
 
 from app.config import get_settings
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 logger = structlog.get_logger("app.core.database")
 
@@ -135,8 +138,15 @@ def run_migrations() -> None:
             
             conn.execute("UPDATE schema_version SET version = 2, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
 
+        if current_version < 3:
+            import importlib
+            m3 = importlib.import_module("app.core.migrations.0003_hash_field_rep_pins")
+            m3.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 3, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+
         conn.execute("COMMIT")
-        logger.info("migrations_applied", current_version=current_version, target_version=2)
+        logger.info("migrations_applied", current_version=current_version, target_version=3)
         
         # Since seed logic was removed from up(), do it here outside the transaction
         if current_version < 1:
@@ -933,17 +943,17 @@ def create_field_rep(name: str, pin: str) -> dict:
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        hashed_pin = pwd_context.hash(pin)
         rep_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO field_reps
-               (id, name, pin, is_active)
+               (id, name, pin_hash, is_active)
                VALUES (?, ?, ?, 1)""",
-            (rep_id, name.strip(), pin)
+            (rep_id, name.strip(), hashed_pin)
         )
         conn.execute("COMMIT")
         logger.info("field_rep_created", rep_id=rep_id, name=name)
-        return {"id": rep_id, "name": name.strip(),
-                "pin": pin, "is_active": 1}
+        return {"id": rep_id, "name": name.strip(), "is_active": 1}
     except sqlite3.IntegrityError:
         conn.execute("ROLLBACK")
         raise ValueError("PIN is already in use.")
@@ -973,20 +983,21 @@ def list_field_reps(include_inactive: bool = False) -> list[dict]:
 
 def get_field_rep_by_pin(pin: str) -> dict | None:
     """
-    Look up an active field rep by their PIN.
+    Look up an active field rep by their plaintext PIN using bcrypt verify.
     Returns None if not found, if rep is inactive,
-    or if the field_reps table does not yet exist
-    (graceful degradation during first-run migration).
-    This is the auth hot path -- keep it fast.
+    or if the field_reps table does not yet exist.
     """
     conn = get_connection()
     try:
-        row = conn.execute(
-            "SELECT * FROM field_reps "
-            "WHERE pin = ? AND is_active = 1",
-            (pin,)
-        ).fetchone()
-        return dict(row) if row else None
+        # We must retrieve all active reps and verify against their hashes
+        # Since field reps are typically few (e.g. <50), this is acceptable.
+        rows = conn.execute(
+            "SELECT * FROM field_reps WHERE is_active = 1"
+        ).fetchall()
+        for row in rows:
+            if pwd_context.verify(pin, row["pin_hash"]):
+                return dict(row)
+        return None
     except sqlite3.OperationalError:
         # Table may not exist yet (first-run before init_db completes)
         return None
@@ -1028,21 +1039,20 @@ def update_field_rep(
             conn.execute("ROLLBACK")
             raise ValueError(f"Rep {rep_id} not found.")
         new_name   = name      if name      is not None else row["name"]
-        new_pin    = pin       if pin       is not None else row["pin"]
+        new_pin_hash = pwd_context.hash(pin) if pin is not None else row["pin_hash"]
         new_active = (1 if is_active else 0) \
                      if is_active is not None \
                      else row["is_active"]
         conn.execute(
             """UPDATE field_reps
-               SET name = ?, pin = ?,
+               SET name = ?, pin_hash = ?,
                    is_active = ?,
                    updated_at = CURRENT_TIMESTAMP
                WHERE id = ?""",
-            (new_name, new_pin, new_active, rep_id)
+            (new_name, new_pin_hash, new_active, rep_id)
         )
         conn.execute("COMMIT")
-        return {"id": rep_id, "name": new_name,
-                "pin": new_pin, "is_active": new_active}
+        return {"id": rep_id, "name": new_name, "is_active": new_active}
     except sqlite3.IntegrityError:
         conn.execute("ROLLBACK")
         raise ValueError("PIN is already in use.")

@@ -19,6 +19,7 @@ from PIL import Image
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Request, BackgroundTasks
 from app.api.auth import get_current_role
+from app.services.field_access import assert_field_rep_owns_job
 from app.core.climate_lookup import is_ice_barrier_required
 from pydantic import BaseModel, Field
 
@@ -168,7 +169,8 @@ async def create_new_job(
 
 
 @router.post("/jobs/{job_id}/photos")
-async def upload_field_photo(job_id: str, file: UploadFile = File(...)):
+async def upload_field_photo(job_id: str, file: UploadFile = File(...), claims: dict = Depends(get_current_claims)):
+    assert_field_rep_owns_job(claims, job_id)
     """
     Accept direct photo uploads from the iPad over LAN.
     Stores files in field_photos/{job_id}/ for downstream processing.
@@ -203,7 +205,8 @@ async def upload_field_photo(job_id: str, file: UploadFile = File(...)):
 
 
 @router.get("/jobs/{job_id}/inspection", response_model=InspectionJob)
-async def get_inspection_summary(job_id: str):
+async def get_inspection_summary(job_id: str, claims: dict = Depends(get_current_claims)):
+    assert_field_rep_owns_job(claims, job_id)
     """
     Retrieve the full InspectionJob summary.
     Constructs the job by scanning the local field_photos/{job_id} directory
@@ -256,7 +259,8 @@ async def get_inspection_summary(job_id: str):
 
 
 @router.post("/jobs/{job_id}/resume-supplement", status_code=202)
-async def resume_supplement(job_id: str, request: Request, background_tasks: BackgroundTasks, role: str = Depends(get_current_role)):
+async def resume_supplement(job_id: str, request: Request, background_tasks: BackgroundTasks, role: str = Depends(get_current_role), claims: dict = Depends(get_current_claims)):
+    assert_field_rep_owns_job(claims, job_id)
     """
     Resumes a halted supplement pipeline (e.g. from PENDING_MANUAL_REVIEW).
     Skips parsing and gating, and goes straight to Narrative/PDF generation.
@@ -295,7 +299,8 @@ def _sync_resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload
         conn.close()
 
 @router.patch("/jobs/{job_id}/flags/{flag_id}", status_code=200)
-async def resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload):
+async def resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload, claims: dict = Depends(get_current_claims)):
+    assert_field_rep_owns_job(claims, job_id)
     """
     Resolves a flag that was marked for manual review.
     Updates the quantity and adds a resolution note.
@@ -354,7 +359,8 @@ def _sync_insert_agreement(agreement_id: str, job_id: str, pdf_path: str, sig_fi
         conn.close()
 
 @router.post("/jobs/{job_id}/contingency-sign")
-async def contingency_sign(job_id: str, payload: ContingencySignaturePayload):
+async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, claims: dict = Depends(get_current_claims)):
+    assert_field_rep_owns_job(claims, job_id)
     """
     Handle E-Signature for Contingency Agreements.
     Saves PNG, generates PDF, logs agreement, and updates status.
