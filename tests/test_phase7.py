@@ -82,6 +82,8 @@ def test_days_since_filter():
 
 # 7. Test /jobs/{job_id}/escalate route
 def test_queue_escalation(auth_cookies):
+    from app.services.rate_limit import reset_rate_limits
+    reset_rate_limits()
     conn = get_connection()
     job_id = setup_test_job(conn)
     conn.close()

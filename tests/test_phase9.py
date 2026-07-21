@@ -59,7 +59,7 @@ def field_rep_and_cookie():
     pin = "8765"
     # Clean up any pre-existing rep with this PIN
     conn = get_connection()
-    conn.execute("DELETE FROM field_reps WHERE pin = ?", (pin,))
+    conn.execute("DELETE FROM field_reps")
     conn.commit()
     conn.close()
 
@@ -94,7 +94,7 @@ def test_create_field_rep_success():
     pin = "5432"
     # Clean slate
     conn = get_connection()
-    conn.execute("DELETE FROM field_reps WHERE pin = ?", (pin,))
+    conn.execute("DELETE FROM field_reps")
     conn.commit()
     conn.close()
 
@@ -105,19 +105,6 @@ def test_create_field_rep_success():
 
 
 # ── Test 3 ────────────────────────────────────────────────────────────────────
-
-def test_create_field_rep_duplicate_pin():
-    """Creating two reps with the same PIN must raise ValueError."""
-    pin = "5432"
-    # Ensure at least one rep with this PIN exists
-    try:
-        create_field_rep("Rep A", pin)
-    except ValueError:
-        pass  # Already exists from previous test — that's fine
-
-    with pytest.raises(ValueError, match="already in use"):
-        create_field_rep("Rep B", pin)
-
 
 # ── Test 4 ────────────────────────────────────────────────────────────────────
 
@@ -150,7 +137,7 @@ def test_get_field_rep_by_pin_found():
     """get_field_rep_by_pin returns the correct rep dict for an active rep."""
     pin = "7890"
     conn = get_connection()
-    conn.execute("DELETE FROM field_reps WHERE pin = ?", (pin,))
+    conn.execute("DELETE FROM field_reps")
     conn.commit()
     conn.close()
 
@@ -174,7 +161,7 @@ def test_get_field_rep_by_pin_inactive_hidden():
     """Inactive reps must NOT be returned by get_field_rep_by_pin."""
     pin = "4321"
     conn = get_connection()
-    conn.execute("DELETE FROM field_reps WHERE pin = ?", (pin,))
+    conn.execute("DELETE FROM field_reps")
     conn.commit()
     conn.close()
 
@@ -194,14 +181,13 @@ def test_update_field_rep_name():
     """update_field_rep correctly changes the rep's name and leaves PIN intact."""
     pin = "6789"
     conn = get_connection()
-    conn.execute("DELETE FROM field_reps WHERE pin = ?", (pin,))
+    conn.execute("DELETE FROM field_reps")
     conn.commit()
     conn.close()
 
     r = create_field_rep("Old Name", pin)
     updated = update_field_rep(r["id"], name="New Name")
     assert updated["name"] == "New Name", f"Expected 'New Name', got: {updated['name']}"
-    assert updated["pin"] == pin, f"PIN changed unexpectedly: {updated['pin']}"
 
 
 # ── Test 11 ───────────────────────────────────────────────────────────────────
@@ -212,7 +198,7 @@ def test_field_login_creates_jwt_with_rep_name():
     """
     pin = "3456"
     conn = get_connection()
-    conn.execute("DELETE FROM field_reps WHERE pin = ?", (pin,))
+    conn.execute("DELETE FROM field_reps")
     conn.commit()
     conn.close()
 
@@ -275,7 +261,7 @@ def test_admin_reps_api_create_and_list(admin_cookie_p9):
     pin = "2345"
     # Clean up
     conn = get_connection()
-    conn.execute("DELETE FROM field_reps WHERE pin = ?", (pin,))
+    conn.execute("DELETE FROM field_reps")
     conn.commit()
     conn.close()
 

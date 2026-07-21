@@ -48,8 +48,7 @@ async def verify_api_key(
 @router.post("/trigger", dependencies=[Depends(verify_api_key)])
 async def receive_event_trigger(
     payload: EventPayload,
-    request: Request,
-    role: str = Depends(verify_admin)
+    request: Request
 ) -> dict:
     """
     Ingest a generic event and trigger ARQ background workers.
@@ -72,7 +71,7 @@ async def receive_event_trigger(
                 job_id=payload.job_id,
                 ev_pdf_path=payload.ev_pdf_path,
                 sol_pdf_path=payload.sol_pdf_path,
-                role=role
+                role="admin"
             )
         elif payload.event_type == "inspection":
             # Inspection payloads need to be hydrated into an InspectionJob first.

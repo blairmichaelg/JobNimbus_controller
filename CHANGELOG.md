@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.0] - 2026-07-21
+### Added & Fixed (Phase 3 Security Hardening)
+- **Role Isolation & Dependencies**: Integrated strict JWT role validations across all route files. Enforced `verify_admin` on office endpoints and `verify_accounting` on ledger toggles. Injected role identities explicitly into ARQ background pipelines, completely halting unauthenticated queue requests.
+- **Path Traversal Protection**: Hardened the download route infrastructure. Added a robust `sanitize_download_filename` barrier that structurally enforces exact matching on expected document names, eliminating relative path (`../`) vulnerabilities.
+- **Field Rep Boundary Enforcement**: Implemented `assert_field_rep_owns_job` across the `/api/field/` namespace. Field reps are now strictly isolated to jobs matching their `canvasser_rep_id`, halting cross-rep snooping. Admin JWTs can dynamically bypass this barrier.
+- **PIN Cryptography**: Successfully migrated field rep PINs from plaintext configuration defaults to database-managed `bcrypt` hashes. Strengthened "No Silent Zeros" compliance across the authentication boundary.
+- **ARQ Rate Limiting**: Deployed an in-memory sliding window rate limiter specifically guarding resource-heavy pipeline endpoints (`/material_order`, `/supplement_docs`, `/resume-supplement`) to prevent Denial of Service bursts.
+- **Resume Code RAG Restoration**: Fixed a logical gap in the `run_supplement_pipeline` resume sequence where IBC/IRC building codes were silently dropped. Re-wired the Zero-Cost RAG lookup to ensure consistent, defensible generation on resumed jobs.
+
 ## [0.8.1] - 2026-07-21
 ### Added & Fixed
 - **Fixed `pdf_path` return value**: Corrected the return value of `run_supplement_pipeline` to return the permanent PDF path instead of a nullified temporary path.

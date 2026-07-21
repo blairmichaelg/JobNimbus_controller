@@ -112,6 +112,7 @@ class TestEventRouting:
             job_id="job_xyz",
             ev_pdf_path="/tmp/ev.pdf",
             sol_pdf_path="/tmp/sol.pdf",
+            role="admin"
         )
 
     def test_supplement_missing_pdfs_ignored(self):

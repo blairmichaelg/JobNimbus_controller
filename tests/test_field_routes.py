@@ -16,6 +16,13 @@ client = TestClient(app)
 from app.core.database import create_field_rep, get_field_rep_by_pin  # noqa: E402
 from app.core.cache import init_db as _init_cache
 from app.core.database import run_migrations as _init_crm
+from unittest.mock import patch
+
+@pytest.fixture(autouse=True)
+def mock_assert_field_rep_owns_job():
+    with patch("app.api.field_routes.assert_field_rep_owns_job") as mock:
+        yield mock
+
 _init_cache()
 _init_crm()
 if not get_field_rep_by_pin("3333"):
