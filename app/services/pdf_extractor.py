@@ -90,6 +90,9 @@ async def extract_eagleview_data(pdf_path: str | Path) -> tuple[EagleViewData, s
                 "Hip Length"
             )
 
+            facets_match = re.search(r"Facets\s*=\s*([\d,]+)", combined_text, re.IGNORECASE)
+            total_facets = int(facets_match.group(1).replace(",", "")) if facets_match else 0
+
             pitch_match = re.search(
                 r"(?:Predominant|Primary)\s+Pitch\s*[=:]\s*([\d]+/12)",
                 combined_text,
@@ -110,9 +113,10 @@ async def extract_eagleview_data(pdf_path: str | Path) -> tuple[EagleViewData, s
                 hip_lf=hips,
                 eaves_lf=eaves,
                 drip_edge_lf=eaves + rakes,
-                flashing_lf=0.0,       # TODO Phase 3: Operator inputs flashing at PENDING_OPERATOR_REVIEW gate before supplement is triggered.
-                step_flashing_lf=0.0,  # TODO Phase 3: Operator inputs flashing at PENDING_OPERATOR_REVIEW gate before supplement is triggered.
-                total_facets=0,        # Not extractable from text layer; reserved
+                flashing_lf=None,
+                step_flashing_lf=None,
+                total_facets=total_facets,
+
                 predominant_pitch=predominant_pitch
             ), sha256_hash
 

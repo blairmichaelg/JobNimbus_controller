@@ -143,3 +143,24 @@ def test_reconcile_bom_calculation():
     assert bom.underlayment_rolls == 8       # ceil(78.062 / 10) -> 7.8062 -> 8
     assert bom.drip_edge_pieces == 39        # ceil(390 / 10) = 39
 
+
+def test_weaponized_waste_explanation():
+    ev = EagleViewData(
+        total_area_sf=6788.0, rake_lf=0, valley_lf=50.0, ridge_lf=0, hip_lf=0,
+        eaves_lf=0, drip_edge_lf=0, flashing_lf=0, step_flashing_lf=0,
+        total_facets=4, predominant_pitch="10/12"
+    )
+    sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
+    # Using specific waste factor to verify the string interpolation
+    report = reconcile(ev, sol, "job_1", waste_factor=0.14)
+    
+    # 4 facets * 0.2 = 0.8
+    # 10/12 pitch = (10 - 7) * 0.5 = 1.5
+    # 50 LF valley / 50 * 0.5 = 0.5
+    # Total Score = 2.8
+    assert report.waste_explanation == (
+        "A 14% waste factor is mathematically required (Complexity Score: 2.80) "
+        "due to 4 intersecting facets, 50.0 LF of valleys, and a 10/12 pitch."
+    )
+
+

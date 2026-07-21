@@ -157,3 +157,82 @@ def test_universal_ast_requires_source_hash():
             roof_geometry=geo,
             financials=fin
         )
+
+# 8. test_pipeline_halts_on_gross_rcv_mismatch
+@pytest.mark.asyncio
+async def test_pipeline_halts_on_gross_rcv_mismatch(tmp_path):
+    from app.core.pipeline import run_supplement_pipeline
+    from app.core.database import get_connection
+    import uuid
+
+    job_id = str(uuid.uuid4())
+    conn = get_connection()
+    try:
+        conn.execute('''
+            INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (job_id, "Test Homeowner", "123 St", "City", "ST", "12345", "555-5555", "LEAD_CAPTURED"))
+        # Set manual flashing so it doesn't halt on Fix 1
+        conn.execute("UPDATE jobs SET flashing_lf = 10, step_flashing_lf = 10 WHERE id = ?", (job_id,))
+        # Insert the synthetic_math_rule to satisfy the foreign key constraint
+        conn.execute('''
+            INSERT INTO supplement_rules (id, parent_code, required_child_code, citation_text, citation_type, trigger_logic_name, climate_dependent)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', ("synthetic_math_rule", "SYS", "MATH", "Synthetic Math Rule", "INTERNAL_POLICY", "eval_math", 0))
+        conn.commit()
+    finally:
+        conn.close()
+
+    ev_pdf = tmp_path / "ev.pdf"
+    sol_pdf = tmp_path / "sol.pdf"
+    ev_pdf.write_bytes(b"dummy")
+    sol_pdf.write_bytes(b"dummy")
+
+    from app.core.supplement_models import EagleViewData
+    mock_ev_data = EagleViewData(
+        total_area_sf=1000.0, rake_lf=0.0, valley_lf=20.0, ridge_lf=0.0,
+        hip_lf=0.0, eaves_lf=50.0, drip_edge_lf=0.0, flashing_lf=10.0,
+        step_flashing_lf=10.0, total_facets=2, predominant_pitch="6/12"
+    )
+
+    from app.core.ingestion_models import RoofGeometry, ClaimFinancials
+    mock_sol_data = UniversalClaimAST(
+        line_items=[],
+        roof_geometry=RoofGeometry(
+            pitch=create_mock_sourced_str("6/12"),
+            total_squares=create_mock_sourced_value(Decimal("10")),
+            eaves_lf=create_mock_sourced_value(Decimal("100")),
+            valleys_lf=create_mock_sourced_value(Decimal("50")),
+            rakes_lf=create_mock_sourced_value(Decimal("100")),
+        ),
+        financials=ClaimFinancials(
+            gross_rcv=create_mock_sourced_value(Decimal("1000")),
+            total_depreciation=create_mock_sourced_value(Decimal("0")),
+            deductible=create_mock_sourced_value(Decimal("1000")),
+            net_claim=create_mock_sourced_value(Decimal("0")),
+        ),
+        source_doc_sha256="hash",
+        source_doc_id="doc_id",
+        ast_version=1
+    )
+    # Deliberately set verified to False
+    mock_sol_data.financials.gross_rcv.verified = False
+
+    with patch("app.core.pipeline.extract_eagleview_data", return_value=(mock_ev_data, "fake_hash")), \
+         patch("app.services.document_parser.parse_statement_of_loss", return_value=mock_sol_data), \
+         patch("app.services.ai_service.AIService.generate_supplement_narrative") as mock_ai:
+        
+        result = await run_supplement_pipeline(
+            job_id=job_id,
+            ev_pdf_path=str(ev_pdf),
+            sol_pdf_path=str(sol_pdf),
+            ev_sha256="hash1",
+            ev_doc_id="doc1",
+            sol_sha256="hash2",
+            sol_doc_id="doc2",
+            resume=False
+        )
+
+        assert result["status"] == "halted_for_review"
+        assert result["reason"] == "gross_rcv_mismatch"
+        mock_ai.assert_not_called()

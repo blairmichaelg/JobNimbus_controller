@@ -35,6 +35,18 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
         # 1. Parse EV PDF
         ev_data, ev_hash = await extract_eagleview_data(ev_pdf_path)
         log.info("pipeline_ev_parsed", sq=ev_data.total_area_sf / 100.0)
+
+        import asyncio
+        from app.core.database import _fetch_job_sync
+        job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
+        if job_dict and job_dict.get("flashing_lf") is not None and job_dict.get("step_flashing_lf") is not None:
+            ev_data.flashing_lf = job_dict["flashing_lf"]
+            ev_data.step_flashing_lf = job_dict["step_flashing_lf"]
+
+        if ev_data.flashing_lf is None or ev_data.step_flashing_lf is None:
+            await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_OPERATOR_REVIEW, "Flashing/step-flashing measurements missing. Operator must enter manually before supplement can generate.")
+            return {"status": "halted_for_review", "reason": "missing_flashing_data"}
+
         
         # 2. Calculate BOM
         from app.core.complexity import compute_complexity_score, calculate_dynamic_waste
@@ -484,6 +496,9 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: Ea
     import uuid
     manual_review_required = False
     try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("DELETE FROM supplement_flags WHERE job_id = ?", (job_id,))
+        
         # Fetch all seeded rules
         cursor = conn.execute("SELECT * FROM supplement_rules")
         rules = cursor.fetchall()
@@ -530,9 +545,12 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: Ea
                 INSERT INTO supplement_flags (id, job_id, rule_id, triggered, quantity_delta, notes)
                 VALUES (?, ?, ?, ?, ?, ?)
             ''', flags_to_insert)
-            conn.commit()
+        conn.execute("COMMIT")
             
         return manual_review_required
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
     finally:
         conn.close()
 
@@ -613,6 +631,17 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
             # 1. Extract EV Data
             ev_data, ev_hash = await extract_eagleview_data(str(ev_pdf_path))
 
+            from app.core.database import _fetch_job_sync
+            job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
+            if job_dict and job_dict.get("flashing_lf") is not None and job_dict.get("step_flashing_lf") is not None:
+                ev_data.flashing_lf = job_dict["flashing_lf"]
+                ev_data.step_flashing_lf = job_dict["step_flashing_lf"]
+
+            if ev_data.flashing_lf is None or ev_data.step_flashing_lf is None:
+                await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_OPERATOR_REVIEW, "Flashing/step-flashing measurements missing. Operator must enter manually before supplement can generate.")
+                return {"status": "halted_for_review", "reason": "missing_flashing_data"}
+
+
             # 2. Extract SoL Data
             from app.services.document_parser import parse_statement_of_loss
             from pathlib import Path
@@ -627,9 +656,13 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
                 return {"status": "halted_for_review"}
 
             unverified_items = [li for li in sol_data.line_items if not li.verified]
-            if unverified_items:
+            gross_rcv_unverified = not sol_data.financials.gross_rcv.verified if sol_data.financials else False
+            
+            if unverified_items or gross_rcv_unverified:
                 conn = get_connection()
                 try:
+                    conn.execute("BEGIN IMMEDIATE")
+                    conn.execute("DELETE FROM supplement_flags WHERE job_id = ? AND rule_id = 'synthetic_math_rule'", (job_id,))
                     import uuid
                     flags_to_insert = []
                     for item in unverified_items:
@@ -646,27 +679,64 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
                         flags_to_insert.append((
                             str(uuid.uuid4()), job_id, "synthetic_math_rule", 1, 0.0, flag_note
                         ))
+                        
+                    if gross_rcv_unverified:
+                        flag_note = (
+                            f"Carrier Gross RCV ({sol_data.financials.gross_rcv.value}) does not tie out "
+                            f"to sum of line items. Estimate mathematical foundation is unverified."
+                        )
+                        log.warning("gross_rcv_mismatch_flagged")
+                        flags_to_insert.append((
+                            str(uuid.uuid4()), job_id, "synthetic_math_rule", 1, 0.0, flag_note
+                        ))
                     
                     if flags_to_insert:
                         conn.executemany('''
                             INSERT INTO supplement_flags (id, job_id, rule_id, triggered, quantity_delta, notes)
                             VALUES (?, ?, ?, ?, ?, ?)
                         ''', flags_to_insert)
-                        conn.commit()
+                    conn.execute("COMMIT")
+                except Exception:
+                    conn.execute("ROLLBACK")
+                    raise
                 finally:
                     conn.close()
 
+                error_msg = []
+                if unverified_items:
+                    error_msg.append(f"{len(unverified_items)} carrier line items failed math verification.")
+                if gross_rcv_unverified:
+                    error_msg.append("Carrier Gross RCV mismatch.")
+                
                 await asyncio.to_thread(
                     update_job_status,
                     job_id,
                     JobStatus.PENDING_OPERATOR_REVIEW,
-                    f"{len(unverified_items)} carrier line items failed math verification."
+                    " ".join(error_msg)
                 )
+                
+                if gross_rcv_unverified:
+                    return {"status": "halted_for_review", "reason": "gross_rcv_mismatch"}
                 return {"status": "halted_for_review"}
+            else:
+                # If there are NO unverified items, we must STILL clear out old flags
+                conn = get_connection()
+                try:
+                    conn.execute("BEGIN IMMEDIATE")
+                    conn.execute("DELETE FROM supplement_flags WHERE job_id = ? AND rule_id = 'synthetic_math_rule'", (job_id,))
+                    conn.execute("COMMIT")
+                except Exception:
+                    conn.execute("ROLLBACK")
+                    raise
+                finally:
+                    conn.close()
 
 
             # 3. Reconcile
-            report = await asyncio.to_thread(reconcile, ev_data, sol_data, job_id)  # type: ignore
+            from app.core.complexity import compute_complexity_score, calculate_dynamic_waste
+            score = compute_complexity_score(ev_data)
+            dynamic_waste = calculate_dynamic_waste(score)
+            report = await asyncio.to_thread(reconcile, ev_data, sol_data, job_id, dynamic_waste)  # type: ignore
             
             # Persist report snapshot for potential resume
             def _save_report_sync():

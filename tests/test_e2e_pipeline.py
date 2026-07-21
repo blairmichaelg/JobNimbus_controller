@@ -88,8 +88,8 @@ def test_full_job_lifecycle(tmp_path):
         hip_lf=0.0,
         eaves_lf=200.0,
         drip_edge_lf=350.0,
-        flashing_lf=0.0,
-        step_flashing_lf=0.0,
+        flashing_lf=None,
+        step_flashing_lf=None,
         total_facets=10,
         predominant_pitch="6/12"
     )
@@ -103,7 +103,30 @@ def test_full_job_lifecycle(tmp_path):
             
     assert upload_resp.status_code == 200
     resp_data = upload_resp.json()
-    assert resp_data["status"] == "success"
+    
+    # It should halt for missing flashing
+    assert resp_data["pipeline_result"]["status"] == "halted_for_review"
+    assert resp_data["pipeline_result"]["reason"] == "missing_flashing_data"
+    
+    # Submit manual flashing
+    flashing_payload = {"flashing_lf": 25.5, "step_flashing_lf": 15.0}
+    manual_resp = client.post(f"/api/office/jobs/{job_id}/manual_flashing", json=flashing_payload)
+    assert manual_resp.status_code == 200
+    
+    # Retry the EV upload with different content to avoid duplicate hash check
+    fake_pdf_2 = tmp_path / "fake_eagleview_2.pdf"
+    fake_pdf_2.write_bytes(b"%PDF-dummy pdf content 2")
+
+    with patch("app.core.pipeline.extract_eagleview_data", return_value=(mock_ev_data, "fake_sha256_2")):
+        with open(fake_pdf_2, "rb") as f:
+            upload_resp = client.post(
+                f"/api/office/jobs/{job_id}/eagleview",
+                files={"file": ("fake_eagleview_2.pdf", f, "application/pdf")}
+            )
+            
+    assert upload_resp.status_code == 200
+    resp_data = upload_resp.json()
+    assert resp_data["pipeline_result"]["status"] == "success"
     
     # 4. Verify QBO generated with Pricing
     qbo_path = Path(resp_data["pipeline_result"]["qbo_csv_path"])

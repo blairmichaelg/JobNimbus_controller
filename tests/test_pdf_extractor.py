@@ -33,6 +33,7 @@ class TestExtractEagleviewData:
             "Rakes = 40 ft\n"
             "Eaves** = 80 ft\n"
             "Hips = 10 ft\n"
+            "Facets = 8\n"
             "Predominant Pitch = 6/12\n"
         )
 
@@ -50,6 +51,9 @@ class TestExtractEagleviewData:
         assert result.eaves_lf == 80.0
         assert result.hip_lf == 10.0
         assert result.drip_edge_lf == 120.0
+        assert result.flashing_lf is None
+        assert result.step_flashing_lf is None
+        assert result.total_facets == 8
         assert result.predominant_pitch == "6/12"
 
     @patch("app.services.pdf_extractor.pdfplumber.open")

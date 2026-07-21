@@ -43,8 +43,8 @@ class EagleViewData(BaseModel):
     hip_lf: float
     eaves_lf: float
     drip_edge_lf: float
-    flashing_lf: float
-    step_flashing_lf: float
+    flashing_lf: float | None = None
+    step_flashing_lf: float | None = None
     total_facets: int
     predominant_pitch: str
 
@@ -109,6 +109,9 @@ class DiscrepancyReport(BaseModel):
     material_bom: MaterialBOM
     discrepancies: list[Discrepancy] = []
     defensive_narrative: str | None = None
+    total_facets: int = 0
+    predominant_pitch: str = ""
+    valley_lf: float = 0.0
 
 
 class CodeSection(BaseModel):

@@ -57,12 +57,12 @@ def calculate_dynamic_waste(score: float) -> float:
     return round(clamped_waste, 2)
 
 
-def build_waste_explanation(ev_data: EagleViewData, waste_pct: float) -> str:
+def build_waste_explanation(ev_data: EagleViewData, score: float, waste_pct: float) -> str:
     """Generate a human-readable justification for the calculated waste percentage."""
     waste_int = int(waste_pct * 100)
     return (
-        f"A {waste_int}% waste factor is required due to "
-        f"{ev_data.total_facets} intersecting facets, "
+        f"A {waste_int}% waste factor is mathematically required (Complexity Score: {score:.2f}) "
+        f"due to {ev_data.total_facets} intersecting facets, "
         f"{ev_data.valley_lf} LF of valleys, and a "
         f"{ev_data.predominant_pitch} pitch."
     )

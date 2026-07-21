@@ -26,7 +26,9 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor
 
     # 1. Area Computation
     ev_normalized_squares = (ev.total_area_sf / 100.0) * (1.0 + waste_factor)
-    waste_explanation = f"Dynamic Waste Factor applied: {waste_factor * 100}%"
+    from app.core.complexity import compute_complexity_score, build_waste_explanation
+    score = compute_complexity_score(ev)
+    waste_explanation = build_waste_explanation(ev, score, waste_factor)
     
     sol_total_rfg_squares = 0.0
     sq_items = [

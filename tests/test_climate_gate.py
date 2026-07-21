@@ -168,3 +168,38 @@ def test_generate_and_gate_flags_multi_failure_scoping(setup_test_jobs):
         
     finally:
         conn.close()
+
+def test_clean_slate_idempotency_for_flags(setup_test_jobs):
+    """
+    Proves that generate_and_gate_flags deletes old flags for the job and
+    only leaves the newly generated flags, without throwing a UNIQUE constraint error.
+    """
+    from app.core.supplement_models import EagleViewData
+    ev_data = EagleViewData(
+        total_area_sf=1000.0, rake_lf=0.0, valley_lf=20.0, ridge_lf=0.0,
+        hip_lf=0.0, eaves_lf=50.0, drip_edge_lf=0.0, flashing_lf=0.0,
+        step_flashing_lf=0.0, total_facets=2, predominant_pitch="6/12"
+    )
+    
+    # Run 1: generate flags for MN job
+    generate_and_gate_flags("TEST-MN-JOB", ice_barrier_required=True, ev_data=ev_data)
+    
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT COUNT(*) FROM supplement_flags WHERE job_id = ?", ("TEST-MN-JOB",))
+        count_run_1 = cursor.fetchone()[0]
+        assert count_run_1 > 0
+    finally:
+        conn.close()
+        
+    # Run 2: generate flags again. Should not throw constraint error, and count should be the same
+    generate_and_gate_flags("TEST-MN-JOB", ice_barrier_required=True, ev_data=ev_data)
+    
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT COUNT(*) FROM supplement_flags WHERE job_id = ?", ("TEST-MN-JOB",))
+        count_run_2 = cursor.fetchone()[0]
+        assert count_run_2 == count_run_1
+    finally:
+        conn.close()
+

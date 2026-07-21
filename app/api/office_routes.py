@@ -76,6 +76,10 @@ class ProductionPayload(BaseModel):
     crew_name: str
     install_date: str
 
+class ManualFlashingPayload(BaseModel):
+    flashing_lf: float
+    step_flashing_lf: float
+
 class MaterialOrderPayload(BaseModel):
     supplier_name: str
     delivery_date: str
@@ -564,6 +568,33 @@ async def generate_material_order(job_id: str, payload: MaterialOrderPayload, bg
     except Exception as e:
         logger.error("material_order_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to process material order")
+
+@router.post("/jobs/{job_id}/manual_flashing")
+def manual_flashing(job_id: str, payload: ManualFlashingPayload):
+    """Saves manual flashing entry and makes job eligible for pipeline retry."""
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            "UPDATE jobs SET flashing_lf = ?, step_flashing_lf = ? WHERE id = ?",
+            (payload.flashing_lf, payload.step_flashing_lf, job_id)
+        )
+        if conn.total_changes == 0:
+            raise HTTPException(status_code=404, detail="Job not found")
+            
+        # Re-triggering the pipeline implies the job should move back to a state that allows it.
+        # But per requirements: "After persisting, the job should be eligible for pipeline re-trigger."
+        conn.execute("COMMIT")
+        return {"status": "success", "message": "Manual flashing entry saved."}
+    except HTTPException:
+        conn.execute("ROLLBACK")
+        raise
+    except Exception as e:
+        conn.execute("ROLLBACK")
+        logger.error("manual_flashing_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to save manual flashing.")
+    finally:
+        conn.close()
 
 @router.get("/jobs/{job_id}/docs/po")
 def download_po(job_id: str, supplier_name: str):

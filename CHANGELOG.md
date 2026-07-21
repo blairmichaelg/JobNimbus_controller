@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.0] - 2026-07-21
+### Added & Fixed (Phase 2 Hardening)
+- **No Silent Zeros Pipeline Block**: Hard-blocked the supplement pipeline on missing flashing or step-flashing metrics, protecting financial determinism and routing incomplete jobs to `PENDING_OPERATOR_REVIEW`.
+- **Gross RCV Verification**: Enforced a hard-halt on Statement of Loss (SoL) ingestion if the Carrier Gross RCV math fails to verify, catching synthetic math discrepancies before narrative generation.
+- **Idempotent Flag Generation**: Rebuilt the `generate_and_gate_flags` and SoL math discrepancy flag insertions to use an idempotent `DELETE`/`INSERT` transaction block, preventing ghost flags upon document resubmission.
+- **Dynamic Waste Integration**: Wired the complexity engine (based on facets, pitch, and valley LF) natively into both the full office and supplement pipelines, replacing the static 15% assumption.
+- **Weaponized Waste Justifications**: Updated the discrepancy engine to output mathematically defensible, score-based waste factor explanations directly into the generated AI context window.
+- **Test Suite Integrity**: Expanded and hardened test suites across `test_e2e_pipeline.py`, `test_ingestion.py`, and `test_reconciliation.py`, maintaining 100% test coverage and restoring a fully green testing matrix.
+
 ## [0.7.0] - 2026-07-15
 ### Added & Fixed
 - **Atomic State Machine Consolidation**: Refactored `update_material_flags` into `transition_material_flags` to guarantee atomic database flag updates and job state transitions inside a single `BEGIN IMMEDIATE` transaction, eliminating race conditions that previously stalled the pipeline.

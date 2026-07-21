@@ -64,8 +64,19 @@ async def test_supplement_pdf_not_deleted_after_vault(
     with open(str(tmp_path / "temp_mock.pdf"), "w") as f:
         f.write("mock pdf content")
         
-    mock_ev.return_value = (MagicMock(), "hash")
+    from app.core.supplement_models import EagleViewData
+    ev_data = EagleViewData(
+        total_area_sf=1000.0, rake_lf=0, valley_lf=20.0, ridge_lf=0, hip_lf=0,
+        eaves_lf=50.0, drip_edge_lf=0, flashing_lf=0, step_flashing_lf=0,
+        total_facets=2, predominant_pitch="6/12"
+    )
+    mock_ev.return_value = (ev_data, "hash")
     mock_parse_sol.return_value = MagicMock(line_items=[])
+    
+    # Also mock financials so it doesn't fail Fix 2
+    mock_sol = MagicMock(line_items=[])
+    mock_sol.financials.gross_rcv.verified = True
+    mock_parse_sol.return_value = mock_sol
     mock_reconcile.return_value = MagicMock(model_dump_json=lambda: "{}")
     mock_parse_codes.return_value = None
     mock_get_codes.return_value = ""
