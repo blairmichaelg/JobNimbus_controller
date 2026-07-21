@@ -9,6 +9,7 @@ and enqueues valid events into the ARQ Redis queue for async processing.
 import secrets
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from app.api.auth import get_current_role, verify_admin
 from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
@@ -48,6 +49,7 @@ async def verify_api_key(
 async def receive_event_trigger(
     payload: EventPayload,
     request: Request,
+    role: str = Depends(verify_admin)
 ) -> dict:
     """
     Ingest a generic event and trigger ARQ background workers.
@@ -70,6 +72,7 @@ async def receive_event_trigger(
                 job_id=payload.job_id,
                 ev_pdf_path=payload.ev_pdf_path,
                 sol_pdf_path=payload.sol_pdf_path,
+                role=role
             )
         elif payload.event_type == "inspection":
             # Inspection payloads need to be hydrated into an InspectionJob first.

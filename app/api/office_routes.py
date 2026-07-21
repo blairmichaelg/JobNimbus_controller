@@ -241,7 +241,8 @@ async def upload_supplement_docs(
     request: Request,
     job_id: str, 
     ev_file: UploadFile = File(...), 
-    sol_file: UploadFile = File(...)
+    sol_file: UploadFile = File(...),
+    role: str = Depends(get_current_role)
 ):
     """
     Upload both EagleView and Statement of Loss PDFs to trigger the Supplement pipeline.
@@ -297,7 +298,8 @@ async def upload_supplement_docs(
             ev_sha256=ev_sha256,
             ev_doc_id=ev_doc_id,
             sol_sha256=sol_sha256,
-            sol_doc_id=sol_doc_id
+            sol_doc_id=sol_doc_id,
+            role=role
         )
         
         logger.info("supplement_task_enqueued", job_id=job_id)
@@ -841,7 +843,7 @@ async def admin_triage_view(request: Request):
 
 @router.post("/admin/triage/{job_id}/resolve",
              response_class=JSONResponse)
-async def admin_triage_resolve(request: Request, job_id: str, payload: dict = Body(...)):
+async def admin_triage_resolve(request: Request, job_id: str, payload: dict = Body(...), role: str = Depends(get_current_role)):
     """
     Accepts a dict of corrected geometry fields, writes them to
     the jobs table, resets status to EV_PARSED, and enqueues
@@ -880,7 +882,8 @@ async def admin_triage_resolve(request: Request, job_id: str, payload: dict = Bo
     await request.app.state.redis_pool.enqueue_job(
         "process_supplement_event",
         job_id=job_id,
-        resume=True
+        resume=True,
+        role=role
     )
     return {"status": "queued", "job_id": job_id}
 

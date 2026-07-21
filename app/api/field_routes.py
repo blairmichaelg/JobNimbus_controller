@@ -18,6 +18,7 @@ from datetime import datetime
 from PIL import Image
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Request, BackgroundTasks
+from app.api.auth import get_current_role
 from app.core.climate_lookup import is_ice_barrier_required
 from pydantic import BaseModel, Field
 
@@ -255,7 +256,7 @@ async def get_inspection_summary(job_id: str):
 
 
 @router.post("/jobs/{job_id}/resume-supplement", status_code=202)
-async def resume_supplement(job_id: str, request: Request, background_tasks: BackgroundTasks):
+async def resume_supplement(job_id: str, request: Request, background_tasks: BackgroundTasks, role: str = Depends(get_current_role)):
     """
     Resumes a halted supplement pipeline (e.g. from PENDING_MANUAL_REVIEW).
     Skips parsing and gating, and goes straight to Narrative/PDF generation.
@@ -270,7 +271,7 @@ async def resume_supplement(job_id: str, request: Request, background_tasks: Bac
         raise HTTPException(status_code=503, detail="Redis connection unavailable")
 
     # Enqueue ARQ task with resume=True
-    await redis.enqueue_job("process_supplement_event", job_id, None, None, resume=True)
+    await redis.enqueue_job("process_supplement_event", job_id, None, None, resume=True, role=role)
     
     return {"status": "accepted", "job_id": job_id, "message": "Supplement resume processing started."}
 

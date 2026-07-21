@@ -17,7 +17,14 @@ async def process_supplement_event(
     sol_sha256: str = "",
     sol_doc_id: str = "",
     resume: bool = False,
+    role: str | None = None,
 ) -> dict:
+    ctx["role"] = role
+    ALLOWED_SUPPLEMENT_ROLES = {"admin", "operations"}
+    if ctx.get("role") not in ALLOWED_SUPPLEMENT_ROLES:
+        logger.warning("role_not_allowed_for_supplement", role=role)
+        return {"status": "forbidden", "reason": "role_not_allowed_for_supplement"}
+
     return await run_supplement_pipeline(
         job_id, ev_pdf_path, sol_pdf_path, ev_sha256, ev_doc_id, sol_sha256, sol_doc_id, resume
     )
