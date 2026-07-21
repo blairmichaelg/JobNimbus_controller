@@ -12,6 +12,7 @@ from typing import List, Dict, Optional, Union, Any
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks, Body
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from app.api.auth import get_current_role
 from pydantic import BaseModel
 
 templates = Jinja2Templates(directory="app/templates")
@@ -369,10 +370,10 @@ def download_export(filename: str):
     """
     Download a generated CSV or PDF from the exports directory.
     """
-    filename = Path(filename).name
-    if not filename or filename.startswith('.'):
-        raise HTTPException(status_code=400, detail="Invalid filename.")
-    file_path = EXPORT_DIR / filename
+    from app.services.security import sanitize_download_filename
+    
+    clean_filename = sanitize_download_filename(filename)
+    file_path = EXPORT_DIR / clean_filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
         
