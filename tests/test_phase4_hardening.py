@@ -84,7 +84,7 @@ async def test_supplement_pdf_not_deleted_after_vault(
     mock_gate.return_value = False
 
     result = await process_supplement_event(
-        ctx={}, job_id=job_id, ev_pdf_path="dummy", sol_pdf_path="dummy", ev_sha256="dummy", ev_doc_id="dummy", sol_sha256="dummy", sol_doc_id="dummy"
+        ctx={"role": "admin"}, job_id=job_id, ev_pdf_path="dummy", sol_pdf_path="dummy", ev_sha256="dummy", ev_doc_id="dummy", sol_sha256="dummy", sol_doc_id="dummy", role="admin"
     )
 
     assert result["status"] == "success"
@@ -145,7 +145,7 @@ async def test_resume_fails_gracefully_without_saved_report(db_conn):
     job_id = setup_test_job(db_conn, "PENDING_OPERATOR_REVIEW")
     
     result = await process_supplement_event(
-        ctx={}, job_id=job_id, ev_pdf_path="dummy", sol_pdf_path="dummy", ev_sha256="dummy", ev_doc_id="dummy", sol_sha256="dummy", sol_doc_id="dummy", resume=True
+        ctx={"role": "admin"}, job_id=job_id, ev_pdf_path="dummy", sol_pdf_path="dummy", ev_sha256="dummy", ev_doc_id="dummy", sol_sha256="dummy", sol_doc_id="dummy", resume=True, role="admin"
     )
     
     assert result == {"status": "failed", "reason": "no_saved_report"}
@@ -206,8 +206,8 @@ async def test_resume_succeeds_with_saved_report(
             f.write("mock pdf content")
             
         result = await process_supplement_event(
-            ctx={}, job_id=job_id, ev_pdf_path="dummy", sol_pdf_path="dummy",
-            ev_sha256="dummy", ev_doc_id="dummy", sol_sha256="dummy", sol_doc_id="dummy", resume=True
+            ctx={"role": "admin"}, job_id=job_id, ev_pdf_path="dummy", sol_pdf_path="dummy",
+            ev_sha256="dummy", ev_doc_id="dummy", sol_sha256="dummy", sol_doc_id="dummy", resume=True, role="admin"
         )
     
     # Verify extract_eagleview_data was NOT called
@@ -218,6 +218,9 @@ async def test_resume_succeeds_with_saved_report(
     called_report = mock_narrative.call_args[0][0]
     assert "A 14% waste factor is mathematically required" in called_report.waste_explanation
     assert "Complexity Score: 2.80" in called_report.waste_explanation
+    
+    # Verify codes were fetched
+    mock_get_codes.assert_called_once()
     
     # Verify pipeline succeeded
     assert result["status"] == "success"

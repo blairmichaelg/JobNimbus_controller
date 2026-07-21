@@ -626,7 +626,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
                 conn.close()
             
             code_index = await asyncio.to_thread(parse_code_files)
-            codes = "" # No codes needed if resuming or fetch from DB if needed
+            codes = await asyncio.to_thread(get_relevant_codes, report, code_index)
         else:
             if ev_pdf_path is None or sol_pdf_path is None:
                 raise ValueError("PDF paths must be provided when not resuming")
