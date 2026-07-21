@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
-from app.core.database import get_connection, init_db
+from app.core.database import get_connection, run_migrations as init_db
 import hashlib
 import datetime
 

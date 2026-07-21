@@ -15,7 +15,7 @@ client = TestClient(app)
 # Phase 9: static field_pin is retired. Seed a field rep before login.
 from app.core.database import create_field_rep, get_field_rep_by_pin  # noqa: E402
 from app.core.cache import init_db as _init_cache
-from app.core.database import init_db as _init_crm
+from app.core.database import run_migrations as _init_crm
 _init_cache()
 _init_crm()
 if not get_field_rep_by_pin("3333"):
@@ -44,7 +44,7 @@ def setup_dirs(tmp_path, monkeypatch):
     
     # Ensure cache and CRM DB exists for the test
     init_db()
-    from app.core.database import init_db as init_crm_db
+    from app.core.database import run_migrations as init_crm_db
     init_crm_db()
     
     yield

@@ -31,7 +31,7 @@ from app.api.auth import verify_admin, verify_accounting, verify_operations, get
 from app.config import get_settings
 from app.core.notifications import notifier
 from app.core.cache import init_db as init_cache_db
-from app.core.database import init_db as init_crm_db, get_connection, list_field_reps
+from app.core.database import run_migrations as init_crm_db, get_connection, list_field_reps
 import os
 import asyncio
 

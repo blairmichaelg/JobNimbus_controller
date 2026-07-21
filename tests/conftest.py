@@ -1,6 +1,6 @@
 import pytest
 
-from app.core.database import init_db
+from app.core.database import run_migrations as init_db
 
 @pytest.fixture(autouse=True, scope="session")
 def setup_test_db(tmp_path_factory):
