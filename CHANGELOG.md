@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1] - 2026-07-21
+### Added & Fixed
+- **Fixed `pdf_path` return value**: Corrected the return value of `run_supplement_pipeline` to return the permanent PDF path instead of a nullified temporary path.
+- **Weaponized Waste Justification Testing**: Added direct unit test (`test_build_waste_explanation_weaponized`) covering dynamic waste formatting.
+- **Resume Path Regression Prevention**: Implemented `test_resume_succeeds_with_saved_report` to prove a successful resume uses the saved `DiscrepancyReport` without re-parsing or regenerating data.
+- **Dynamic Waste for Material Orders**: Updated `generate_material_order_pipeline` to dynamically compute waste instead of statically falling back to 15%, reducing material over-ordering risk, along with a regression test.
+
 ## [0.8.0] - 2026-07-21
 ### Added & Fixed (Phase 2 Hardening)
 - **No Silent Zeros Pipeline Block**: Hard-blocked the supplement pipeline on missing flashing or step-flashing metrics, protecting financial determinism and routing incomplete jobs to `PENDING_OPERATOR_REVIEW`.

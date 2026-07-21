@@ -99,7 +99,10 @@ async def generate_material_order_pipeline(job_id: str, supplier_name: str, deli
     else:
         sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
         
-    report = await asyncio.to_thread(reconcile, ev_data, sol, job_id, 0.15)
+    from app.core.complexity import compute_complexity_score, calculate_dynamic_waste
+    score = compute_complexity_score(ev_data)
+    dynamic_waste = calculate_dynamic_waste(score)
+    report = await asyncio.to_thread(reconcile, ev_data, sol, job_id, dynamic_waste)
     bom = report.material_bom
     
     job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
@@ -785,7 +788,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
             await asyncio.to_thread(update_job_status, job_id, JobStatus.SUPPLEMENT_GENERATED)
 
         log.info("supplement_processing_complete")
-        return {"status": "success", "pdf_path": temp_pdf_path}
+        return {"status": "success", "pdf_path": str(permanent_pdf_path)}
 
     except Exception as exc:
         log.error("supplement_processing_failed", error=str(exc))
