@@ -206,20 +206,101 @@ def get_pricing_ledger() -> dict[str, float]:
     finally:
         conn.close()
 
-def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
-    """Enforces logical state transitions and appends to the JSON status history.
+def _update_job_status_internal(conn: sqlite3.Connection, job_id: str, new_status: str, note: str = "") -> None:
+    """Internal method to update job status inside an existing transaction."""
+    try:
+        JobStatus(new_status)
+    except ValueError:
+        raise ValueError(f"Invalid job status: {new_status}")
 
-    Args:
-        job_id (str): The unique identifier for the job.
-        new_status (str): The new JobStatus to transition to.
-        note (str, optional): An optional note to append to the status history. Defaults to "".
+    # Get current status history
+    cursor = conn.execute("SELECT status, status_history FROM jobs WHERE id = ?", (job_id,))
+    row = cursor.fetchone()
+    if not row:
+        raise ValueError(f"Job {job_id} not found.")
+
+    current_status = row["status"]
+
+    # ---------------------------------------------------------
+    # STATE MACHINE ENFORCEMENT
+    # ---------------------------------------------------------
+    if new_status == JobStatus.SUPPLEMENT_APPROVED:
+        if current_status not in [
+            JobStatus.AWAITING_CARRIER_RESPONSE,
+            JobStatus.SUPPLEMENT_SUBMITTED
+        ]:
+            raise RuntimeError(
+                "ILLEGAL TRANSITION: SUPPLEMENT_APPROVED requires "
+                "job to be in AWAITING_CARRIER_RESPONSE or "
+                "SUPPLEMENT_SUBMITTED."
+            )
+
+    elif new_status == JobStatus.SUPPLEMENT_DENIED:
+        if current_status not in [
+            JobStatus.AWAITING_CARRIER_RESPONSE,
+            JobStatus.SUPPLEMENT_SUBMITTED
+        ]:
+            raise RuntimeError(
+                "ILLEGAL TRANSITION: SUPPLEMENT_DENIED requires "
+                "job to be in AWAITING_CARRIER_RESPONSE or "
+                "SUPPLEMENT_SUBMITTED."
+            )
+            
+    elif new_status == JobStatus.MATERIAL_ORDERED:
+        fin_cursor = conn.execute("SELECT revenue FROM financials WHERE job_id = ?", (job_id,))
+        if not fin_cursor.fetchone():
+            raise RuntimeError("ILLEGAL TRANSITION: Cannot order materials without calculated financials.")
+    elif new_status == JobStatus.INSTALL_SCHEDULED:
+        sched_cursor = conn.execute(
+            "SELECT status FROM jobs WHERE id = ?", (job_id,)
+        )
+        row = sched_cursor.fetchone()
+        if not row or row["status"] != JobStatus.MATERIALS_ON_SITE:
+            raise RuntimeError(
+                "ILLEGAL TRANSITION: Cannot schedule install until "
+                "MATERIALS_ON_SITE is confirmed."
+            )
+
+    elif new_status == JobStatus.INVOICED:
+        # Ensure the pipeline doesn't invoice a lead that wasn't built
+        valid_priors = [JobStatus.MATERIAL_ORDERED, JobStatus.INSTALL_SCHEDULED, JobStatus.INSTALL_COMPLETED, JobStatus.FINAL_INSPECTION, JobStatus.INVOICED]
+        if current_status not in valid_priors:
+            raise RuntimeError(f"ILLEGAL TRANSITION: Cannot invoice from state {current_status}.")
+
+    elif new_status == JobStatus.CLOSED:
+        if current_status != JobStatus.PAYMENT_RECEIVED:
+            raise RuntimeError("ILLEGAL TRANSITION: Cannot close job before PAYMENT_RECEIVED.")
+    # ---------------------------------------------------------
+
+    # Update DB with atomic JSON append to prevent race conditions
+    timestamp_str = datetime.utcnow().isoformat() + "Z"
+    cursor = conn.execute(
+        """
+        UPDATE jobs 
+        SET status = ?, 
+            status_history = json_insert(
+                COALESCE(status_history, '[]'), 
+                '$[#]', 
+                json_object('status', ?, 'timestamp', ?, 'note', ?)
+            )
+        WHERE id = ?
+        """,
+        (new_status, new_status, timestamp_str, note, job_id)
+    )
         
-    Raises:
-        ValueError: If the new_status is invalid or the job_id does not exist.
-        Exception: If the database update fails.
+    if new_status == JobStatus.INVOICED:
+        conn.execute("UPDATE jobs SET invoiced_at = CURRENT_TIMESTAMP WHERE id = ?", (job_id,))
+        
+    if cursor.rowcount == 0:
+        raise ValueError(f"Job {job_id} not found during update")
+
+def force_override_status(job_id: str, new_status: str, note: str = "") -> None:
+    """
+    Admin-only emergency override.
+    Bypasses all state machine rules to forcefully set the status.
+    Appends an OVERRIDE note to the status_history.
     """
     try:
-        # Validate against Enum
         JobStatus(new_status)
     except ValueError:
         raise ValueError(f"Invalid job status: {new_status}")
@@ -227,67 +308,7 @@ def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
-        # Get current status history
-        cursor = conn.execute("SELECT status, status_history FROM jobs WHERE id = ?", (job_id,))
-        row = cursor.fetchone()
-        if not row:
-            raise ValueError(f"Job {job_id} not found.")
-
-        current_status = row["status"]
-
-        # ---------------------------------------------------------
-        # STATE MACHINE ENFORCEMENT
-        # ---------------------------------------------------------
-        if new_status == JobStatus.SUPPLEMENT_APPROVED:
-            if current_status not in [
-                JobStatus.AWAITING_CARRIER_RESPONSE,
-                JobStatus.SUPPLEMENT_SUBMITTED
-            ]:
-                raise RuntimeError(
-                    "ILLEGAL TRANSITION: SUPPLEMENT_APPROVED requires "
-                    "job to be in AWAITING_CARRIER_RESPONSE or "
-                    "SUPPLEMENT_SUBMITTED."
-                )
-
-        elif new_status == JobStatus.SUPPLEMENT_DENIED:
-            if current_status not in [
-                JobStatus.AWAITING_CARRIER_RESPONSE,
-                JobStatus.SUPPLEMENT_SUBMITTED
-            ]:
-                raise RuntimeError(
-                    "ILLEGAL TRANSITION: SUPPLEMENT_DENIED requires "
-                    "job to be in AWAITING_CARRIER_RESPONSE or "
-                    "SUPPLEMENT_SUBMITTED."
-                )
-                
-        elif new_status == JobStatus.MATERIAL_ORDERED:
-            fin_cursor = conn.execute("SELECT revenue FROM financials WHERE job_id = ?", (job_id,))
-            if not fin_cursor.fetchone():
-                raise RuntimeError("ILLEGAL TRANSITION: Cannot order materials without calculated financials.")
-        elif new_status == JobStatus.INSTALL_SCHEDULED:
-            sched_cursor = conn.execute(
-                "SELECT status FROM jobs WHERE id = ?", (job_id,)
-            )
-            row = sched_cursor.fetchone()
-            if not row or row["status"] != JobStatus.MATERIALS_ON_SITE:
-                raise RuntimeError(
-                    "ILLEGAL TRANSITION: Cannot schedule install until "
-                    "MATERIALS_ON_SITE is confirmed."
-                )
-
-        elif new_status == JobStatus.INVOICED:
-            # Ensure the pipeline doesn't invoice a lead that wasn't built
-            valid_priors = [JobStatus.MATERIAL_ORDERED, JobStatus.INSTALL_SCHEDULED, JobStatus.INSTALL_COMPLETED, JobStatus.FINAL_INSPECTION, JobStatus.INVOICED]
-            if current_status not in valid_priors:
-                raise RuntimeError(f"ILLEGAL TRANSITION: Cannot invoice from state {current_status}.")
-
-        elif new_status == JobStatus.CLOSED:
-            if current_status != JobStatus.PAYMENT_RECEIVED:
-                raise RuntimeError("ILLEGAL TRANSITION: Cannot close job before PAYMENT_RECEIVED.")
-        # ---------------------------------------------------------
-
-        # Update DB with atomic JSON append to prevent race conditions
-        timestamp_str = datetime.utcnow().isoformat() + "Z"
+        timestamp_str = __import__('datetime').datetime.utcnow().isoformat() + "Z"
         cursor = conn.execute(
             """
             UPDATE jobs 
@@ -299,18 +320,34 @@ def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
                 )
             WHERE id = ?
             """,
-            (new_status, new_status, timestamp_str, note, job_id)
+            (new_status, new_status, timestamp_str, f"ADMIN OVERRIDE: {note}".strip(), job_id)
         )
-            
-        if new_status == JobStatus.INVOICED:
-            conn.execute("UPDATE jobs SET invoiced_at = CURRENT_TIMESTAMP WHERE id = ?", (job_id,))
-            
         if cursor.rowcount == 0:
-            raise ValueError(f"Job {job_id} not found during update")
-            
+            raise ValueError(f"Job {job_id} not found.")
+        conn.execute("COMMIT")
+        logger.warning("job_status_force_overridden", job_id=job_id, new_status=new_status)
+    except Exception as e:
+        conn.execute("ROLLBACK")
+        logger.error("job_status_force_override_failed", job_id=job_id, error=str(e))
+        raise
+    finally:
+        conn.close()
+
+def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
+    """Enforces logical state transitions and appends to the JSON status history."""
+    try:
+        JobStatus(new_status)
+    except ValueError:
+        raise ValueError(f"Invalid job status: {new_status}")
+        
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        _update_job_status_internal(conn, job_id, new_status, note)
         conn.execute("COMMIT")
         logger.info("job_status_updated", job_id=job_id, status=new_status)
     except Exception as e:
+        conn.execute("ROLLBACK")
         logger.error("job_status_update_failed", job_id=job_id, error=str(e))
         raise
     finally:
@@ -550,7 +587,7 @@ def get_monthly_financials(month: int, year: int) -> list[dict]:
     finally:
         conn.close()
 
-def update_material_flags(
+def transition_material_flags(
     job_id: str,
     materials_ordered: bool | None = None,
     materials_on_site: bool | None = None,
@@ -560,7 +597,7 @@ def update_material_flags(
     Called exclusively by PATCH /api/operations/job/{id}/materials.
 
     If materials_on_site transitions to True, this function ALSO
-    calls update_job_status() to advance the job to MATERIALS_ON_SITE,
+    calls _update_job_status_internal() to advance the job to MATERIALS_ON_SITE,
     making it eligible for crew scheduling.
 
     If materials_on_site transitions to False (rollback), the job
@@ -587,22 +624,24 @@ def update_material_flags(
                 "UPDATE jobs SET materials_on_site = ? WHERE id = ?",
                 (1 if materials_on_site else 0, job_id),
             )
-        conn.execute("COMMIT")
 
-        # Drive the state machine from the flag transitions
+        # Drive the state machine from the flag transitions atomically
         if materials_on_site is True:
-            update_job_status(
+            _update_job_status_internal(
+                conn,
                 job_id,
                 JobStatus.MATERIALS_ON_SITE,
                 "Materials confirmed on-site via Operations Board toggle.",
             )
         elif materials_on_site is False:
-            update_job_status(
+            _update_job_status_internal(
+                conn,
                 job_id,
                 JobStatus.MATERIAL_ORDERED,
                 "Materials on-site confirmation rolled back via Operations Board.",
             )
 
+        conn.execute("COMMIT")
         logger.info(
             "material_flags_updated",
             job_id=job_id,
@@ -610,6 +649,7 @@ def update_material_flags(
             on_site=materials_on_site,
         )
     except Exception as e:
+        conn.execute("ROLLBACK")
         logger.error("material_flags_update_failed", job_id=job_id, error=str(e))
         raise
     finally:

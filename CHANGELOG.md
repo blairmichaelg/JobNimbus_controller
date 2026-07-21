@@ -2,6 +2,8 @@
 
 ## [0.7.0] - 2026-07-15
 ### Added & Fixed
+- **Atomic State Machine Consolidation**: Refactored `update_material_flags` into `transition_material_flags` to guarantee atomic database flag updates and job state transitions inside a single `BEGIN IMMEDIATE` transaction, eliminating race conditions that previously stalled the pipeline.
+- **Admin State Override API**: Created `force_override_status` and exposed it via `/api/admin/jobs/{job_id}/override` to allow emergency state machine bypasses. Enforces a mandatory "ADMIN OVERRIDE" prefix in the job's JSON history trail.
 - **State Machine Hardening**: Split `JobStatus` into Processing (ARQ) and Business (Operator) tracks with explicit API gates.
 - **Strict Schedule Guards**: Added database-level SQLite blockers preventing installation scheduling before `MATERIALS_ON_SITE` is confirmed.
 - **Append-Only Document Vault**: Refactored `job_documents` from a destructive UPSERT model to an immutable, append-only architecture for complete historical versioning.

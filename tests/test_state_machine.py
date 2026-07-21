@@ -1,6 +1,6 @@
 import pytest
 import uuid
-from app.core.database import JobStatus, update_job_status, insert_job_document, get_job_documents, get_connection
+from app.core.database import JobStatus, update_job_status, insert_job_document, get_job_documents, get_connection, force_override_status
 
 @pytest.fixture
 def setup_job():
@@ -51,3 +51,16 @@ def test_document_versioning_appends_not_overwrites(setup_job):
 def test_operator_gate_classification():
     assert JobStatus.is_operator_gate(JobStatus.SUPPLEMENT_GENERATED) is True
     assert JobStatus.is_operator_gate(JobStatus.PENDING_OPERATOR_REVIEW) is False
+
+def test_force_override_status(setup_job):
+    job_id = setup_job
+    # Usually this transition would be illegal without financials etc
+    force_override_status(job_id, JobStatus.CLOSED, "Admin testing override")
+    
+    conn = get_connection()
+    cursor = conn.execute("SELECT status, status_history FROM jobs WHERE id = ?", (job_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    assert row["status"] == JobStatus.CLOSED
+    assert "ADMIN OVERRIDE: Admin testing override" in row["status_history"]

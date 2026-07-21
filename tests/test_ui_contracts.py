@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 import uuid
 import sqlite3
 from app.main import app
-from app.core.database import update_material_flags, JobStatus, get_qbo_export_batch, mark_qbo_exported, get_connection
+from app.core.database import transition_material_flags, JobStatus, get_qbo_export_batch, mark_qbo_exported, get_connection
 from app.config import get_settings
 
 client = TestClient(app)
@@ -69,7 +69,7 @@ def test_material_flag_patch_missing_both_flags(set_auth):
 def test_material_flag_on_site_drives_state_machine(db_conn):
     job_id = setup_test_job(db_conn, "MATERIAL_ORDERED")
     
-    update_material_flags(job_id, materials_on_site=True)
+    transition_material_flags(job_id, materials_ordered=True, materials_on_site=True)
     
     cursor = db_conn.execute("SELECT status FROM jobs WHERE id = ?", (job_id,))
     row = cursor.fetchone()

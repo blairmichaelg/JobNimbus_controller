@@ -98,7 +98,7 @@ def test_state_machine_material_ordered_missing_financials():
         mock_cursor_fin = MagicMock()
         mock_cursor_fin.fetchone.return_value = None
         
-        mock_conn.execute.side_effect = [MagicMock(), mock_cursor_job, mock_cursor_fin]
+        mock_conn.execute.side_effect = [MagicMock(), mock_cursor_job, mock_cursor_fin, MagicMock()]
         
         with pytest.raises(RuntimeError, match="ILLEGAL TRANSITION: Cannot order materials without calculated financials."):
             update_job_status("job_123", JobStatus.MATERIAL_ORDERED)
@@ -115,7 +115,7 @@ def test_state_machine_invoiced_invalid_prior_state():
         
         mock_cursor_job = MagicMock()
         mock_cursor_job.fetchone.return_value = {"status": "LEAD_CAPTURED", "status_history": json.dumps([])}
-        mock_conn.execute.side_effect = [MagicMock(), mock_cursor_job]
+        mock_conn.execute.side_effect = [MagicMock(), mock_cursor_job, MagicMock()]
         
         with pytest.raises(RuntimeError, match="ILLEGAL TRANSITION: Cannot invoice from state LEAD_CAPTURED."):
             update_job_status("job_123", JobStatus.INVOICED)
@@ -131,7 +131,7 @@ def test_state_machine_closed_without_payment():
         
         mock_cursor_job = MagicMock()
         mock_cursor_job.fetchone.return_value = {"status": "INVOICED", "status_history": json.dumps([])}
-        mock_conn.execute.side_effect = [MagicMock(), mock_cursor_job]
+        mock_conn.execute.side_effect = [MagicMock(), mock_cursor_job, MagicMock()]
         
         with pytest.raises(RuntimeError, match="ILLEGAL TRANSITION: Cannot close job before PAYMENT_RECEIVED."):
             update_job_status("job_123", JobStatus.CLOSED)

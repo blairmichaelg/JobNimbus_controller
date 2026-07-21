@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from app.core.database import (
-    update_material_flags,
+    transition_material_flags,
     update_job_status,
     JobStatus,
     get_connection,
@@ -52,7 +52,7 @@ async def patch_material_flags(job_id: str, body: MaterialFlagUpdate):
         )
 
     try:
-        update_material_flags(
+        transition_material_flags(
             job_id=job_id,
             materials_ordered=body.materials_ordered,
             materials_on_site=body.materials_on_site,

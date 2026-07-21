@@ -27,6 +27,7 @@ from app.api.office_routes import router as office_router, _fetch_job_sync
 from app.api.operations_routes import router as operations_router
 from app.api.auth_routes import router as auth_router
 from app.api.admin_reps_routes import router as admin_reps_router
+from app.api.admin_jobs_routes import router as admin_jobs_router
 from app.api.auth import verify_admin, verify_accounting, verify_operations, get_current_role
 from app.config import get_settings
 from app.core.notifications import notifier
@@ -193,6 +194,7 @@ app.include_router(office_router)
 app.include_router(operations_router)
 app.include_router(auth_router)
 app.include_router(admin_reps_router)
+app.include_router(admin_jobs_router)
 
 @app.middleware("http")
 async def auth_redirect_middleware(request: Request, call_next):
