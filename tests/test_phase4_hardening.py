@@ -46,14 +46,14 @@ def setup_test_financials(conn: sqlite3.Connection, job_id: str, carrier_rcv: fl
     conn.execute("COMMIT")
 
 @pytest.mark.asyncio
-@patch('app.workers.supplement_processor.PDFGenerator.generate_supplement_pdf')
-@patch('app.workers.supplement_processor.extract_eagleview_data')
+@patch('app.core.pipeline.PDFGenerator.generate_supplement_pdf')
+@patch('app.core.pipeline.extract_eagleview_data')
 @patch('app.services.document_parser.parse_statement_of_loss')
-@patch('app.workers.supplement_processor.reconcile')
-@patch('app.workers.supplement_processor.parse_code_files')
-@patch('app.workers.supplement_processor.get_relevant_codes')
-@patch('app.workers.supplement_processor.AIService.generate_supplement_narrative')
-@patch('app.workers.supplement_processor.generate_and_gate_flags')
+@patch('app.core.pipeline.reconcile')
+@patch('app.core.pipeline.parse_code_files')
+@patch('app.core.pipeline.get_relevant_codes')
+@patch('app.core.pipeline.AIService.generate_supplement_narrative')
+@patch('app.core.pipeline.generate_and_gate_flags')
 async def test_supplement_pdf_not_deleted_after_vault(
     mock_gate, mock_narrative, mock_get_codes, mock_parse_codes, mock_reconcile, mock_parse_sol, mock_ev, mock_gen_pdf, db_conn, tmp_path
 ):
@@ -73,7 +73,7 @@ async def test_supplement_pdf_not_deleted_after_vault(
     mock_gate.return_value = False
 
     result = await process_supplement_event(
-        ctx={}, job_id=job_id, ev_pdf_path="dummy", sol_pdf_path="dummy"
+        ctx={}, job_id=job_id, ev_pdf_path="dummy", sol_pdf_path="dummy", ev_sha256="dummy", ev_doc_id="dummy", sol_sha256="dummy", sol_doc_id="dummy"
     )
 
     assert result["status"] == "success"
@@ -131,7 +131,7 @@ async def test_resume_fails_gracefully_without_saved_report(db_conn):
     job_id = setup_test_job(db_conn, "PENDING_OPERATOR_REVIEW")
     
     result = await process_supplement_event(
-        ctx={}, job_id=job_id, resume=True
+        ctx={}, job_id=job_id, ev_pdf_path="dummy", sol_pdf_path="dummy", ev_sha256="dummy", ev_doc_id="dummy", sol_sha256="dummy", sol_doc_id="dummy", resume=True
     )
     
     assert result == {"status": "failed", "reason": "no_saved_report"}

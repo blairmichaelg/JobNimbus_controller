@@ -1,5 +1,5 @@
 import pytest
-from app.workers.supplement_processor import generate_and_gate_flags
+from app.core.pipeline import generate_and_gate_flags
 from app.core.database import get_connection
 
 @pytest.fixture
