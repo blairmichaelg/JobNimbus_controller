@@ -27,12 +27,12 @@ from app.core.job_costing import compute_job_profitability
 from app.core.database import insert_material_order, insert_schedule, JobStatus, upsert_financials, insert_job_document, get_job_document_by_hash, _fetch_job_sync
 from app.core.backup import backup_database
 from app.core.pipeline import run_full_office_pipeline
-from app.api.auth import verify_admin
+from app.api.auth import verify_admin, verify_accounting
 from app.core.upload_utils import stream_upload_safely
 
 logger = structlog.get_logger("app.api.office_routes")
 
-router = APIRouter(prefix="/api/office", tags=["office_ux"], dependencies=[Depends(verify_admin)])
+router = APIRouter(prefix="/api/office", tags=["office_ux"])
 
 
 
@@ -85,7 +85,7 @@ class MaterialOrderPayload(BaseModel):
     supplier_name: str
     delivery_date: str
 
-@router.get("/jobs")
+@router.get("/jobs", dependencies=[Depends(verify_admin)])
 def get_all_jobs() -> List[Dict[str, Union[str, float, int, list, None]]]:
     """
     Retrieve all jobs from the local CRM ordered by creation date.
@@ -116,7 +116,7 @@ def get_all_jobs() -> List[Dict[str, Union[str, float, int, list, None]]]:
     finally:
         conn.close()
 
-@router.get("/jobs/{job_id}")
+@router.get("/jobs/{job_id}", dependencies=[Depends(verify_admin)])
 def get_job_details(job_id: str) -> Dict[str, Union[Dict[str, Union[str, float, int, list, None]], List[Dict[str, Union[str, float, int, None]]], None]]:
     """
     Retrieve unified job details across all production tables.
@@ -182,7 +182,7 @@ def get_job_details(job_id: str) -> Dict[str, Union[Dict[str, Union[str, float, 
         conn.close()
 
 
-@router.post("/jobs/{job_id}/eagleview")
+@router.post("/jobs/{job_id}/eagleview", dependencies=[Depends(verify_admin)])
 async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
     """
     Trigger the V4 Automath pipeline.
@@ -237,7 +237,7 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
     return {"status": "success", "message": "Master Pipeline complete, QBO CSV generated.", "pipeline_result": result}
 
 
-@router.post("/jobs/{job_id}/supplement_docs")
+@router.post("/jobs/{job_id}/supplement_docs", dependencies=[Depends(verify_admin)])
 async def upload_supplement_docs(
     request: Request,
     job_id: str, 
@@ -311,7 +311,7 @@ async def upload_supplement_docs(
     return {"status": "success", "message": "Supplement generation enqueued."}
 
 
-@router.get("/jobs/{job_id}/evidence_grid")
+@router.get("/jobs/{job_id}/evidence_grid", dependencies=[Depends(verify_admin)])
 async def download_evidence_grid(job_id: str):
     """
     Builds the InspectionJob from the local filesystem and cache,
@@ -344,7 +344,7 @@ async def download_evidence_grid(job_id: str):
         raise HTTPException(status_code=500, detail="Failed to generate Evidence Grid.")
 
 
-@router.get("/jobs/{job_id}/docs/download/{doc_id}")
+@router.get("/jobs/{job_id}/docs/download/{doc_id}", dependencies=[Depends(verify_admin)])
 def download_job_document(job_id: str, doc_id: str):
     """
     Download a file from the Universal Document Vault.
@@ -365,7 +365,7 @@ def download_job_document(job_id: str, doc_id: str):
         conn.close()
 
 
-@router.get("/download/{filename}")
+@router.get("/download/{filename}", dependencies=[Depends(verify_admin)])
 def download_export(filename: str):
     """
     Download a generated CSV or PDF from the exports directory.
@@ -383,7 +383,7 @@ def download_export(filename: str):
         media_type="application/octet-stream"
     )
 
-@router.post("/jobs/{job_id}/docs/upload")
+@router.post("/jobs/{job_id}/docs/upload", dependencies=[Depends(verify_admin)])
 async def upload_job_document(job_id: str, file_type: str = Form(...), file: UploadFile = File(...)):
     """Upload a miscellaneous document to the universal vault."""
     valid_types = ["application/pdf", "image/jpeg", "image/png"]
@@ -427,7 +427,7 @@ async def upload_job_document(job_id: str, file_type: str = Form(...), file: Upl
         logger.error("job_document_upload_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to save document")
 
-@router.get("/jobs/{job_id}/docs/inspection_letter")
+@router.get("/jobs/{job_id}/docs/inspection_letter", dependencies=[Depends(verify_admin)])
 async def get_inspection_letter(job_id: str):
     job = await asyncio.to_thread(_fetch_job_sync, job_id)
     
@@ -454,7 +454,7 @@ async def get_inspection_letter(job_id: str):
         logger.error("inspection_letter_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to generate Inspection Letter")
 
-@router.get("/jobs/{job_id}/qbo_export")
+@router.get("/jobs/{job_id}/qbo_export", dependencies=[Depends(verify_admin)])
 def download_qbo_export(job_id: str):
     """Returns the generated QBO CSV for the given job."""
     csv_path = EXPORT_DIR / f"INV-{job_id[:8].upper()}_QBO.csv"
@@ -501,7 +501,7 @@ def _sync_update_job_financials(job_id: str, payload: FinancialsPayload):
     )
     return results
 
-@router.post("/jobs/{job_id}/financials")
+@router.post("/jobs/{job_id}/financials", dependencies=[Depends(verify_admin)])
 async def update_job_financials(job_id: str, payload: FinancialsPayload, bg_tasks: BackgroundTasks):
     """
     Process pre-build job costing parameters from the Office Dashboard.
@@ -540,7 +540,7 @@ def _sync_update_job_production(job_id: str, payload: ProductionPayload):
     
     update_job_status(job_id, JobStatus.INSTALL_SCHEDULED, f"Scheduled with {payload.crew_name} on {payload.install_date}")
 
-@router.post("/jobs/{job_id}/production")
+@router.post("/jobs/{job_id}/production", dependencies=[Depends(verify_admin)])
 async def update_job_production(job_id: str, payload: ProductionPayload, bg_tasks: BackgroundTasks):
     """
     Unified route to set both material orders and installation schedule.
@@ -556,7 +556,7 @@ async def update_job_production(job_id: str, payload: ProductionPayload, bg_task
         logger.error("production_update_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to schedule production.")
 
-@router.post("/jobs/{job_id}/material_order")
+@router.post("/jobs/{job_id}/material_order", dependencies=[Depends(verify_admin)])
 async def generate_material_order(job_id: str, payload: MaterialOrderPayload, bg_tasks: BackgroundTasks):
     """
     Triggers the generation of the supplier PO and updates job status to MATERIAL_ORDERED.
@@ -572,7 +572,7 @@ async def generate_material_order(job_id: str, payload: MaterialOrderPayload, bg
         logger.error("material_order_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to process material order")
 
-@router.post("/jobs/{job_id}/manual_flashing")
+@router.post("/jobs/{job_id}/manual_flashing", dependencies=[Depends(verify_admin)])
 def manual_flashing(job_id: str, payload: ManualFlashingPayload):
     """Saves manual flashing entry and makes job eligible for pipeline retry."""
     conn = get_connection()
@@ -599,7 +599,7 @@ def manual_flashing(job_id: str, payload: ManualFlashingPayload):
     finally:
         conn.close()
 
-@router.get("/jobs/{job_id}/docs/po")
+@router.get("/jobs/{job_id}/docs/po", dependencies=[Depends(verify_admin)])
 def download_po(job_id: str, supplier_name: str):
     """Returns the generated Material Purchase Order PDF."""
     safe_name = supplier_name.replace(' ', '_')
@@ -610,7 +610,7 @@ def download_po(job_id: str, supplier_name: str):
         
     return FileResponse(path=po_path, filename=f"PO_{safe_name}.pdf", media_type="application/pdf")
 
-@router.get("/jobs/{job_id}/docs/cancellation")
+@router.get("/jobs/{job_id}/docs/cancellation", dependencies=[Depends(verify_admin)])
 async def download_cancellation(job_id: str):
     """Dynamically generates and returns the Georgia Notice of Cancellation."""
     job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
@@ -622,7 +622,7 @@ async def download_cancellation(job_id: str):
     
     return FileResponse(path=pdf_path, filename=f"Notice_of_Cancellation_{job_id[:8]}.pdf", media_type="application/pdf")
 
-@router.get("/jobs/{job_id}/docs/completion")
+@router.get("/jobs/{job_id}/docs/completion", dependencies=[Depends(verify_admin)])
 async def download_completion(job_id: str, completion_date: str):
     """Dynamically generates and returns the Certificate of Completion."""
     job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
@@ -634,7 +634,7 @@ async def download_completion(job_id: str, completion_date: str):
     
     return FileResponse(path=pdf_path, filename=f"Certificate_of_Completion_{job_id[:8]}.pdf", media_type="application/pdf")
 
-@router.get("/jobs/{job_id}/docs/contingency")
+@router.get("/jobs/{job_id}/docs/contingency", dependencies=[Depends(verify_admin)])
 async def download_contingency(job_id: str):
     """Dynamically generates and returns the Insurance Contingency Agreement."""
     job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
@@ -660,7 +660,7 @@ class OperationsBrief(BaseModel):
     crews_today: int
     material_rows: List[MaterialRow]
 
-@router.get("/operations/brief", response_model=OperationsBrief)
+@router.get("/operations/brief", response_model=OperationsBrief, dependencies=[Depends(verify_admin)])
 def get_operations_brief():
     """Zero-click read projection for operations dashboard."""
     conn = get_connection()
@@ -709,7 +709,7 @@ class AccountingBrief(BaseModel):
     qbo_ready_count: int
     rows: List[Dict[str, Any]]
 
-@router.get("/accounting/brief", response_model=AccountingBrief)
+@router.get("/accounting/brief", response_model=AccountingBrief, dependencies=[Depends(verify_accounting)])
 def get_accounting_brief():
     """Zero-click read projection for accounting dashboard."""
     conn = get_connection()
@@ -759,7 +759,7 @@ import csv, io
 from app.core.database import atomic_qbo_export
 from app.api.auth import verify_accounting
 
-@router.get("/accounting/qbo-export")
+@router.get("/accounting/qbo-export", dependencies=[Depends(verify_accounting)])
 async def export_qbo_csv(token=Depends(verify_accounting)):
     """
     Batch QBO export. Queries all eligible jobs (qbo_exported=0),
@@ -818,7 +818,7 @@ async def export_qbo_csv(token=Depends(verify_accounting)):
         }
     )
 
-@router.get("/admin/triage", response_class=HTMLResponse)
+@router.get("/admin/triage", response_class=HTMLResponse, dependencies=[Depends(verify_admin)])
 async def admin_triage_view(request: Request):
     conn = get_connection()
     try:
@@ -843,7 +843,7 @@ async def admin_triage_view(request: Request):
     )
 
 @router.post("/admin/triage/{job_id}/resolve",
-             response_class=JSONResponse)
+             response_class=JSONResponse, dependencies=[Depends(verify_admin)])
 async def admin_triage_resolve(request: Request, job_id: str, payload: dict = Body(...), role: str = Depends(get_current_role)):
     """
     Accepts a dict of corrected geometry fields, writes them to
@@ -891,7 +891,7 @@ async def admin_triage_resolve(request: Request, job_id: str, payload: dict = Bo
 @router.post(
     "/jobs/{job_id}/mark-supplement-sent",
     response_class=JSONResponse
-)
+, dependencies=[Depends(verify_admin)])
 async def mark_supplement_sent_route(job_id: str):
     from app.core.database import mark_supplement_sent
     mark_supplement_sent(job_id)
@@ -900,7 +900,7 @@ async def mark_supplement_sent_route(job_id: str):
 @router.post(
     "/accounting/jobs/{job_id}/toggle-payment",
     response_class=JSONResponse
-)
+, dependencies=[Depends(verify_accounting)])
 async def toggle_payment(request: Request, job_id: str, payload: dict = Body(...)):
     flag = str(payload.get("flag", ""))
     from app.core.database import toggle_payment_flag
@@ -915,7 +915,7 @@ async def toggle_payment(request: Request, job_id: str, payload: dict = Body(...
 @router.post(
     "/jobs/{job_id}/approve-supplement",
     response_class=JSONResponse
-)
+, dependencies=[Depends(verify_admin)])
 async def approve_supplement(
     job_id: str, payload: dict = Body(default={})
 ):
@@ -945,7 +945,7 @@ async def approve_supplement(
 @router.post(
     "/jobs/{job_id}/deny-supplement",
     response_class=JSONResponse
-)
+, dependencies=[Depends(verify_admin)])
 async def deny_supplement(request: Request, job_id: str,
                            payload: dict = Body(...)):
     """
@@ -985,7 +985,7 @@ async def deny_supplement(request: Request, job_id: str,
 @router.get(
     "/jobs/{job_id}/docs/rebuttal",
     response_class=FileResponse
-)
+, dependencies=[Depends(verify_admin)])
 async def download_rebuttal(job_id: str):
     from app.core.database import get_job_documents
     from fastapi.responses import FileResponse
@@ -1002,7 +1002,7 @@ async def download_rebuttal(job_id: str):
         media_type="application/pdf"
     )
 
-@router.get("/accounting/commissions-ready", response_class=JSONResponse)
+@router.get("/accounting/commissions-ready", response_class=JSONResponse, dependencies=[Depends(verify_accounting)])
 def get_commissions_ready():
     conn = get_connection()
     try:
@@ -1016,7 +1016,7 @@ def get_commissions_ready():
     finally:
         conn.close()
 
-@router.get("/jobs/{job_id}/docs/commission", response_class=FileResponse)
+@router.get("/jobs/{job_id}/docs/commission", response_class=FileResponse, dependencies=[Depends(verify_accounting)])
 def download_commission(job_id: str):
     from app.core.database import get_job_documents
     docs = get_job_documents(job_id, file_type="COMMISSION_PDF")
@@ -1031,7 +1031,7 @@ def download_commission(job_id: str):
         filename=f"Commission_Statement_{job_id[:8]}.pdf"
     )
 
-@router.post("/jobs/{job_id}/escalate")
+@router.post("/jobs/{job_id}/escalate", dependencies=[Depends(verify_admin)])
 async def queue_escalation(request: Request, job_id: str):
     await request.app.state.redis_pool.enqueue_job(
         "process_escalation",
@@ -1039,7 +1039,7 @@ async def queue_escalation(request: Request, job_id: str):
     )
     return {"status": "escalation_queued"}
 
-@router.get("/jobs/{job_id}/docs/escalation", response_class=FileResponse)
+@router.get("/jobs/{job_id}/docs/escalation", response_class=FileResponse, dependencies=[Depends(verify_admin)])
 def download_escalation(job_id: str):
     from app.core.database import get_job_documents
     docs = get_job_documents(job_id, file_type="ESCALATION_PDF")

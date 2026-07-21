@@ -19,6 +19,7 @@ logger = structlog.get_logger("app.api.admin_reps")
 router = APIRouter(
     prefix="/api/admin/reps",
     tags=["admin-reps"],
+    dependencies=[Depends(verify_admin)]
 )
 
 
