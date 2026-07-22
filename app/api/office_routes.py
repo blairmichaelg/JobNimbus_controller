@@ -7,6 +7,7 @@ import json
 import asyncio
 from pathlib import Path
 import structlog
+import uuid
 from typing import List, Dict, Union, Any
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks, Body
@@ -317,6 +318,10 @@ async def download_evidence_grid(job_id: str):
     generates the ReportLab PDF Evidence Grid, and returns the file download.
     """
     try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+    try:
         # Construct the InspectionJob using the field_routes helper
         job = await get_inspection_summary(job_id)
         
@@ -385,6 +390,10 @@ def download_export(filename: str):
 @router.post("/jobs/{job_id}/docs/upload", dependencies=[Depends(verify_admin)])
 async def upload_job_document(job_id: str, file_type: str = Form(...), file: UploadFile = File(...)):
     """Upload a miscellaneous document to the universal vault."""
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
     valid_types = ["application/pdf", "image/jpeg", "image/png"]
     actual_type = file.content_type
     if actual_type not in valid_types:
@@ -428,6 +437,10 @@ async def upload_job_document(job_id: str, file_type: str = Form(...), file: Upl
 
 @router.get("/jobs/{job_id}/docs/inspection_letter", dependencies=[Depends(verify_admin)])
 async def get_inspection_letter(job_id: str):
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
     job = await asyncio.to_thread(_fetch_job_sync, job_id)
     
     if not job:
@@ -601,7 +614,13 @@ def manual_flashing(job_id: str, payload: ManualFlashingPayload):
 @router.get("/jobs/{job_id}/docs/po", dependencies=[Depends(verify_admin)])
 def download_po(job_id: str, supplier_name: str):
     """Returns the generated Material Purchase Order PDF."""
-    safe_name = supplier_name.replace(' ', '_')
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
+    from app.services.security import sanitize_download_filename
+    safe_name = sanitize_download_filename(supplier_name.replace(' ', '_'))
     po_path = FIELD_DOCS_DIR / job_id / f"PO_{safe_name}.pdf"
     
     if not po_path.exists():
@@ -612,6 +631,10 @@ def download_po(job_id: str, supplier_name: str):
 @router.get("/jobs/{job_id}/docs/cancellation", dependencies=[Depends(verify_admin)])
 async def download_cancellation(job_id: str):
     """Dynamically generates and returns the Georgia Notice of Cancellation."""
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
     job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
     if not job_dict:
         raise HTTPException(status_code=404, detail="Job not found.")
@@ -624,6 +647,10 @@ async def download_cancellation(job_id: str):
 @router.get("/jobs/{job_id}/docs/completion", dependencies=[Depends(verify_admin)])
 async def download_completion(job_id: str, completion_date: str):
     """Dynamically generates and returns the Certificate of Completion."""
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
     job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
     if not job_dict:
         raise HTTPException(status_code=404, detail="Job not found.")
@@ -636,6 +663,10 @@ async def download_completion(job_id: str, completion_date: str):
 @router.get("/jobs/{job_id}/docs/contingency", dependencies=[Depends(verify_admin)])
 async def download_contingency(job_id: str):
     """Dynamically generates and returns the Insurance Contingency Agreement."""
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
     job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
     if not job_dict:
         raise HTTPException(status_code=404, detail="Job not found.")
@@ -987,6 +1018,10 @@ async def deny_supplement(request: Request, job_id: str,
     response_class=FileResponse
 , dependencies=[Depends(verify_admin)])
 async def download_rebuttal(job_id: str):
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
     from app.core.database import get_job_documents
     from fastapi.responses import FileResponse
     docs = get_job_documents(job_id,
@@ -1018,6 +1053,10 @@ def get_commissions_ready():
 
 @router.get("/jobs/{job_id}/docs/commission", response_class=FileResponse, dependencies=[Depends(verify_accounting)])
 def download_commission(job_id: str):
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
     from app.core.database import get_job_documents
     docs = get_job_documents(job_id, file_type="COMMISSION_PDF")
     if not docs:
@@ -1041,6 +1080,10 @@ async def queue_escalation(request: Request, job_id: str):
 
 @router.get("/jobs/{job_id}/docs/escalation", response_class=FileResponse, dependencies=[Depends(verify_admin)])
 def download_escalation(job_id: str):
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
     from app.core.database import get_job_documents
     docs = get_job_documents(job_id, file_type="ESCALATION_PDF")
     if not docs:
