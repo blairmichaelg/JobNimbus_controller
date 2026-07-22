@@ -73,3 +73,10 @@ data/backups/*.db
 *.db-wal
 *.db-shm
 cache.db
+
+# Audit / temp scripts (auto-generated, never commit)
+audit*.py
+audit*.txt
+test_cache.py
+vacuum_cache.py
+sweep.ps1

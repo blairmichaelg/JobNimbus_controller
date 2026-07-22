@@ -7,6 +7,8 @@ from app.core.pipeline import run_supplement_pipeline
 
 logger = structlog.get_logger("app.workers.supplement_processor")
 
+VALID_WORKER_ROLES = {"admin", "field", "office"}
+
 async def process_supplement_event(
     ctx: dict,
     job_id: str,
@@ -19,6 +21,11 @@ async def process_supplement_event(
     resume: bool = False,
     role: str | None = None,
 ) -> dict:
+    # Sanitize role — never trust caller-supplied role blindly
+    if role not in VALID_WORKER_ROLES:
+        logger.warning("invalid_role_in_payload", job_id=job_id, role=role)
+        role = "field"  # safe default — least privilege
+
     ctx["role"] = role
     ALLOWED_SUPPLEMENT_ROLES = {"admin", "operations"}
     if ctx.get("role") not in ALLOWED_SUPPLEMENT_ROLES:

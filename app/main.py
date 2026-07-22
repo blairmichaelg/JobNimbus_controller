@@ -316,15 +316,7 @@ async def process_login(request: Request, access_code: str = Form(...)):
         )
         return response
         
-    # FAILED LOGIN — enforce 1-second delay to prevent PIN brute-forcing
-    import asyncio
-    await asyncio.sleep(1.0)
-
-    return templates.TemplateResponse(
-        request,
-        "login.html",
-        {"request": request, "error": "Invalid Access Code", "redirect_url": "/"},
-    )
+    return templates.TemplateResponse(request, "login.html", {"request": request, "error": "Invalid Access Code"})
 
 def _fetch_active_jobs_sync():
     conn = get_connection()
