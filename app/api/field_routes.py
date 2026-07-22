@@ -36,7 +36,7 @@ router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends
 
 # Base directories (created on startup)
 FIELD_PHOTOS_DIR = Path("field_photos")
-from app.config import get_settings, FIELD_DOCS_DIR
+from app.config import FIELD_DOCS_DIR
 SIGNED_AGREEMENTS_DIR = Path("signed_agreements")
 
 class LeadIntakePayload(BaseModel):
@@ -104,7 +104,6 @@ def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, i
     finally:
         conn.close()
 
-from fastapi import Request
 
 @router.post("/jobs")
 async def create_new_job(
@@ -271,7 +270,7 @@ async def resume_supplement(job_id: str, request: Request, background_tasks: Bac
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid job_id format. Must be a valid UUID.")
 
-    redis = request.app.state.redis
+    redis = getattr(request.app.state, "redis_pool", None)
     if not redis:
         raise HTTPException(status_code=503, detail="Redis connection unavailable")
 

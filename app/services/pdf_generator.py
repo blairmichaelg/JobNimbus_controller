@@ -1095,7 +1095,6 @@ class PDFGenerator:
         log = logger.bind(job_id=job_id)
         log.info("rebuttal_pdf_generation_started")
 
-        from pathlib import Path
         job_dir = FIELD_DOCS_DIR / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
         filepath = str(job_dir / "Rebuttal_Letter.pdf")
@@ -1350,7 +1349,7 @@ class PDFGenerator:
                  f"(${commission_data['overhead_amount']:,.2f})"],
                 ["Gross Profit",
                  f"${commission_data['gross_profit']:,.2f}"],
-                [f"Commission Rate",
+                ["Commission Rate",
                  f"{commission_data['commission_pct']*100:.1f}%"],
                 ["COMMISSION EARNED",
                  f"${commission_data['commission_amount']:,.2f}"],

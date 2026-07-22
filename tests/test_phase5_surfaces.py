@@ -2,8 +2,6 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.core.database import get_connection, run_migrations as init_db
-import hashlib
-import datetime
 
 client = TestClient(app)
 
@@ -110,7 +108,6 @@ def test_toggle_payment_supplement():
         conn.close()
 
 def test_pdf_generator_dochash():
-    from app.services.pdf_generator import PDFGenerator
     # Just asserting the constants exist and the hashing logic works in principle
     from app.services.pdf_generator import COMPANY_NAME
     assert COMPANY_NAME == "Wickham Roofing"

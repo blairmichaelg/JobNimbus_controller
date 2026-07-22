@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 import structlog
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 
@@ -18,7 +18,6 @@ from app.core.database import (
     JobStatus,
     get_connection,
 )
-from app.config import get_settings
 
 from app.api.auth import verify_operations
 
@@ -113,10 +112,11 @@ async def operations_board(request: Request):
 
     return templates.TemplateResponse(
         request,
-        "operations_dashboard_v2.html",
+        "operations_dashboard.html",
         {
             "needs_materials": needs_materials,
-            "ready_to_build": ready_to_build
+            "ready_to_build": ready_to_build,
+            "auth_token": request.cookies.get("auth_token", "")
         }
     )
 
@@ -136,7 +136,7 @@ async def assign_crew(
             "crew_name and install_date are required."
         )
     from app.core.database import (
-        insert_schedule, update_job_status
+        insert_schedule
     )
     insert_schedule(
         job_id=job_id,

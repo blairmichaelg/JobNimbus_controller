@@ -7,7 +7,7 @@ import json
 import asyncio
 from pathlib import Path
 import structlog
-from typing import List, Dict, Optional, Union, Any
+from typing import List, Dict, Union, Any
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks, Body
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -19,8 +19,6 @@ templates = Jinja2Templates(directory="app/templates")
 
 from app.core.database import get_connection, update_job_status
 from app.services.pdf_extractor import extract_eagleview_data
-from app.core.reconciliation import reconcile
-from app.core.supplement_models import StatementOfLoss
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
@@ -37,7 +35,7 @@ router = APIRouter(prefix="/api/office", tags=["office_ux"])
 
 
 
-from app.config import get_settings, FIELD_DOCS_DIR
+from app.config import FIELD_DOCS_DIR
 EXPORT_DIR = Path("generated_exports")
 
 def _fetch_homeowner_name_sync(job_id: str) -> str:
@@ -756,7 +754,8 @@ def get_accounting_brief():
         conn.close()
 
 from fastapi.responses import StreamingResponse
-import csv, io
+import csv
+import io
 from app.core.database import atomic_qbo_export
 from app.api.auth import verify_accounting
 
@@ -815,7 +814,7 @@ async def export_qbo_csv(token=Depends(verify_accounting)):
         media_type="text/csv",
         headers={
             "Content-Disposition":
-                f"attachment; filename=wickham_qbo_export.csv"
+                "attachment; filename=wickham_qbo_export.csv"
         }
     )
 

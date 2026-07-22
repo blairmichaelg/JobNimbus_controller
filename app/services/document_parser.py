@@ -16,7 +16,6 @@ import asyncio
 import structlog
 from pathlib import Path
 from decimal import Decimal
-from typing import Optional
 
 import pdfplumber
 import google.generativeai as genai

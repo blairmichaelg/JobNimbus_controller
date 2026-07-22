@@ -18,7 +18,7 @@
         <h1 class="text-2xl font-bold text-white tracking-wide">Wickham Roofing - Pipeline Orchestrator</h1>
         <div class="flex items-center gap-4">
             <a href="/admin/reps" class="text-purple-400 hover:text-white px-4 py-2 border border-purple-700 rounded transition-colors font-bold">👥 Field Reps</a>
-            <a href="/admin/triage" class="text-yellow-400 hover:text-white px-4 py-2 border border-yellow-700 rounded transition-colors font-bold">⚠ Triage</a>
+            <a href="/api/office/admin/triage" class="text-yellow-400 hover:text-white px-4 py-2 border border-yellow-700 rounded transition-colors font-bold">⚠ Triage</a>
             <a href="/login" class="text-gray-400 hover:text-white px-4 py-2 border border-gray-700 rounded transition-colors">Logout</a>
         </div>
     </div>
@@ -64,7 +64,7 @@
     
     <script>
         // Simple auto-refresh on new events for Kanban
-        const ws = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/api/office/ws/office');
+        const ws = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/ws/office');
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
             if (data.type === 'new_lead' || data.type === 'stale' || data.type === 'contingency_signed') {

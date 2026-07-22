@@ -1,5 +1,3 @@
-import pytest
-import asyncio
 from fastapi.testclient import TestClient
 from app.main import app
 from app.services.rate_limit import reset_rate_limits

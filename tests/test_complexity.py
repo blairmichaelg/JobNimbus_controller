@@ -1,4 +1,3 @@
-import pytest
 from app.core.complexity import build_waste_explanation
 from app.core.supplement_models import EagleViewData
 

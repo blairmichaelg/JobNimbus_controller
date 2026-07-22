@@ -1,9 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
 from app.main import app
 from app.api.auth import create_access_token
-import sqlite3
 from app.core.database import get_connection, pwd_context, create_field_rep
 
 client = TestClient(app)

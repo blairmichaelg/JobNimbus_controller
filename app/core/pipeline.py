@@ -447,7 +447,6 @@ as a formal letter addressed to the carrier's claims department.
     return {"status": "complete",
             "rebuttal_pdf_path": rebuttal_pdf_path}
 
-from pydantic import ValidationError
 
 """
 ARQ Worker task for processing supplement events.
@@ -461,15 +460,10 @@ This coordinates the entire Zero-Cost InsurTech Supplement pipeline:
 """
 
 import asyncio
-from typing import Optional
 import structlog
 
-from app.services.pdf_extractor import extract_eagleview_data
-from app.services.ai_service import AIService
-from app.core.reconciliation import reconcile
 from app.core.code_router import parse_code_files, get_relevant_codes
 from app.services.pdf_generator import PDFGenerator
-from app.core.database import get_connection, insert_job_document, update_job_status, JobStatus
 from app.services.supplement_engine import SupplementEngine
 from app.core.supplement_models import EagleViewData
 

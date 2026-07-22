@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 from app.workers.supplement_processor import process_supplement_event
 
 @pytest.mark.asyncio

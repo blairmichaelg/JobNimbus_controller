@@ -1,4 +1,3 @@
-import pytest
 import importlib
 
 from app.workers.settings import WorkerSettings

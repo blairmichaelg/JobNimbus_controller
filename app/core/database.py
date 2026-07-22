@@ -12,7 +12,6 @@ from typing import Optional
 from datetime import datetime
 from pathlib import Path
 from enum import Enum
-import asyncio
 
 from app.config import get_settings
 from passlib.context import CryptContext

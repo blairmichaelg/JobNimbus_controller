@@ -15,7 +15,6 @@ Tests:
 11. test_canvasser_reassign_route
 12. test_canvasser_reassign_requires_admin
 """
-import asyncio
 import inspect
 import uuid
 import datetime

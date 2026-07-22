@@ -6,9 +6,9 @@ Write-Host "Initializing Production Environment..." -ForegroundColor Cyan
 # Step 1: Launch the Engine
 Write-Host "[1/3] Launching background services (Redis, FastAPI, ARQ)..." -ForegroundColor Yellow
 try {
-    Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", ".\start_dev.ps1" -WindowStyle Normal
+    Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", ".\start_prod.ps1" -WindowStyle Normal
 } catch {
-    Write-Error "Failed to launch start_dev.ps1. Error: $_"
+    Write-Error "Failed to launch start_prod.ps1. Error: $_"
     exit 1
 }
 

@@ -164,7 +164,6 @@ async def test_resume_succeeds_with_saved_report(
     mock_parse_codes, mock_get_codes, mock_narrative, mock_ev, db_conn, tmp_path
 ):
     from app.core.supplement_models import DiscrepancyReport, MaterialBOM
-    import json
     
     job_id = setup_test_job(db_conn, "PENDING_OPERATOR_REVIEW")
     

@@ -9,7 +9,6 @@ and enqueues valid events into the ARQ Redis queue for async processing.
 import secrets
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from app.api.auth import get_current_role, verify_admin
 from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings

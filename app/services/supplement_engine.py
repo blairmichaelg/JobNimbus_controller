@@ -2,8 +2,6 @@
 Deterministic Xactimate & Geometric Engine.
 Handles exact mathematical evaluations and parses ESX archives.
 """
-import zipfile
-import xml.etree.ElementTree as ET
 import math
 from typing import List, Dict, Union
 

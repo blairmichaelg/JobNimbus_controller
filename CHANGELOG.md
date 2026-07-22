@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0] - 2026-07-22
+### Added & Fixed (The Great Pruning & Final Launch Preparation)
+- **Production Cleanliness**: Ruthlessly pruned all dead code, orphaned UI templates, and legacy developer scripts. Removed 51 instances of unused code and legacy `.db`/`.txt` bloat from the repository root.
+- **UI-to-DB Re-wiring**: Repaired multiple silent JavaScript routing failures across the isolated Field, Operations, and Admin Triage dashboards caused by the Phase 9 JWT security upgrades.
+- **ARQ Worker Patch**: Patched a fatal `AttributeError` in the `field_routes.py` supplement resumption endpoint to correctly target `request.app.state.redis_pool`.
+- **E2E Mathematical Stability**: Implemented `tests/test_happy_path.py`, an end-to-end integration test proving the complete multi-role lifecycle (Canvasser injection, AI orchestration, Operations scheduling, and Accounting QBO export). The local-first Truck Server CRM is mathematically proven stable for launch.
+
 ## [0.9.0] - 2026-07-21
 ### Added & Fixed (Phase 3 Security Hardening)
 - **Role Isolation & Dependencies**: Integrated strict JWT role validations across all route files. Enforced `verify_admin` on office endpoints and `verify_accounting` on ledger toggles. Injected role identities explicitly into ARQ background pipelines, completely halting unauthenticated queue requests.

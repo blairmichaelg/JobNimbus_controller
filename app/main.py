@@ -28,7 +28,7 @@ from app.api.operations_routes import router as operations_router
 from app.api.auth_routes import router as auth_router
 from app.api.admin_reps_routes import router as admin_reps_router
 from app.api.admin_jobs_routes import router as admin_jobs_router
-from app.api.auth import verify_admin, verify_accounting, verify_operations, get_current_role
+from app.api.auth import verify_admin, verify_accounting, get_current_role
 from app.config import get_settings
 from app.core.notifications import notifier
 from app.core.cache import init_db as init_cache_db
@@ -262,7 +262,7 @@ async def serve_field_app(request: Request):
     """Serve the Truck Server mobile web interface."""
     return templates.TemplateResponse(request, "field_app.html", {
         "request": request,
-        "field_token": "field-secret-token"
+        "field_token": request.cookies.get("auth_token", "")
     })
 
 @app.get("/login", tags=["frontend"])
@@ -288,7 +288,7 @@ async def process_login(request: Request, access_code: str = Form(...)):
         redirect_url = "/accounting"
     elif access_code == settings.operations_pin:
         role = "operations"
-        redirect_url = "/operations"
+        redirect_url = "/api/operations/board"
     else:
         # Dynamic field rep lookup (Phase 9)
         from app.core.database import get_field_rep_by_pin
@@ -375,13 +375,6 @@ async def serve_accounting_dashboard(request: Request, role: str = Depends(verif
         "auth_token": request.cookies.get("auth_token", "")
     })
 
-@app.get("/operations", tags=["frontend"])
-async def serve_operations_dashboard(request: Request, role: str = Depends(verify_operations)):
-    """Serve the Operations Departure Board."""
-    return templates.TemplateResponse(request, "operations_dashboard.html", {
-        "request": request, 
-        "auth_token": request.cookies.get("auth_token", "")
-    })
 
 @app.get("/office/jobs/{job_id}", tags=["frontend"])
 async def serve_job_detail(request: Request, job_id: str):

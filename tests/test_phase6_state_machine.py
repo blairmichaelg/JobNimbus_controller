@@ -1,6 +1,4 @@
 import pytest
-import sqlite3
-import json
 from uuid import uuid4
 from fastapi.testclient import TestClient
 

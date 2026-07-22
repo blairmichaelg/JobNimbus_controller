@@ -1,11 +1,10 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 import uuid
 import sqlite3
 from app.main import app
 from app.core.database import transition_material_flags, JobStatus, get_qbo_export_batch, mark_qbo_exported, get_connection
-from app.config import get_settings
 
 client = TestClient(app)
 

@@ -12,7 +12,7 @@
         <h1 class="text-2xl font-bold text-yellow-400 tracking-wide">
             ⚠ Operator Triage — Stuck Jobs
         </h1>
-        <a href="/admin/dashboard"
+        <a href="/admin"
            class="text-gray-400 hover:text-white px-4 py-2 border
                   border-gray-700 rounded transition-colors">
             ← Back to Pipeline
@@ -189,7 +189,7 @@
 
         try {
             const resp = await fetch(
-                `/admin/triage/${jobId}/resolve`,
+                `/api/office/admin/triage/${jobId}/resolve`,
                 {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},

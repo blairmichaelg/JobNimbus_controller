@@ -12,7 +12,8 @@ Pipeline:
 5. Set commission_ready = 1 on the job row.
 """
 
-import asyncio, hashlib
+import asyncio
+import hashlib
 import structlog
 from pathlib import Path
 from app.core.database import (

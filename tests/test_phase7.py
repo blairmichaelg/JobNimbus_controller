@@ -5,7 +5,7 @@ import datetime
 from fastapi.testclient import TestClient
 
 from app.main import app, days_since
-from app.core.database import get_connection, JobStatus, toggle_payment_flag, get_aging_jobs
+from app.core.database import get_connection, toggle_payment_flag, get_aging_jobs
 
 client = TestClient(app)
 
