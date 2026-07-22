@@ -768,9 +768,42 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
         ai_service = AIService()
         narrative = await ai_service.generate_supplement_narrative(report, codes)
 
+        # 5.5 Build db_context
+        def _build_db_context():
+            from app.core.database import get_connection
+            conn = get_connection()
+            try:
+                job_cursor = conn.execute("SELECT ice_barrier_required, jurisdiction_code_version FROM jobs WHERE id = ?", (job_id,))
+                job_row = job_cursor.fetchone()
+                ice_barrier_required = bool(job_row["ice_barrier_required"]) if job_row and job_row["ice_barrier_required"] is not None else False
+                jurisdiction = job_row["jurisdiction_code_version"] if job_row else "2021_IRC"
+
+                cursor = conn.execute('''
+                    SELECT r.citation_text, r.citation_type, r.required_child_code, r.climate_dependent
+                    FROM supplement_flags f
+                    JOIN supplement_rules r ON f.rule_id = r.id
+                    WHERE f.job_id = ? AND f.triggered = 1
+                ''', (job_id,))
+                rules = [dict(r) for r in cursor.fetchall()]
+
+                cursor = conn.execute("SELECT * FROM storm_verifications WHERE job_id = ? LIMIT 1", (job_id,))
+                w_row = cursor.fetchone()
+                weather = dict(w_row) if w_row else None
+
+                return {
+                    "ice_barrier_required": ice_barrier_required,
+                    "jurisdiction_code_version": jurisdiction,
+                    "rules": rules,
+                    "weather": weather
+                }
+            finally:
+                conn.close()
+
+        db_context = await asyncio.to_thread(_build_db_context)
+
         # 6. Generate PDF
         pdf_gen = PDFGenerator()
-        temp_pdf_path = await pdf_gen.generate_supplement_pdf(report, narrative, job=job_dict)
+        temp_pdf_path = await pdf_gen.generate_supplement_pdf(report, narrative, job=job_dict, db_context=db_context)
         
         import shutil
         shutil.move(temp_pdf_path, permanent_pdf_path)
