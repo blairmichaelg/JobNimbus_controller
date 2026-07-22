@@ -217,13 +217,6 @@ async def auth_redirect_middleware(request: Request, call_next):
         )
     return response
 
-@app.get("/login")
-async def login_page(request: Request, redirect_url: str = "/"):
-    return templates.TemplateResponse(
-        request=request,
-        name="login.html",
-        context={"redirect_url": redirect_url},
-    )
 
 
 @app.websocket("/ws/office")
@@ -266,9 +259,13 @@ async def serve_field_app(request: Request):
     })
 
 @app.get("/login", tags=["frontend"])
-async def serve_login(request: Request):
-    """Serve the universal login page."""
-    return templates.TemplateResponse(request, "login.html", {"request": request})
+async def serve_login(request: Request, redirect_url: str = "/"):
+    """Serve the universal login page with optional post-auth redirect target."""
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {"request": request, "redirect_url": redirect_url},
+    )
 
 @app.post("/login", tags=["frontend"])
 async def process_login(request: Request, access_code: str = Form(...)):
@@ -299,13 +296,7 @@ async def process_login(request: Request, access_code: str = Form(...)):
             rep_id = rep["id"]
             redirect_url = "/field"
         
-    # Support backward compatibility for old local testing
-    if access_code == "office-secret-token":
-        role = "admin"
-        redirect_url = "/admin"
-    if access_code == "field-secret-token":
-        role = "field"
-        redirect_url = "/field"
+
         
     if role:
         from app.api.auth import create_access_token

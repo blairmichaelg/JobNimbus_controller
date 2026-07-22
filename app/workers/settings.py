@@ -17,6 +17,12 @@ from arq.cron import cron
 from app.config import get_settings
 from app.core.cleanup import cleanup_orphaned_artifacts
 from app.core.backup import backup_database
+from app.workers.supplement_processor import process_supplement_event
+from app.workers.inspection_processor import process_inspection
+from app.workers.rebuttal_processor import process_rebuttal
+from app.workers.retail_quote_processor import process_retail_quote
+from app.workers.commission_processor import process_commission
+from app.workers.escalation_processor import process_escalation
 
 logger = structlog.get_logger("app.workers.settings")
 
@@ -97,37 +103,31 @@ async def run_backup(ctx: dict) -> None:
 class WorkerSettings:
     """
     ARQ worker configuration.
-
     ARQ discovers this class by name when started via:
         arq app.workers.settings.WorkerSettings
     """
 
-    # Task functions registered with the worker
-    # ARQ matches enqueued job names to these function references
+    # Coroutine function references (NOT dotted strings).
+    # ARQ uses __qualname__ (e.g. "process_supplement_event") as the
+    # dispatch key, which matches enqueue_job() call sites exactly.
     functions = [
-        "app.workers.supplement_processor.process_supplement_event",
-        "app.workers.inspection_processor.process_inspection",
-        "app.workers.rebuttal_processor.process_rebuttal",
-        "app.workers.retail_quote_processor.process_retail_quote",
-        "app.workers.commission_processor.process_commission",
-        "app.workers.escalation_processor.process_escalation",
+        process_supplement_event,
+        process_inspection,
+        process_rebuttal,
+        process_retail_quote,
+        process_commission,
+        process_escalation,
     ]
 
-    # Redis connection
     redis_settings = get_redis_settings()
-
-    # Job defaults
-    max_jobs = 10  # Max concurrent jobs per worker
-    job_timeout = 1800  # 30 minutes per job to support large commercial inspections
-    max_tries = 3  # Retry failed jobs up to 3 times
-    health_check_interval = 60  # Seconds between health check pings
-
-    # Lifecycle hooks
+    max_jobs = 10
+    job_timeout = 1800
+    max_tries = 3
+    health_check_interval = 60
     on_startup = startup
     on_shutdown = shutdown
 
-    # Cron jobs
     cron_jobs = [
         cron(run_cleanup, hour=2, minute=0),
-        cron(run_backup, hour={0, 4, 8, 12, 16, 20}, minute=0)
+        cron(run_backup, hour={0, 4, 8, 12, 16, 20}, minute=0),
     ]
