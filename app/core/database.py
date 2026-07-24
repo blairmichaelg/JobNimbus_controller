@@ -805,7 +805,7 @@ def mark_supplement_sent(job_id: str) -> None:
     finally:
         conn.close()
 
-def toggle_payment_flag(job_id: str, flag: str) -> dict:
+def toggle_payment_flag(job_id: str, flag: str, amount: float = None, date_received: str = None) -> dict:
     """
     Toggles acv_received or supplement_received for a job.
     Returns the new state. flag must be one of the two allowed
@@ -818,6 +818,7 @@ def toggle_payment_flag(job_id: str, flag: str) -> dict:
     ts_col = flag + "_at"
     conn = get_connection()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         cursor = conn.execute(
             f"SELECT {flag} FROM jobs WHERE id = ?", (job_id,)
         )
@@ -825,15 +826,29 @@ def toggle_payment_flag(job_id: str, flag: str) -> dict:
         if not row:
             raise ValueError(f"Job {job_id} not found.")
 
-        new_val = 0 if row[flag] else 1
-        ts_val = "CURRENT_TIMESTAMP" if new_val else "NULL"
-        conn.execute(
-            f"""UPDATE jobs
-                SET {flag} = ?,
-                    {ts_col} = {ts_val}
-                WHERE id = ?""",
-            (new_val, job_id)
-        )
+        # If amount is provided, we are capturing a check. This forces it to ON.
+        if amount is not None and date_received is not None:
+            new_val = 1
+            if flag == "acv_received":
+                conn.execute(
+                    "UPDATE jobs SET acv_received=1, acv_received_at=CURRENT_TIMESTAMP, acv_check_amount=?, acv_check_date=? WHERE id=?",
+                    (amount, date_received, job_id)
+                )
+            else:
+                conn.execute(
+                    "UPDATE jobs SET supplement_received=1, supplement_received_at=CURRENT_TIMESTAMP, supplement_check_amount=?, supplement_check_date=? WHERE id=?",
+                    (amount, date_received, job_id)
+                )
+        else:
+            new_val = 0 if row[flag] else 1
+            ts_val = "CURRENT_TIMESTAMP" if new_val else "NULL"
+            conn.execute(
+                f"""UPDATE jobs
+                    SET {flag} = ?,
+                        {ts_col} = {ts_val}
+                    WHERE id = ?""",
+                (new_val, job_id)
+            )
         conn.commit()
         row2 = conn.execute(
             "SELECT acv_received, supplement_received "

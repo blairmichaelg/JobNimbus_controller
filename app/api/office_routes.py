@@ -157,7 +157,8 @@ def get_job_details(job_id: str) -> Dict[str, Union[Dict[str, Union[str, float, 
                 materials=fin_dict["material_cost"],
                 labor=fin_dict["labor_cost"],
                 overhead_pct=fin_dict["overhead_pct"],
-                commission_pct=fin_dict["canvasser_commission_pct"]
+                commission_pct=fin_dict["canvasser_commission_pct"],
+                commission_pct_override=job_dict.get("commission_pct_override")
             )
             fin_dict["computed_margins"] = margins
 
@@ -481,13 +482,22 @@ def download_qbo_export(job_id: str):
     )
 
 def _sync_update_job_financials(job_id: str, payload: FinancialsPayload):
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT commission_pct_override FROM jobs WHERE id = ?", (job_id,))
+        job_row = cursor.fetchone()
+        override = job_row["commission_pct_override"] if job_row else None
+    finally:
+        conn.close()
+
     # Calculate precise financials
     results = compute_job_profitability(
         revenue=payload.revenue,
         materials=payload.materials,
         labor=payload.labor,
         overhead_pct=payload.overhead_pct,
-        commission_pct=payload.commission_pct
+        commission_pct=payload.commission_pct,
+        commission_pct_override=override
     )
     
     # Directive 4: Low Margin Alert
@@ -757,7 +767,8 @@ def get_accounting_brief():
         cursor = conn.execute("""
             SELECT j.id, j.invoice_id, j.homeowner_name, j.status,
                    j.acv_received, j.acv_received_at,
-                   j.supplement_received, j.supplement_received_at
+                   j.supplement_received, j.supplement_received_at,
+                   f.carrier_rcv
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
             WHERE j.status IN ('SUPPLEMENT_GENERATED', 'SUPPLEMENT_APPROVED',
@@ -773,7 +784,9 @@ def get_accounting_brief():
             "acv_received": r["acv_received"],
             "acv_received_at": r["acv_received_at"],
             "supplement_received": r["supplement_received"],
-            "supplement_received_at": r["supplement_received_at"]
+            "supplement_received_at": r["supplement_received_at"],
+            "acv_expected": r["carrier_rcv"],
+            "supp_expected": r["carrier_rcv"]
         } for r in rows]
         
         return AccountingBrief(
@@ -934,14 +947,40 @@ async def mark_supplement_sent_route(job_id: str):
 , dependencies=[Depends(verify_accounting), Depends(check_rate_limit)])
 async def toggle_payment(request: Request, job_id: str, payload: dict = Body(...)):
     flag = str(payload.get("flag", ""))
+    amount = payload.get("amount")
+    date_received = payload.get("date_received")
+    
     from app.core.database import toggle_payment_flag
-    result = toggle_payment_flag(job_id, flag)
+    result = toggle_payment_flag(job_id, flag, amount, date_received)
     if result.get("commission_triggered"):
         await request.app.state.redis_pool.enqueue_job(
             "process_commission",
             job_id=job_id
         )
     return result
+
+@router.post("/accounting/jobs/{job_id}/commission-override", dependencies=[Depends(verify_accounting)])
+async def set_commission_override(job_id: str, body: dict = Body(...)):
+    commission_pct = body.get("commission_pct")
+
+    if commission_pct is not None:
+        if not isinstance(commission_pct, (int, float)) or commission_pct < 0 or commission_pct > 1:
+            raise HTTPException(status_code=400, detail="commission_pct must be between 0 and 1, or null to reset.")
+
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            "UPDATE jobs SET commission_pct_override = ? WHERE id = ?",
+            (commission_pct, job_id)
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return {"status": "success"}
 
 @router.post(
     "/jobs/{job_id}/approve-supplement",
@@ -1042,12 +1081,23 @@ def get_commissions_ready():
     conn = get_connection()
     try:
         cursor = conn.execute("""
-            SELECT id as job_id, invoice_id, homeowner_name, canvasser_name, commission_generated_at
-            FROM jobs
-            WHERE commission_ready = 1
-            ORDER BY commission_generated_at DESC
+            SELECT j.id as job_id, j.invoice_id, j.homeowner_name, j.canvasser_name, j.commission_generated_at,
+                   j.commission_pct_override, f.revenue, f.canvasser_commission_pct
+            FROM jobs j
+            LEFT JOIN financials f ON j.id = f.job_id
+            WHERE j.commission_ready = 1
+            ORDER BY j.commission_generated_at DESC
         """)
-        return [dict(r) for r in cursor.fetchall()]
+        results = []
+        for r in cursor.fetchall():
+            row = dict(r)
+            effective_pct = row["commission_pct_override"] if row["commission_pct_override"] is not None else row["canvasser_commission_pct"]
+            if effective_pct is None: 
+                effective_pct = 0.10
+            revenue = row["revenue"] or 0.0
+            row["canvasser_commission"] = revenue * effective_pct
+            results.append(row)
+        return results
     finally:
         conn.close()
 

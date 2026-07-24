@@ -58,6 +58,7 @@
                             <th class="py-3 px-4">Job ID</th>
                             <th class="py-3 px-4">Homeowner</th>
                             <th class="py-3 px-4">Canvasser</th>
+                            <th class="py-3 px-4">Commission</th>
                             <th class="py-3 px-4">Generated At</th>
                             <th class="py-3 px-4 text-right">Statement</th>
                         </tr>
@@ -95,17 +96,39 @@
                             <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
                             <td class="px-4 py-3">
                                 <button
-                                  onclick="togglePayment('${row.job_id}','acv_received',this)"
+                                  onclick="${row.acv_received ? '' : `showCheckForm('${row.job_id}', 'acv_received')`}"
                                   class="px-4 py-2 rounded font-bold text-sm transition-colors ${acvColor}">
                                   ${acvText}
                                 </button>
+                                ${!row.acv_received ? `
+                                <div id="checkForm-acv_received-${row.job_id}" class="hidden mt-2 space-y-2">
+                                    <input type="number" step="0.01" id="checkAmount-acv_received-${row.job_id}"
+                                        placeholder="Amount" class="bg-gray-800 text-white rounded p-1 text-sm w-24">
+                                    <input type="date" id="checkDate-acv_received-${row.job_id}"
+                                        class="bg-gray-800 text-white rounded p-1 text-sm w-32">
+                                    <button onclick="submitCheck('${row.job_id}', 'acv_received', ${row.acv_expected || 0})"
+                                        class="bg-green-700 text-white text-xs px-2 py-1 rounded block">
+                                        Confirm
+                                    </button>
+                                </div>` : ''}
                             </td>
                             <td class="px-4 py-3">
                                 <button
-                                  onclick="togglePayment('${row.job_id}','supplement_received',this)"
+                                  onclick="${row.supplement_received ? '' : `showCheckForm('${row.job_id}', 'supplement_received')`}"
                                   class="px-4 py-2 rounded font-bold text-sm transition-colors ${suppColor}">
                                   ${suppText}
                                 </button>
+                                ${!row.supplement_received ? `
+                                <div id="checkForm-supplement_received-${row.job_id}" class="hidden mt-2 space-y-2">
+                                    <input type="number" step="0.01" id="checkAmount-supplement_received-${row.job_id}"
+                                        placeholder="Amount" class="bg-gray-800 text-white rounded p-1 text-sm w-24">
+                                    <input type="date" id="checkDate-supplement_received-${row.job_id}"
+                                        class="bg-gray-800 text-white rounded p-1 text-sm w-32">
+                                    <button onclick="submitCheck('${row.job_id}', 'supplement_received', ${row.supp_expected || 0})"
+                                        class="bg-green-700 text-white text-xs px-2 py-1 rounded block">
+                                        Confirm
+                                    </button>
+                                </div>` : ''}
                             </td>
                         </tr>
                     `;
@@ -122,6 +145,29 @@
                                 <td class="py-4 px-4 text-gray-300 font-mono"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></td>
                                 <td class="py-4 px-4 text-white font-bold">${row.homeowner_name}</td>
                                 <td class="py-4 px-4 text-white">${row.canvasser_name || 'N/A'}</td>
+                                <td class="py-4 px-4 text-white">
+                                    <div class="flex items-center gap-2">
+                                        <span id="commissionAmount-${row.job_id}">$${row.canvasser_commission.toFixed(2)}</span>
+                                        <button onclick="showCommissionOverride('${row.job_id}')" class="text-xs text-blue-400 underline">
+                                            Adjust %
+                                        </button>
+                                    </div>
+                                    <div id="commissionOverrideForm-${row.job_id}" class="hidden mt-1 flex items-center gap-2">
+                                        <input type="number" step="0.1" min="0" max="100"
+                                            id="commissionPctInput-${row.job_id}"
+                                            value="${row.commission_pct_override !== null ? (row.commission_pct_override * 100) : 10}"
+                                            class="bg-gray-800 text-white rounded p-1 text-sm w-20">
+                                        <span class="text-xs text-gray-400">%</span>
+                                        <button onclick="saveCommissionOverride('${row.job_id}')"
+                                            class="bg-blue-700 text-white text-xs px-2 py-1 rounded">
+                                            Save
+                                        </button>
+                                        <button onclick="resetCommissionOverride('${row.job_id}')"
+                                            class="bg-gray-600 text-white text-xs px-2 py-1 rounded">
+                                            Reset
+                                        </button>
+                                    </div>
+                                </td>
                                 <td class="py-4 px-4 text-gray-400">${new Date(row.commission_generated_at + 'Z').toLocaleString()}</td>
                                 <td class="py-4 px-4 text-right">
                                     <a href="/api/office/jobs/${row.job_id}/docs/commission" target="_blank"
@@ -170,29 +216,72 @@
             }
         }
 
-        async function togglePayment(jobId, flag, btn) {
-            btn.disabled = true;
-            const resp = await fetch(
-                `/api/office/accounting/jobs/${jobId}/toggle-payment`,
-                {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({flag: flag})
-                }
-            );
-            if (resp.ok) {
-                const data = await resp.json();
-                const isOn = data.new_value === 1;
-                btn.textContent = isOn ? '✓ Received' : 'Pending';
-                btn.className =
-                    'px-4 py-2 rounded font-bold text-sm transition-colors '
-                    + (isOn
-                       ? 'bg-green-700 text-green-200'
-                       : 'bg-gray-700 text-gray-400');
-            } else {
-                btn.textContent = 'Error';
+        function showCheckForm(jobId, flag) {
+            document.getElementById(`checkForm-${flag}-${jobId}`).classList.remove('hidden');
+        }
+
+        async function submitCheck(jobId, flag, expectedAmount) {
+            const amount = document.getElementById(`checkAmount-${flag}-${jobId}`).value;
+            const date = document.getElementById(`checkDate-${flag}-${jobId}`).value;
+
+            if (!amount || !date) {
+                alert('Please enter both the check amount and date received.');
+                return;
             }
-            btn.disabled = false;
+
+            if (expectedAmount > 0 && parseFloat(amount) < expectedAmount * 0.98) {
+                if (!confirm(`This amount ($${amount}) is less than the expected $${expectedAmount.toFixed(2)}. This may indicate a carrier short-pay. Continue anyway?`))
+                    return;
+            }
+
+            const r = await fetch(`/api/office/accounting/jobs/${jobId}/toggle-payment`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
+                body: JSON.stringify({ flag: flag, amount: parseFloat(amount), date_received: date })
+            });
+
+            if (r.ok) window.location.reload();
+            else alert('Error recording check.');
+        }
+
+        function showCommissionOverride(jobId) {
+            document.getElementById(`commissionOverrideForm-${jobId}`).classList.remove('hidden');
+        }
+
+        async function saveCommissionOverride(jobId) {
+            const pctInput = document.getElementById(`commissionPctInput-${jobId}`).value;
+            const pct = parseFloat(pctInput);
+
+            if (isNaN(pct) || pct < 0 || pct > 100) {
+                alert('Please enter a valid percentage between 0 and 100.');
+                return;
+            }
+
+            if (!confirm(`Set commission for this job to ${pct}% of revenue (overriding the default 10%)?`))
+                return;
+
+            const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission-override`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
+                body: JSON.stringify({ commission_pct: pct / 100 })
+            });
+
+            if (r.ok) window.location.reload();
+            else alert('Error saving commission override.');
+        }
+
+        async function resetCommissionOverride(jobId) {
+            if (!confirm('Reset this job\\'s commission back to the default 10%?'))
+                return;
+
+            const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission-override`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
+                body: JSON.stringify({ commission_pct: null })
+            });
+
+            if (r.ok) window.location.reload();
+            else alert('Error resetting commission override.');
         }
 
         fetchAccounting();
