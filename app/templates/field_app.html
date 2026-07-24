@@ -157,13 +157,19 @@
         let photoFiles = [];
         let inProgressJobId = null;
         let inProgressStep = null;
+        let uploadedPhotoIndices = new Set();
+        let signatureUploaded = false;
 
         function resetFormState() {
             inProgressJobId = null;
             inProgressStep = null;
+            uploadedPhotoIndices = new Set();
+            signatureUploaded = false;
             document.getElementById('intakeForm').reset();
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (isSignatureLocked) document.getElementById('lockBtn').click();
+            if (isSignatureLocked) {
+                document.getElementById('lockBtn').click();
+            }
             photoFiles = [];
             renderPhotoGrid();
             document.getElementById('successModal').classList.add('hidden');
@@ -257,6 +263,17 @@
             
             if (rejectedCount > 0) {
                 showToast(`Maximum of 15 photos allowed. ${rejectedCount} photo(s) were not added.`, 'error');
+                
+                const counterEl = document.getElementById('photoCount');
+                if (counterEl) {
+                    const originalText = `${photoFiles.length} / 15 photos`;
+                    counterEl.innerText = `${originalText} — ${rejectedCount} rejected!`;
+                    counterEl.classList.add('text-red-500', 'font-bold');
+                    setTimeout(() => {
+                        counterEl.innerText = originalText;
+                        counterEl.classList.remove('text-red-500', 'font-bold');
+                    }, 6000);
+                }
             }
 
             renderPhotoGrid();
@@ -523,14 +540,14 @@
                 btn.innerText = '✏️ Edit Signature';
                 btn.classList.remove('text-green-400', 'hover:text-green-300');
                 btn.classList.add('text-gray-400');
-                document.getElementById('clearBtn').classList.add('opacity-50', 'cursor-not-allowed');
+                document.getElementById('clearBtn').classList.add('hidden');
                 if (hint) hint.innerText = 'Signature locked. Tap "Edit Signature" to redraw.';
             } else {
                 isSignatureLocked = false;
                 btn.innerText = 'Lock Signature';
                 btn.classList.remove('text-gray-400');
                 btn.classList.add('text-green-400', 'hover:text-green-300');
-                document.getElementById('clearBtn').classList.remove('opacity-50', 'cursor-not-allowed');
+                document.getElementById('clearBtn').classList.remove('hidden');
                 if (hint) hint.innerText = '';
                 
                 // NEW: auto-clear canvas when re-entering edit mode
@@ -656,7 +673,13 @@
                     }
                     console.warn('Submission failed, queuing full package offline:', err);
                     await queueFullSubmission(payload, photoFiles, signatureBase64, signerName, inProgressJobId);
+                    
+                    // Reset all in-progress state since we've durably queued
                     inProgressJobId = null;
+                    inProgressStep = null;
+                    uploadedPhotoIndices = new Set();
+                    signatureUploaded = false;
+                    
                     showOfflineBanner('Connection issue detected. Lead, photos, and signature saved locally. Will sync automatically when connection returns.');
                     finishSubmission(loadingModal, submitBtn, originalText);
                 }
@@ -701,6 +724,9 @@
 
             inProgressStep = 'photos';
             for (let i = 0; i < photoFiles.length; i++) {
+                if (uploadedPhotoIndices.has(i)) {
+                    continue; // already succeeded in a prior attempt — skip
+                }
                 if (loadingTitle) loadingTitle.innerText = `Uploading Photo ${i+1} of ${photoFiles.length}...`;
                 if (loadingProgress) loadingProgress.style.width = `${60 + Math.round((i / photoFiles.length) * 20)}%`;
 
@@ -717,9 +743,10 @@
                     err.isHttpError = true;
                     throw err;
                 }
+                uploadedPhotoIndices.add(i); // mark success immediately
             }
 
-            if (signatureBase64) {
+            if (signatureBase64 && !signatureUploaded) {
                 inProgressStep = 'signature';
                 if (loadingTitle) loadingTitle.innerText = 'Generating Contract...';
                 if (loadingProgress) loadingProgress.style.width = '90%';
@@ -744,11 +771,14 @@
                     err.isHttpError = true;
                     throw err;
                 }
+                signatureUploaded = true;
             }
 
             // SUCCESS — clear in-progress state
             inProgressJobId = null;
             inProgressStep = null;
+            uploadedPhotoIndices = new Set();
+            signatureUploaded = false;
         }
     </script>
 </body>
