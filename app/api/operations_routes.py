@@ -8,18 +8,21 @@ from __future__ import annotations
 
 import uuid
 import structlog
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, HTTPException, Depends, Request, Body
 from typing import Optional
+from pydantic import BaseModel
 
 from app.core.database import (
     transition_material_flags,
     update_job_status,
+    insert_schedule,
     JobStatus,
     get_connection,
 )
 
 from app.api.auth import verify_operations
+from app.api.office_routes import templates
 
 logger = structlog.get_logger("app.api.operations_routes")
 router = APIRouter(prefix="/api/operations", tags=["operations"])
@@ -69,10 +72,6 @@ async def patch_material_flags(job_id: str, body: MaterialFlagUpdate):
     )
     return {"status": "ok", "job_id": job_id}
 
-
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi import Request, Body
-from app.api.office_routes import templates
 
 @router.get(
     "/board",
@@ -151,9 +150,6 @@ async def assign_crew(
             400,
             "crew_name and install_date are required."
         )
-    from app.core.database import (
-        insert_schedule
-    )
     insert_schedule(
         job_id=job_id,
         crew_name=crew_name,

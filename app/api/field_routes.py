@@ -18,16 +18,17 @@ from datetime import datetime
 from PIL import Image
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Request, BackgroundTasks
-from app.api.auth import get_current_role
+from pydantic import BaseModel, Field
+
+from app.config import FIELD_DOCS_DIR
+from app.api.auth import get_current_role, verify_field, get_current_claims
 from app.services.field_access import assert_field_rep_owns_job
 from app.services.rate_limit import check_rate_limit
 from app.core.climate_lookup import is_ice_barrier_required
-from pydantic import BaseModel, Field
 
 from app.core.inspection_models import get_stable_photos, InspectionJob
 from app.core.cache import get_cached_analyses_for_job
 from app.core.database import get_connection, update_job_status
-from app.api.auth import verify_field, get_current_claims
 from app.core.upload_utils import stream_upload_safely
 from app.core.notifications import notifier
 
@@ -36,7 +37,7 @@ router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends
 
 # Base directories (created on startup)
 FIELD_PHOTOS_DIR = Path("field_photos")
-from app.config import FIELD_DOCS_DIR
+
 SIGNED_AGREEMENTS_DIR = Path("signed_agreements")
 
 class LeadIntakePayload(BaseModel):

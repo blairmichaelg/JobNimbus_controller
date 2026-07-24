@@ -87,57 +87,58 @@
                     tbody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">No pending checks to record.</td></tr>`;
                 } else {
                     data.rows.forEach(row => {
-                    const statusColor = row.status.includes('INVOICED') ? 'text-green-400' : 'text-yellow-400';
-                    const acvColor = row.acv_received ? 'bg-green-700 text-green-200' : 'bg-gray-700 text-gray-400';
-                    const acvText = row.acv_received ? '✓ Received' : 'Pending';
-                    const suppColor = row.supplement_received ? 'bg-green-700 text-green-200' : 'bg-gray-700 text-gray-400';
-                    const suppText = row.supplement_received ? '✓ Received' : 'Pending';
-                    tbody.innerHTML += `
-                        <tr class="hover:bg-gray-800 transition-colors">
-                            <td class="py-4 px-4 text-gray-300 font-mono"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></td>
-                            <td class="py-4 px-4 text-white font-bold">${row.name}</td>
-                            <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
-                            <td class="px-4 py-3">
-                                <button
-                                  onclick="${row.acv_received ? '' : `showCheckForm('${row.job_id}', 'acv_received')`}"
-                                  class="px-4 py-2 rounded font-bold text-sm transition-colors ${acvColor}">
-                                  ${acvText}
-                                </button>
-                                ${!row.acv_received ? `
-                                <div id="checkForm-acv_received-${row.job_id}" class="hidden mt-2 space-y-2">
-                                    <input type="number" step="0.01" id="checkAmount-acv_received-${row.job_id}"
-                                        placeholder="Amount" class="bg-gray-800 text-white rounded p-1 text-sm w-24">
-                                    <label class="text-xs text-gray-400 block">Date received</label>
-                                    <input type="date" id="checkDate-acv_received-${row.job_id}"
-                                        class="bg-gray-800 text-white rounded p-1 text-sm w-32">
-                                    <button onclick="submitCheck('${row.job_id}', 'acv_received', ${row.acv_expected !== null ? row.acv_expected : 'null'})"
-                                        class="bg-green-700 text-white text-xs px-2 py-1 rounded block">
-                                        Confirm
+                        const statusColor = row.status.includes('INVOICED') ? 'text-green-400' : 'text-yellow-400';
+                        const acvColor = row.acv_received ? 'bg-green-700 text-green-200' : 'bg-gray-700 text-gray-400';
+                        const acvText = row.acv_received ? '✓ Received' : 'Pending';
+                        const suppColor = row.supplement_received ? 'bg-green-700 text-green-200' : 'bg-gray-700 text-gray-400';
+                        const suppText = row.supplement_received ? '✓ Received' : 'Pending';
+                        tbody.innerHTML += `
+                            <tr class="hover:bg-gray-800 transition-colors">
+                                <td class="py-4 px-4 text-gray-300 font-mono"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></td>
+                                <td class="py-4 px-4 text-white font-bold">${row.name}</td>
+                                <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
+                                <td class="px-4 py-3">
+                                    <button
+                                      onclick="${row.acv_received ? '' : `showCheckForm('${row.job_id}', 'acv_received')`}"
+                                      class="px-4 py-2 rounded font-bold text-sm transition-colors ${acvColor}">
+                                      ${acvText}
                                     </button>
-                                </div>` : ''}
-                            </td>
-                            <td class="px-4 py-3">
-                                <button
-                                  onclick="${row.supplement_received ? '' : `showCheckForm('${row.job_id}', 'supplement_received')`}"
-                                  class="px-4 py-2 rounded font-bold text-sm transition-colors ${suppColor}">
-                                  ${suppText}
-                                </button>
-                                ${!row.supplement_received ? `
-                                <div id="checkForm-supplement_received-${row.job_id}" class="hidden mt-2 space-y-2">
-                                    <input type="number" step="0.01" id="checkAmount-supplement_received-${row.job_id}"
-                                        placeholder="Amount" class="bg-gray-800 text-white rounded p-1 text-sm w-24">
-                                    <label class="text-xs text-gray-400 block">Date received</label>
-                                    <input type="date" id="checkDate-supplement_received-${row.job_id}"
-                                        class="bg-gray-800 text-white rounded p-1 text-sm w-32">
-                                    <button onclick="submitCheck('${row.job_id}', 'supplement_received', ${row.supp_expected !== null ? row.supp_expected : 'null'})"
-                                        class="bg-green-700 text-white text-xs px-2 py-1 rounded block">
-                                        Confirm
+                                    ${!row.acv_received ? `
+                                    <div id="checkForm-acv_received-${row.job_id}" class="hidden mt-2 space-y-2">
+                                        <input type="number" step="0.01" id="checkAmount-acv_received-${row.job_id}"
+                                            placeholder="Amount" class="bg-gray-800 text-white rounded p-1 text-sm w-24">
+                                        <label class="text-xs text-gray-400 block">Date received</label>
+                                        <input type="date" id="checkDate-acv_received-${row.job_id}"
+                                            class="bg-gray-800 text-white rounded p-1 text-sm w-32">
+                                        <button onclick="submitCheck('${row.job_id}', 'acv_received', ${row.acv_expected !== null ? row.acv_expected : 'null'})"
+                                            class="bg-green-700 text-white text-xs px-2 py-1 rounded block">
+                                            Confirm
+                                        </button>
+                                    </div>` : ''}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <button
+                                      onclick="${row.supplement_received ? '' : `showCheckForm('${row.job_id}', 'supplement_received')`}"
+                                      class="px-4 py-2 rounded font-bold text-sm transition-colors ${suppColor}">
+                                      ${suppText}
                                     </button>
-                                </div>` : ''}
-                            </td>
-                        </tr>
-                    `;
-                });
+                                    ${!row.supplement_received ? `
+                                    <div id="checkForm-supplement_received-${row.job_id}" class="hidden mt-2 space-y-2">
+                                        <input type="number" step="0.01" id="checkAmount-supplement_received-${row.job_id}"
+                                            placeholder="Amount" class="bg-gray-800 text-white rounded p-1 text-sm w-24">
+                                        <label class="text-xs text-gray-400 block">Date received</label>
+                                        <input type="date" id="checkDate-supplement_received-${row.job_id}"
+                                            class="bg-gray-800 text-white rounded p-1 text-sm w-32">
+                                        <button onclick="submitCheck('${row.job_id}', 'supplement_received', ${row.supp_expected !== null ? row.supp_expected : 'null'})"
+                                            class="bg-green-700 text-white text-xs px-2 py-1 rounded block">
+                                            Confirm
+                                        </button>
+                                    </div>` : ''}
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
 
                 const cres = await fetch('/api/office/accounting/commissions-ready', { headers: { 'X-Internal-Token': AUTH_TOKEN } });
                 if (cres.ok) {
@@ -250,14 +251,18 @@
                     return;
             }
 
-            const r = await fetch(`/api/office/accounting/jobs/${jobId}/toggle-payment`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
-                body: JSON.stringify({ flag: flag, amount: parseFloat(amount), date_received: date })
-            });
+            try {
+                const r = await fetch(`/api/office/accounting/jobs/${jobId}/toggle-payment`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
+                    body: JSON.stringify({ flag: flag, amount: parseFloat(amount), date_received: date })
+                });
 
-            if (r.ok) window.location.reload();
-            else alert('Error recording check.');
+                if (r.ok) window.location.reload();
+                else alert('Error recording check.');
+            } catch (err) {
+                alert('Network error while recording check.');
+            }
         }
 
         function showCommissionOverride(jobId) {
@@ -276,28 +281,36 @@
             if (!confirm(`Set commission for this job to ${pct}% of revenue (overriding the default 10%)?`))
                 return;
 
-            const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission-override`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
-                body: JSON.stringify({ commission_pct: pct / 100 })
-            });
+            try {
+                const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission-override`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
+                    body: JSON.stringify({ commission_pct: pct / 100 })
+                });
 
-            if (r.ok) window.location.reload();
-            else alert('Error saving commission override.');
+                if (r.ok) window.location.reload();
+                else alert('Error saving commission override.');
+            } catch (err) {
+                alert('Network error while saving override.');
+            }
         }
 
         async function resetCommissionOverride(jobId) {
             if (!confirm('Reset this job\\'s commission back to the default 10%?'))
                 return;
 
-            const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission-override`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
-                body: JSON.stringify({ commission_pct: null })
-            });
+            try {
+                const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission-override`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
+                    body: JSON.stringify({ commission_pct: null })
+                });
 
-            if (r.ok) window.location.reload();
-            else alert('Error resetting commission override.');
+                if (r.ok) window.location.reload();
+                else alert('Error resetting commission override.');
+            } catch (err) {
+                alert('Network error while resetting override.');
+            }
         }
 
         fetchAccounting();

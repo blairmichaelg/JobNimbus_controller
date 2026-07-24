@@ -16,8 +16,6 @@ from fastapi.templating import Jinja2Templates
 from app.api.auth import get_current_role
 from pydantic import BaseModel
 
-templates = Jinja2Templates(directory="app/templates")
-
 from app.core.database import get_connection, update_job_status
 from app.services.pdf_extractor import extract_eagleview_data
 from app.services.pdf_generator import PDFGenerator
@@ -29,14 +27,15 @@ from app.core.pipeline import run_full_office_pipeline
 from app.api.auth import verify_admin, verify_accounting
 from app.core.upload_utils import stream_upload_safely
 from app.services.rate_limit import check_rate_limit
-
-logger = structlog.get_logger("app.api.office_routes")
-
-router = APIRouter(prefix="/api/office", tags=["office_ux"])
-
-
-
 from app.config import FIELD_DOCS_DIR
+from fastapi.responses import StreamingResponse
+import csv
+import io
+from app.core.database import atomic_qbo_export
+
+templates = Jinja2Templates(directory="app/templates")
+logger = structlog.get_logger("app.api.office_routes")
+router = APIRouter(prefix="/api/office", tags=["office_ux"])
 EXPORT_DIR = Path("generated_exports")
 
 def _fetch_homeowner_name_sync(job_id: str) -> str:
@@ -807,11 +806,7 @@ def get_accounting_brief():
     finally:
         conn.close()
 
-from fastapi.responses import StreamingResponse
-import csv
-import io
-from app.core.database import atomic_qbo_export
-from app.api.auth import verify_accounting
+
 
 @router.get("/accounting/qbo-export", dependencies=[Depends(verify_accounting)])
 async def export_qbo_csv(token=Depends(verify_accounting)):

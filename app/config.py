@@ -7,12 +7,11 @@ Fails fast with clear errors if required variables are missing.
 
 from functools import lru_cache
 from pathlib import Path
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 FIELD_DOCS_DIR = Path("data/field_docs")
 FIELD_DOCS_DIR.mkdir(parents=True, exist_ok=True)
-
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):

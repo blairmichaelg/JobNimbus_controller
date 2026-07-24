@@ -805,7 +805,7 @@ def mark_supplement_sent(job_id: str) -> None:
     finally:
         conn.close()
 
-def toggle_payment_flag(job_id: str, flag: str, amount: float = None, date_received: str = None) -> dict:
+def toggle_payment_flag(job_id: str, flag: str, amount: float | None = None, date_received: str | None = None) -> dict:
     """
     Toggles acv_received or supplement_received for a job.
     Returns the new state. flag must be one of the two allowed
@@ -879,7 +879,7 @@ def generate_invoice_id() -> str:
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
-        cursor = conn.execute(
+        conn.execute(
             "UPDATE invoice_sequence SET last_seq = last_seq + 1 "
             "WHERE id = 1"
         )

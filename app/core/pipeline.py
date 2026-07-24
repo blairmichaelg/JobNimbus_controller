@@ -8,7 +8,14 @@ from app.services.pdf_extractor import extract_eagleview_data
 from app.core.reconciliation import reconcile
 from app.core.supplement_models import StatementOfLoss
 from app.services.qbo_export import generate_qbo_invoice
-from app.core.database import update_job_status, JobStatus
+from app.core.database import update_job_status, JobStatus, get_connection, insert_job_document, get_pricing_ledger
+import asyncio
+import json as _json
+from app.services.ai_service import AIService
+from app.core.code_router import parse_code_files, get_relevant_codes
+from app.services.pdf_generator import PDFGenerator
+from app.services.supplement_engine import SupplementEngine
+from app.core.supplement_models import EagleViewData
 
 logger = structlog.get_logger("app.core.pipeline")
 
@@ -117,7 +124,7 @@ async def generate_material_order_pipeline(job_id: str, supplier_name: str, deli
     
     return {"status": "success"}
 
-from app.core.database import get_connection, insert_job_document, get_pricing_ledger
+
 """
 Retail Quote Generator Pipeline
 
@@ -141,7 +148,7 @@ async def run_retail_quote_pipeline(job_id: str) -> dict:
     log.info("retail_quote_started")
 
     # 1. Fetch job and EagleView geometry
-    def _fetch_job():
+    def _fetch_job() -> dict:
         conn = get_connection()
         try:
             row = conn.execute(
@@ -240,7 +247,7 @@ async def run_retail_quote_pipeline(job_id: str) -> dict:
             "squares": billable_squares,
             "quote_pdf": quote_pdf_path}
 
-from app.services.ai_service import AIService
+
 """
 Rebuttal Letter Generator Pipeline
 
@@ -286,7 +293,7 @@ async def run_rebuttal_pipeline(
     log.info("rebuttal_processing_started")
 
     # 1. Fetch job context
-    def _fetch_job():
+    def _fetch_job() -> dict:
         conn = get_connection()
         try:
             row = conn.execute(
@@ -301,7 +308,7 @@ async def run_rebuttal_pipeline(
     job = await asyncio.to_thread(_fetch_job)
 
     # 2. Fetch the original DiscrepancyReport snapshot
-    def _fetch_report():
+    def _fetch_report() -> str | None:
         conn = get_connection()
         try:
             row = conn.execute(
@@ -317,7 +324,7 @@ async def run_rebuttal_pipeline(
     report_json = await asyncio.to_thread(_fetch_report)
 
     # 3. Fetch triggered IRC/MFG citations
-    def _fetch_citations():
+    def _fetch_citations() -> list[dict]:
         conn = get_connection()
         try:
             rows = conn.execute(
@@ -336,7 +343,7 @@ async def run_rebuttal_pipeline(
 
     # 4. Resolve denial text (from direct paste or PDF doc)
     if not denial_text and denial_pdf_doc_id:
-        def _fetch_denial_pdf_path():
+        def _fetch_denial_pdf_path() -> str | None:
             conn = get_connection()
             try:
                 row = conn.execute(
@@ -352,7 +359,7 @@ async def run_rebuttal_pipeline(
         if pdf_path:
             # Use pdfplumber to extract denial text from PDF
             import pdfplumber
-            def _extract_denial():
+            def _extract_denial() -> str:
                 with pdfplumber.open(pdf_path) as pdf:
                     return "\\n".join(
                         p.extract_text() or ""
@@ -459,13 +466,7 @@ This coordinates the entire Zero-Cost InsurTech Supplement pipeline:
 5. Render the final PDF via ReportLab.
 """
 
-import asyncio
-import structlog
 
-from app.core.code_router import parse_code_files, get_relevant_codes
-from app.services.pdf_generator import PDFGenerator
-from app.services.supplement_engine import SupplementEngine
-from app.core.supplement_models import EagleViewData
 
 
 
@@ -551,7 +552,7 @@ def generate_and_gate_flags(job_id: str, ice_barrier_required: bool, ev_data: Ea
     finally:
         conn.close()
 
-import json as _json
+
 
 def _fetch_latest_report_sync(job_id: str) -> dict | None:
     """
@@ -629,7 +630,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
             ev_data, ev_hash = await extract_eagleview_data(str(ev_pdf_path))
 
             from app.core.database import _fetch_job_sync
-            job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
+            job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)  # type: ignore
             if job_dict and job_dict.get("flashing_lf") is not None and job_dict.get("step_flashing_lf") is not None:
                 ev_data.flashing_lf = job_dict["flashing_lf"]
                 ev_data.step_flashing_lf = job_dict["step_flashing_lf"]
@@ -736,7 +737,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
             report = await asyncio.to_thread(reconcile, ev_data, sol_data, job_id, dynamic_waste)  # type: ignore
             
             # Persist report snapshot for potential resume
-            def _save_report_sync():
+            def _save_report_sync() -> None:
                 _conn = get_connection()
                 try:
                     import uuid as _uuid
@@ -769,7 +770,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
         narrative = await ai_service.generate_supplement_narrative(report, codes)
 
         # 5.5 Build db_context
-        def _build_db_context():
+        def _build_db_context() -> dict:
             from app.core.database import get_connection
             conn = get_connection()
             try:

@@ -2,13 +2,14 @@ import time
 import asyncio
 from fastapi import Request, HTTPException
 from collections import defaultdict
+from typing import DefaultDict, List
 import structlog
 
 logger = structlog.get_logger("app.services.rate_limit")
 
 # Store timestamp of requests for each IP
 # Format: { "ip_address": [timestamp1, timestamp2, ...] }
-_request_history = defaultdict(list)
+_request_history: DefaultDict[str, List[float]] = defaultdict(list)
 _lock = asyncio.Lock()
 
 RATE_LIMIT_REQUESTS = 3
