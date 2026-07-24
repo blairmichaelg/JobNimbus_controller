@@ -32,6 +32,8 @@ def override_job_status(
     
     if not new_status:
         raise HTTPException(status_code=400, detail="new_status is required.")
+    if not note:
+        raise HTTPException(status_code=400, detail="A reason (note) is required for all overrides.")
         
     try:
         force_override_status(job_id=job_id, new_status=new_status, note=note)

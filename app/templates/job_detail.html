@@ -239,16 +239,19 @@
                              body: JSON.stringify({})}
                         );
                         if (r.ok) window.location.reload();
-                        else alert('Error: ' + await r.text());
+                        else showToast('Error: ' + await r.text(), 'error');
                     }
 
                     async function denySupp(jobId) {
                         const text = document.getElementById('denialText').value
                                              .trim();
                         if (!text) {
-                            alert('Please paste the carrier denial text first.');
+                            showToast('Please paste the carrier denial text first.', 'error');
                             return;
                         }
+                        if (!confirm('Mark this supplement as DENIED and generate an AI Rebuttal? This uses AI processing time and cannot be undone.'))
+                            return;
+                            
                         const r = await fetch(
                             `/api/office/jobs/${jobId}/deny-supplement`,
                             {method: 'POST',
@@ -256,15 +259,36 @@
                              body: JSON.stringify({denial_text: text})}
                         );
                         if (r.ok) {
-                            alert('Denied. AI Rebuttal is being generated — '
-                                  + 'check back in 60 seconds.');
-                            window.location.reload();
+                            showToast('Generating AI Rebuttal — this may take up to 60 seconds...', 'success');
+                            pollForRebuttalCompletion(jobId);
                         } else {
-                            alert('Error: ' + await r.text());
+                            showToast('Error: ' + await r.text(), 'error');
                         }
                     }
 
+                    async function pollForRebuttalCompletion(jobId) {
+                        const maxAttempts = 20;
+                        let attempts = 0;
+                        const interval = setInterval(async () => {
+                            attempts++;
+                            try {
+                                const resp = await fetch(`/api/office/jobs/${jobId}`, {
+                                    headers: { 'x-internal-token': OFFICE_TOKEN }
+                                });
+                                const data = await resp.json();
+                                const status = data.job?.status || data.status;
+                                if (status === 'SUPPLEMENT_SUBMITTED' || status === 'PIPELINE_FAILED' || attempts >= maxAttempts) {
+                                    clearInterval(interval);
+                                    window.location.reload();
+                                }
+                            } catch (e) {}
+                        }, 3000);
+                    }
+
                     async function generateEscalation(jobId) {
+                        if (!confirm('Generate an Escalation Demand Letter for this job? This will be sent toward the carrier relationship and cannot be undone.'))
+                            return;
+                            
                         const btn = document.getElementById('escalateBtn');
                         btn.disabled = true;
                         btn.textContent = 'Generating PDF via Gemini...';
@@ -277,7 +301,7 @@
                             btn.className = 'w-full bg-green-700 text-white font-bold py-2 rounded text-sm';
                             document.getElementById('escalationDownload').style.display = 'block';
                         } else {
-                            alert('Error: ' + await r.text());
+                            showToast('Error: ' + await r.text(), 'error');
                             btn.disabled = false;
                             btn.textContent = 'Generate Escalation Demand Letter';
                         }
@@ -317,7 +341,7 @@
                             {method: 'POST'}
                         );
                         if (r.ok) window.location.reload();
-                        else alert('Error: ' + await r.text());
+                        else showToast('Error: ' + await r.text(), 'error');
                     }
                     </script>
                     {% endif %}
@@ -376,6 +400,47 @@
                             </div>
                             <button type="submit" class="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700">Save Financials</button>
                         </form>
+                    </div>
+
+                    <!-- Admin Override Section -->
+                    <div class="mt-6 border-2 border-red-700 rounded-lg p-4 bg-red-950">
+                        <button id="showOverridePanelBtn" class="text-red-400 font-bold text-sm w-full text-left">
+                            ⚠ Admin Override (Emergency Use Only) — Click to Expand
+                        </button>
+                        <div id="overridePanel" class="hidden mt-4 space-y-3">
+                            <p class="text-red-300 text-xs">
+                                This forcefully changes the job's status, bypassing the normal
+                                pipeline. Use only when a job is stuck and cannot be resolved
+                                through Triage or normal workflow buttons. This action is logged.
+                            </p>
+                            <label class="block text-sm text-gray-300">New Status</label>
+                            <select id="overrideNewStatus" class="w-full bg-gray-800 text-white rounded p-2 border border-gray-700 focus:border-red-500 focus:outline-none">
+                                <option value="">-- Select new status --</option>
+                                <option value="LEAD_CAPTURED">LEAD_CAPTURED</option>
+                                <option value="CONTINGENCY_SIGNED">CONTINGENCY_SIGNED</option>
+                                <option value="EV_ORDERED">EV_ORDERED</option>
+                                <option value="EV_PARSED">EV_PARSED</option>
+                                <option value="PENDING_OPERATOR_REVIEW">PENDING_OPERATOR_REVIEW</option>
+                                <option value="SUPPLEMENT_GENERATED">SUPPLEMENT_GENERATED</option>
+                                <option value="AWAITING_CARRIER_RESPONSE">AWAITING_CARRIER_RESPONSE</option>
+                                <option value="SUPPLEMENT_APPROVED">SUPPLEMENT_APPROVED</option>
+                                <option value="MATERIAL_ORDERED">MATERIAL_ORDERED</option>
+                                <option value="INSTALL_SCHEDULED">INSTALL_SCHEDULED</option>
+                                <option value="FINAL_INSPECTION">FINAL_INSPECTION</option>
+                                <option value="INVOICED">INVOICED</option>
+                            </select>
+                            <label class="block text-sm text-gray-300">
+                                Reason for Override (required)
+                            </label>
+                            <textarea id="overrideNote" rows="2"
+                                class="w-full bg-gray-800 text-white rounded p-2 border border-gray-700 focus:border-red-500 focus:outline-none"
+                                placeholder="Explain why this override is necessary. This is logged permanently."></textarea>
+                            <button id="submitOverrideBtn"
+                                class="w-full bg-red-700 hover:bg-red-600 text-white font-bold px-4 py-2 rounded transition-colors mt-2">
+                                Force Status Change
+                            </button>
+                            <p id="overrideResult" class="text-sm mt-2"></p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -616,6 +681,64 @@
                 showToast(err.message, 'error');
             }
         });
+
+        // Admin Override JS
+        const showOverrideBtn = document.getElementById('showOverridePanelBtn');
+        if (showOverrideBtn) {
+            showOverrideBtn.addEventListener('click', () => {
+                document.getElementById('overridePanel').classList.toggle('hidden');
+            });
+            
+            document.getElementById('submitOverrideBtn').addEventListener('click', async () => {
+                const newStatus = document.getElementById('overrideNewStatus').value;
+                const note = document.getElementById('overrideNote').value.trim();
+                const resultEl = document.getElementById('overrideResult');
+            
+                if (!newStatus) {
+                    resultEl.innerText = 'Please select a new status.';
+                    resultEl.className = 'text-red-400 text-sm mt-2';
+                    return;
+                }
+                if (!note) {
+                    resultEl.innerText = 'A reason is required before overriding. This action is logged and audited.';
+                    resultEl.className = 'text-red-400 text-sm mt-2';
+                    return;
+                }
+                
+                // job.id string is rendered directly into the script block context below
+                const currentJobId = '{{ job.id }}'; 
+                
+                if (!confirm(`Force this job to status "${newStatus}"?\n\nReason: "${note}"\n\nThis bypasses normal pipeline rules and is permanently logged. Continue?`)) {
+                    return;
+                }
+            
+                resultEl.innerText = 'Applying override...';
+                resultEl.className = 'text-yellow-400 text-sm mt-2';
+            
+                try {
+                    const resp = await fetch(`/api/admin/jobs/${currentJobId}/override`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'x-internal-token': OFFICE_TOKEN
+                        },
+                        body: JSON.stringify({ new_status: newStatus, note: note })
+                    });
+                    if (!resp.ok) {
+                        const errText = await resp.text();
+                        resultEl.innerText = `Error: ${errText}`;
+                        resultEl.className = 'text-red-400 text-sm mt-2';
+                        return;
+                    }
+                    resultEl.innerText = '✓ Override applied. Reloading...';
+                    resultEl.className = 'text-green-400 text-sm mt-2';
+                    setTimeout(() => window.location.reload(), 1200);
+                } catch (err) {
+                    resultEl.innerText = `Error: ${err.message}`;
+                    resultEl.className = 'text-red-400 text-sm mt-2';
+                }
+            });
+        }
     </script>
 </body>
 </html>
