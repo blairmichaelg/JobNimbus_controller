@@ -768,7 +768,7 @@ def get_accounting_brief():
             SELECT j.id, j.invoice_id, j.homeowner_name, j.status,
                    j.acv_received, j.acv_received_at,
                    j.supplement_received, j.supplement_received_at,
-                   f.carrier_rcv
+                   f.carrier_rcv, f.recoverable_depreciation
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
             WHERE j.status IN ('SUPPLEMENT_GENERATED', 'SUPPLEMENT_APPROVED',
@@ -779,15 +779,25 @@ def get_accounting_brief():
         rows = cursor.fetchall()
         
         qbo_ready = len(rows)
-        acct_rows = [{
-            "job_id": r["id"], "invoice_id": r["invoice_id"], "name": r["homeowner_name"], "status": r["status"],
-            "acv_received": r["acv_received"],
-            "acv_received_at": r["acv_received_at"],
-            "supplement_received": r["supplement_received"],
-            "supplement_received_at": r["supplement_received_at"],
-            "acv_expected": r["carrier_rcv"],
-            "supp_expected": r["carrier_rcv"]
-        } for r in rows]
+        acct_rows = []
+        for r in rows:
+            recoverable_dep = r["recoverable_depreciation"] or 0
+            if recoverable_dep and recoverable_dep > 0:
+                acv_expected = r["carrier_rcv"] - recoverable_dep
+                supp_expected = recoverable_dep
+            else:
+                acv_expected = None
+                supp_expected = None
+            
+            acct_rows.append({
+                "job_id": r["id"], "invoice_id": r["invoice_id"], "name": r["homeowner_name"], "status": r["status"],
+                "acv_received": r["acv_received"],
+                "acv_received_at": r["acv_received_at"],
+                "supplement_received": r["supplement_received"],
+                "supplement_received_at": r["supplement_received_at"],
+                "acv_expected": acv_expected,
+                "supp_expected": supp_expected
+            })
         
         return AccountingBrief(
             supplemented_rcv_added=supplemented_rcv,
