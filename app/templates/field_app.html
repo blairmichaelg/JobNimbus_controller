@@ -143,7 +143,7 @@
             </div>
             <h3 class="text-2xl font-bold text-white mb-2">Lead Captured</h3>
             <p class="text-gray-400 mb-6">The office has been notified.</p>
-            <button onclick="window.location.reload()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-blue-700">Add Another</button>
+            <button onclick="resetFormState()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-blue-700">Add Another</button>
         </div>
     </div>
 
@@ -155,6 +155,19 @@
         let isDrawing = false;
         let isSignatureLocked = false;
         let photoFiles = [];
+        let inProgressJobId = null;
+        let inProgressStep = null;
+
+        function resetFormState() {
+            inProgressJobId = null;
+            inProgressStep = null;
+            document.getElementById('intakeForm').reset();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (isSignatureLocked) document.getElementById('lockBtn').click();
+            photoFiles = [];
+            renderPhotoGrid();
+            document.getElementById('successModal').classList.add('hidden');
+        }
 
         // GPS Auto-Fill
         document.getElementById('gpsBtn')?.addEventListener('click', async () => {
@@ -285,14 +298,32 @@
                 req.onerror = () => reject(req.error);
             });
             const pendingCount = allRecords.filter(r => r.status === 'pending_sync').length;
+            const failedCount = allRecords.filter(r => r.status === 'failed_permanent').length;
+
             const badge = document.getElementById('pendingSyncBadge');
             const countEl = document.getElementById('pendingSyncCount');
-            if (pendingCount > 0) {
+
+            if (failedCount > 0) {
+                badge.classList.remove('hidden', 'bg-yellow-500');
+                badge.classList.add('bg-red-600');
+                countEl.innerText = `${pendingCount} pending, ${failedCount} FAILED — contact office`;
+            } else if (pendingCount > 0) {
+                badge.classList.remove('hidden', 'bg-red-600');
+                badge.classList.add('bg-yellow-500');
                 countEl.innerText = pendingCount;
-                badge.classList.remove('hidden');
             } else {
                 badge.classList.add('hidden');
             }
+        }
+
+        async function updateQueuedRecord(record) {
+            return new Promise((resolve, reject) => {
+                const tx = idb.transaction("offline_queue", "readwrite");
+                const store = tx.objectStore("offline_queue");
+                const req = store.put(record);
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
         }
 
         function showToast(message, type = 'error') {
@@ -350,6 +381,14 @@
                         await new Promise(r => { delTx.oncomplete = r; });
                         updatePendingSyncBadge();
                     } catch (err) {
+                        record.retry_count = (item.retry_count || 0) + 1;
+                        if (err.isHttpError && err.status && err.status >= 400 && err.status < 500) {
+                            item.status = 'failed_permanent'; // client errors won't fix themselves on retry
+                        } else if (item.retry_count >= 5) {
+                            item.status = 'failed_permanent';
+                        }
+                        await updateQueuedRecord(item);
+                        updatePendingSyncBadge();
                         showToast(`Background sync failed: ${err.message}`, "error");
                         syncFailed = true;
                     }
@@ -369,7 +408,12 @@
                     headers: { 'Content-Type': 'application/json', 'x-internal-token': FIELD_TOKEN },
                     body: JSON.stringify(record.payload.lead)
                 });
-                if (!leadResponse.ok) throw new Error('Replay lead creation failed');
+                if (!leadResponse.ok) {
+                    const err = new Error('Replay lead creation failed');
+                    err.isHttpError = true;
+                    err.status = leadResponse.status;
+                    throw err;
+                }
                 const leadData = await leadResponse.json();
                 jobId = leadData.job_id;
             }
@@ -382,7 +426,12 @@
                     headers: {'x-internal-token': FIELD_TOKEN},
                     body: photoForm 
                 });
-                if (!photoResp.ok) throw new Error('Replay photo upload failed');
+                if (!photoResp.ok) {
+                    const err = new Error('Replay photo upload failed');
+                    err.isHttpError = true;
+                    err.status = photoResp.status;
+                    throw err;
+                }
             }
 
             if (record.payload.signature) {
@@ -391,7 +440,12 @@
                     headers: { 'Content-Type': 'application/json', 'x-internal-token': FIELD_TOKEN },
                     body: JSON.stringify({ signature_base64: record.payload.signature, signer_name: record.payload.signer_name, user_agent: navigator.userAgent })
                 });
-                if (!sigResp.ok) throw new Error('Replay signature upload failed');
+                if (!sigResp.ok) {
+                    const err = new Error('Replay signature upload failed');
+                    err.isHttpError = true;
+                    err.status = sigResp.status;
+                    throw err;
+                }
             }
 
             return true;
@@ -478,6 +532,9 @@
                 btn.classList.add('text-green-400', 'hover:text-green-300');
                 document.getElementById('clearBtn').classList.remove('opacity-50', 'cursor-not-allowed');
                 if (hint) hint.innerText = '';
+                
+                // NEW: auto-clear canvas when re-entering edit mode
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
             }
         });
 
@@ -581,10 +638,8 @@
                     return;
                 }
 
-                let createdJobId = null;
-
                 try {
-                    await processSubmissionCore(payload, photoFiles, signatureBase64, signerName, (jobId) => createdJobId = jobId);
+                    await processSubmissionCore(payload, photoFiles, signatureBase64, signerName);
                     
                     loadingProgress.style.width = '100%';
                     setTimeout(() => {
@@ -593,10 +648,15 @@
                     }, 500);
                 } catch (err) {
                     if (err.isHttpError) {
-                        throw err;
+                        document.getElementById('loadingModal').classList.add('hidden');
+                        showToast(err.message + ' — Tap Submit Lead again to retry the remaining steps.', 'error');
+                        document.getElementById('submitBtn').innerText = 'Submit Lead';
+                        document.getElementById('submitBtn').disabled = false;
+                        return;
                     }
                     console.warn('Submission failed, queuing full package offline:', err);
-                    await queueFullSubmission(payload, photoFiles, signatureBase64, signerName, createdJobId);
+                    await queueFullSubmission(payload, photoFiles, signatureBase64, signerName, inProgressJobId);
+                    inProgressJobId = null;
                     showOfflineBanner('Connection issue detected. Lead, photos, and signature saved locally. Will sync automatically when connection returns.');
                     finishSubmission(loadingModal, submitBtn, originalText);
                 }
@@ -609,39 +669,37 @@
             }
         };
 
-        async function processSubmissionCore(payload, photoFiles, signatureBase64, signerName, onJobCreated) {
+        async function processSubmissionCore(payload, photoFiles, signatureBase64, signerName) {
             const loadingTitle = document.getElementById('loadingTitle');
             const loadingProgress = document.getElementById('loadingProgress');
             
-            const leadResponse = await fetch('/api/field/jobs', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-internal-token': FIELD_TOKEN
-                },
-                body: JSON.stringify(payload)
-            });
+            let jobId = inProgressJobId;
 
-            if (!leadResponse.ok) {
-                const errText = await leadResponse.text();
-                const err = new Error(`Lead submission failed: ${errText}`);
-                err.isHttpError = true;
-                throw err;
-            }
-
-            const leadData = await leadResponse.json();
-            const jobId = leadData.job_id;
-            
             if (!jobId) {
-                const err = new Error('Failed to retrieve a valid Job ID from the server.');
-                err.isHttpError = true;
-                throw err;
-            }
+                inProgressStep = 'lead';
+                const leadResponse = await fetch('/api/field/jobs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-internal-token': FIELD_TOKEN
+                    },
+                    body: JSON.stringify(payload)
+                });
 
-            if (onJobCreated) onJobCreated(jobId);
+                if (!leadResponse.ok) {
+                    const err = new Error('Lead creation failed');
+                    err.isHttpError = true;
+                    throw err;
+                }
+
+                const leadData = await leadResponse.json();
+                jobId = leadData.job_id;
+                inProgressJobId = jobId; // persist immediately
+            }
 
             if (loadingProgress) loadingProgress.style.width = '40%';
 
+            inProgressStep = 'photos';
             for (let i = 0; i < photoFiles.length; i++) {
                 if (loadingTitle) loadingTitle.innerText = `Uploading Photo ${i+1} of ${photoFiles.length}...`;
                 if (loadingProgress) loadingProgress.style.width = `${60 + Math.round((i / photoFiles.length) * 20)}%`;
@@ -654,7 +712,7 @@
                     body: photoData
                 });
                 if (!photoResp.ok) {
-                    const errText = await photoResp.text();
+                    const errText = await photoResp.text().catch(() => 'Unknown error');
                     const err = new Error(`Photo ${i+1} failed: ${errText}`);
                     err.isHttpError = true;
                     throw err;
@@ -662,6 +720,7 @@
             }
 
             if (signatureBase64) {
+                inProgressStep = 'signature';
                 if (loadingTitle) loadingTitle.innerText = 'Generating Contract...';
                 if (loadingProgress) loadingProgress.style.width = '90%';
                 
@@ -681,12 +740,15 @@
                 });
                 
                 if (!sigResponse.ok) {
-                    const errText = await sigResponse.text();
-                    const err = new Error(`Signature upload failed: ${errText}`);
+                    const err = new Error('Signature upload failed');
                     err.isHttpError = true;
                     throw err;
                 }
             }
+
+            // SUCCESS — clear in-progress state
+            inProgressJobId = null;
+            inProgressStep = null;
         }
     </script>
 </body>
