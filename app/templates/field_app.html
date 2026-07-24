@@ -109,6 +109,7 @@
                     <button type="button" id="clearBtn" class="text-sm text-red-400 hover:text-red-300 font-semibold px-4 py-2 bg-gray-800 rounded">Clear Signature</button>
                     <button type="button" id="lockBtn" class="text-sm text-green-400 hover:text-green-300 font-semibold px-4 py-2 bg-gray-800 rounded">Lock Signature</button>
                 </div>
+                <p id="signatureHint" class="text-xs text-gray-400 mt-2 text-right"></p>
             </div>
 
             <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white p-4 rounded-lg font-bold text-xl mt-8 active:bg-blue-800 transition-colors shadow-lg">Submit Lead</button>
@@ -200,22 +201,22 @@
             }, { timeout: 10000 });
         });
 
-        // Photo Burst
-        document.getElementById('photoInput')?.addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            if (files.length === 0 && photoFiles.length > 0) return; // ignore empty triggers when re-rendering
+        function openLightbox(src) {
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50';
+            overlay.innerHTML = `<img src="${src}" class="max-w-full max-h-full object-contain" />`;
+            overlay.addEventListener('click', () => overlay.remove());
+            document.body.appendChild(overlay);
+        }
 
-            const remaining = 15 - photoFiles.length;
-            const toAdd = files.slice(0, remaining);
-            photoFiles = photoFiles.concat(toAdd);
-            
+        function renderPhotoGrid() {
             const grid = document.getElementById('photoGrid');
             grid.innerHTML = '';
             photoFiles.forEach((file, index) => {
                 const url = URL.createObjectURL(file);
                 grid.innerHTML += `
                     <div class="relative group">
-                        <img src="${url}" class="w-full h-24 object-cover rounded-lg border border-gray-600">
+                        <img src="${url}" onclick="openLightbox('${url}')" class="w-full h-24 object-cover rounded-lg border border-gray-600 cursor-pointer">
                         <button type="button" onclick="removePhoto(${index})"
                                 class="absolute top-1 right-1 bg-red-600 text-white
                                        rounded-full w-6 h-6 flex items-center justify-center
@@ -224,27 +225,23 @@
             });
             document.getElementById('photoCount').textContent =
                 `${photoFiles.length} / 15 photos`;
+        }
+
+        document.getElementById('photoInput')?.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0 && photoFiles.length > 0) return; // ignore empty triggers when re-rendering
+
+            const remaining = 15 - photoFiles.length;
+            const toAdd = files.slice(0, remaining);
+            photoFiles = photoFiles.concat(toAdd);
+            
+            renderPhotoGrid();
             e.target.value = '';
         });
 
         window.removePhoto = (index) => {
             photoFiles.splice(index, 1);
-            // Re-render
-            const grid = document.getElementById('photoGrid');
-            grid.innerHTML = '';
-            photoFiles.forEach((file, idx) => {
-                const url = URL.createObjectURL(file);
-                grid.innerHTML += `
-                    <div class="relative group">
-                        <img src="${url}" class="w-full h-24 object-cover rounded-lg border border-gray-600">
-                        <button type="button" onclick="removePhoto(${idx})"
-                                class="absolute top-1 right-1 bg-red-600 text-white
-                                       rounded-full w-6 h-6 flex items-center justify-center
-                                       opacity-80 hover:opacity-100">×</button>
-                    </div>`;
-            });
-            document.getElementById('photoCount').textContent =
-                `${photoFiles.length} / 15 photos`;
+            renderPhotoGrid();
         };
 
         // --- PWA & IndexedDB Setup ---
@@ -311,7 +308,7 @@
                 const items = req.result;
                 for (const item of items) {
                     try {
-                        await processSubmission(item.payload.lead, item.payload.photos, item.payload.signature, item.payload.signer_name);
+                        await processSubmissionCore(item.payload.lead, item.payload.photos, item.payload.signature, item.payload.signer_name);
                         // Remove from DB
                         const delTx = idb.transaction("offline_queue", "readwrite");
                         delTx.objectStore("offline_queue").delete(item.id);
@@ -386,22 +383,26 @@
 
         document.getElementById('lockBtn').addEventListener('click', () => {
             const btn = document.getElementById('lockBtn');
+            const hint = document.getElementById('signatureHint');
+
             if (!isSignatureLocked) {
                 const pixelData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
                 const hasInk = pixelData.some((v, i) => i % 4 === 3 && v > 0);
                 if (!hasInk) { showToast('Please draw a signature before locking.', 'error'); return; }
 
                 isSignatureLocked = true;
-                btn.innerText = '🔒 Locked';
+                btn.innerText = '✏️ Edit Signature';
                 btn.classList.remove('text-green-400', 'hover:text-green-300');
                 btn.classList.add('text-gray-400');
                 document.getElementById('clearBtn').classList.add('opacity-50', 'cursor-not-allowed');
+                if (hint) hint.innerText = 'Signature locked. Tap "Edit Signature" to redraw.';
             } else {
                 isSignatureLocked = false;
                 btn.innerText = 'Lock Signature';
                 btn.classList.remove('text-gray-400');
                 btn.classList.add('text-green-400', 'hover:text-green-300');
                 document.getElementById('clearBtn').classList.remove('opacity-50', 'cursor-not-allowed');
+                if (hint) hint.innerText = '';
             }
         });
 
@@ -422,6 +423,36 @@
         // Trigger initial state
         jobTypeSelect.dispatchEvent(new Event('change'));
 
+        async function queueFullSubmission(payload, photoFiles, signatureBase64, signerName) {
+            return new Promise((resolve, reject) => {
+                const tx = idb.transaction("offline_queue", "readwrite");
+                const store = tx.objectStore("offline_queue");
+                const req = store.add({
+                    payload: {
+                        lead: payload,
+                        photos: photoFiles,
+                        signature: signatureBase64,
+                        signer_name: signerName
+                    },
+                    timestamp: Date.now(),
+                    status: 'pending_sync'
+                });
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        function finishSubmission(loadingModal, submitBtn, originalText) {
+            setTimeout(() => {
+                loadingModal.classList.add('hidden');
+                document.getElementById('intakeForm').reset();
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (isSignatureLocked) document.getElementById('lockBtn').click(); // unlock
+                submitBtn.innerText = originalText;
+                submitBtn.disabled = false;
+            }, 500);
+        }
+
         document.getElementById('intakeForm').onsubmit = async function(e) {
             e.preventDefault();
             
@@ -431,19 +462,18 @@
             submitBtn.disabled = true;
 
             try {
-                const loadingModal = document.getElementById('loadingModal');
-                const loadingTitle = document.getElementById('loadingTitle');
-                const loadingProgress = document.getElementById('loadingProgress');
-
                 if (document.getElementById('job_type').value === 'INSURANCE' && !isSignatureLocked) {
                     throw new Error('Please lock the signature before submitting.');
                 }
+
+                const loadingModal = document.getElementById('loadingModal');
+                const loadingTitle = document.getElementById('loadingTitle');
+                const loadingProgress = document.getElementById('loadingProgress');
 
                 loadingModal.classList.remove('hidden');
                 loadingTitle.innerText = 'Creating Lead...';
                 loadingProgress.style.width = '20%';
 
-                // 1. Submit Lead Data
                 const payload = {
                     homeowner_name: document.getElementById('homeowner_name').value,
                     address_line1: document.getElementById('address_line1').value,
@@ -458,8 +488,6 @@
                     loss_date: document.getElementById('loss_date').value || null
                 };
 
-
-
                 let signatureBase64 = null;
                 let signerName = null;
                 if (document.getElementById('job_type').value === 'INSURANCE') {
@@ -468,52 +496,39 @@
                 }
 
                 if (!navigator.onLine) {
-                    // Offline Mode
-                    const tx = idb.transaction("offline_queue", "readwrite");
-                    const store = tx.objectStore("offline_queue");
-                    store.add({
-                        payload: {
-                            lead: payload,
-                            photos: photoFiles,
-                            signature: signatureBase64,
-                            signer_name: signerName
-                        },
-                        timestamp: Date.now()
-                    });
-                    
-                    setTimeout(() => {
-                        loadingModal.classList.add('hidden');
-                        showToast("Offline Mode: Lead saved locally. Will sync automatically when connection returns.", "success");
-                        // Reset form
-                        document.getElementById('intakeForm').reset();
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        if (isSignatureLocked) document.getElementById('lockBtn').click(); // unlock
-                        submitBtn.innerText = originalText;
-                        submitBtn.disabled = false;
-                    }, 500);
+                    await queueFullSubmission(payload, photoFiles, signatureBase64, signerName);
+                    showOfflineBanner('Offline Mode: Lead, photos, and signature saved locally. Will sync automatically when connection returns.');
+                    finishSubmission(loadingModal, submitBtn, originalText);
                     return;
                 }
 
-                // Online Mode
-                await processSubmission(payload, photoFiles, signatureBase64, signerName);
-
-                loadingProgress.style.width = '100%';
-                
-                // Show Success
-                setTimeout(() => {
-                    loadingModal.classList.add('hidden');
-                    document.getElementById('successModal').classList.remove('hidden');
-                }, 500);
+                try {
+                    await processSubmissionCore(payload, photoFiles, signatureBase64, signerName);
+                    
+                    loadingProgress.style.width = '100%';
+                    setTimeout(() => {
+                        loadingModal.classList.add('hidden');
+                        document.getElementById('successModal').classList.remove('hidden');
+                    }, 500);
+                } catch (err) {
+                    if (err.isHttpError) {
+                        throw err;
+                    }
+                    console.warn('Submission failed, queuing full package offline:', err);
+                    await queueFullSubmission(payload, photoFiles, signatureBase64, signerName);
+                    showOfflineBanner('Connection issue detected. Lead, photos, and signature saved locally. Will sync automatically when connection returns.');
+                    finishSubmission(loadingModal, submitBtn, originalText);
+                }
 
             } catch (error) {
                 document.getElementById('loadingModal').classList.add('hidden');
                 showToast(error.message, "error");
-                submitBtn.innerText = originalText;
-                submitBtn.disabled = false;
+                document.getElementById('submitBtn').innerText = 'Submit Lead';
+                document.getElementById('submitBtn').disabled = false;
             }
         };
 
-        async function processSubmission(payload, photoFiles, signatureBase64, signerName) {
+        async function processSubmissionCore(payload, photoFiles, signatureBase64, signerName) {
             const loadingTitle = document.getElementById('loadingTitle');
             const loadingProgress = document.getElementById('loadingProgress');
             
@@ -526,63 +541,43 @@
                 body: JSON.stringify(payload)
             });
 
-            if (leadResponse.status === 202) {
-                const data = await leadResponse.json();
-                if (data.status === 'queued_offline') {
-                    showOfflineBanner(
-                        'No connection. Lead saved locally and will sync automatically.'
-                    );
-                    document.getElementById('loadingModal').classList.add('hidden');
-                    document.getElementById('intakeForm').reset();
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    if (isSignatureLocked) document.getElementById('lockBtn').click(); // unlock
-                    submitBtn.innerText = originalText;
-                    submitBtn.disabled = false;
-                    return;
-                }
-            }
-
             if (!leadResponse.ok) {
-                const err = await leadResponse.text();
-                throw new Error(`Lead submission failed: ${err}`);
+                const errText = await leadResponse.text();
+                const err = new Error(`Lead submission failed: ${errText}`);
+                err.isHttpError = true;
+                throw err;
             }
 
             const leadData = await leadResponse.json();
             const jobId = leadData.job_id;
             
             if (!jobId) {
-                throw new Error('Failed to retrieve a valid Job ID from the server.');
+                const err = new Error('Failed to retrieve a valid Job ID from the server.');
+                err.isHttpError = true;
+                throw err;
             }
 
             if (loadingProgress) loadingProgress.style.width = '40%';
 
-            // 2. Submit Photos if exists
             for (let i = 0; i < photoFiles.length; i++) {
-                if (loadingTitle) loadingTitle.innerText =
-                    `Uploading Photo ${i+1} of ${photoFiles.length}...`;
-                if (loadingProgress) loadingProgress.style.width =
-                    `${60 + Math.round((i / photoFiles.length) * 20)}%`;
+                if (loadingTitle) loadingTitle.innerText = `Uploading Photo ${i+1} of ${photoFiles.length}...`;
+                if (loadingProgress) loadingProgress.style.width = `${60 + Math.round((i / photoFiles.length) * 20)}%`;
 
                 const photoData = new FormData();
                 photoData.append('file', photoFiles[i]);
-                const photoResp = await fetch(
-                    `/api/field/jobs/${jobId}/photos`,
-                    {
-                        method: 'POST',
-                        headers: {'x-internal-token': FIELD_TOKEN},
-                        body: photoData
-                    }
-                );
+                const photoResp = await fetch(`/api/field/jobs/${jobId}/photos`, {
+                    method: 'POST',
+                    headers: {'x-internal-token': FIELD_TOKEN},
+                    body: photoData
+                });
                 if (!photoResp.ok) {
-                    const err = await photoResp.text();
-                    showToast(
-                        `⚠️ Photo ${i+1} failed (lead saved): ${err}`,
-                        'error'
-                    );
+                    const errText = await photoResp.text();
+                    const err = new Error(`Photo ${i+1} failed: ${errText}`);
+                    err.isHttpError = true;
+                    throw err;
                 }
             }
 
-            // 3. Submit Contingency Signature (if applicable)
             if (signatureBase64) {
                 if (loadingTitle) loadingTitle.innerText = 'Generating Contract...';
                 if (loadingProgress) loadingProgress.style.width = '90%';
@@ -603,8 +598,10 @@
                 });
                 
                 if (!sigResponse.ok) {
-                    const err = await sigResponse.text();
-                    throw new Error(`Signature upload failed: ${err}`);
+                    const errText = await sigResponse.text();
+                    const err = new Error(`Signature upload failed: ${errText}`);
+                    err.isHttpError = true;
+                    throw err;
                 }
             }
         }

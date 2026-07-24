@@ -118,35 +118,8 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // 2. Lead submission POST: queue offline, sync when online
-    if (url.pathname === '/api/field/jobs' && request.method === 'POST') {
-        event.respondWith(
-            fetch(request.clone()).catch(async () => {
-                // Network failed — clone body and queue
-                const bodyText = await request.text();
-                await queueRequest({
-                    url: request.url,
-                    method: request.method,
-                    headers: Object.fromEntries(request.headers.entries()),
-                    body: bodyText,
-                });
-                // Register background sync for when connection restores
-                await self.registration.sync.register(SYNC_TAG);
-                // Return synthetic 202 Accepted so field app shows
-                // "Saved offline — will sync when connected"
-                return new Response(
-                    JSON.stringify({
-                        status: 'queued_offline',
-                        message: 'Lead saved locally. Will sync when connected.'
-                    }),
-                    {
-                        status: 202,
-                        headers: { 'Content-Type': 'application/json' }
-                    }
-                );
-            })
-        );
-        return;
+    if (url.pathname.startsWith('/api/field/') && request.method === 'POST') {
+        return; // Exclude from SW handling, let the browser handle it natively
     }
 
     // 3. All other requests: network-first, silent fail
