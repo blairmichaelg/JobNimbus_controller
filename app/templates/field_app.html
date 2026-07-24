@@ -18,6 +18,11 @@
     <!-- Toast Container -->
     <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
+    <!-- Pending Sync Badge -->
+    <div id="pendingSyncBadge" class="hidden fixed top-2 right-2 bg-yellow-500 text-black text-xs font-bold px-3 py-1 rounded-full z-40">
+        <span id="pendingSyncCount">0</span> pending sync
+    </div>
+
     <div class="max-w-md mx-auto p-6 pb-24">
         <h1 class="text-3xl font-bold text-white mb-8 border-b border-gray-700 pb-4">New Lead</h1>
         
@@ -233,8 +238,14 @@
 
             const remaining = 15 - photoFiles.length;
             const toAdd = files.slice(0, remaining);
+            const rejectedCount = files.length - toAdd.length;
+
             photoFiles = photoFiles.concat(toAdd);
             
+            if (rejectedCount > 0) {
+                showToast(`Maximum of 15 photos allowed. ${rejectedCount} photo(s) were not added.`, 'error');
+            }
+
             renderPhotoGrid();
             e.target.value = '';
         });
@@ -259,7 +270,30 @@
                 idb.createObjectStore("offline_queue", { keyPath: "id", autoIncrement: true });
             }
         };
-        idbReq.onsuccess = (e) => { idb = e.target.result; };
+        idbReq.onsuccess = (e) => { 
+            idb = e.target.result; 
+            updatePendingSyncBadge();
+        };
+
+        async function updatePendingSyncBadge() {
+            if (!idb) return;
+            const tx = idb.transaction('offline_queue', 'readonly');
+            const store = tx.objectStore('offline_queue');
+            const allRecords = await new Promise((resolve, reject) => {
+                const req = store.getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            const pendingCount = allRecords.filter(r => r.status === 'pending_sync').length;
+            const badge = document.getElementById('pendingSyncBadge');
+            const countEl = document.getElementById('pendingSyncCount');
+            if (pendingCount > 0) {
+                countEl.innerText = pendingCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
 
         function showToast(message, type = 'error') {
             const container = document.getElementById('toastContainer');
@@ -306,21 +340,62 @@
             const req = store.getAll();
             req.onsuccess = async () => {
                 const items = req.result;
+                let syncFailed = false;
                 for (const item of items) {
                     try {
-                        await processSubmissionCore(item.payload.lead, item.payload.photos, item.payload.signature, item.payload.signer_name);
+                        await replayQueuedRecord(item);
                         // Remove from DB
                         const delTx = idb.transaction("offline_queue", "readwrite");
                         delTx.objectStore("offline_queue").delete(item.id);
+                        await new Promise(r => { delTx.oncomplete = r; });
+                        updatePendingSyncBadge();
                     } catch (err) {
                         showToast(`Background sync failed: ${err.message}`, "error");
+                        syncFailed = true;
                     }
                 }
-                if (items.length > 0) {
+                if (items.length > 0 && !syncFailed) {
                     showToast("Offline data synced successfully!", "success");
                 }
             };
         });
+
+        async function replayQueuedRecord(record) {
+            let jobId = record.payload.existing_job_id;
+
+            if (!jobId) {
+                const leadResponse = await fetch('/api/field/jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-internal-token': FIELD_TOKEN },
+                    body: JSON.stringify(record.payload.lead)
+                });
+                if (!leadResponse.ok) throw new Error('Replay lead creation failed');
+                const leadData = await leadResponse.json();
+                jobId = leadData.job_id;
+            }
+
+            for (const photo of record.payload.photos) {
+                const photoForm = new FormData();
+                photoForm.append('file', photo);
+                const photoResp = await fetch(`/api/field/jobs/${jobId}/photos`, { 
+                    method: 'POST', 
+                    headers: {'x-internal-token': FIELD_TOKEN},
+                    body: photoForm 
+                });
+                if (!photoResp.ok) throw new Error('Replay photo upload failed');
+            }
+
+            if (record.payload.signature) {
+                const sigResp = await fetch(`/api/field/jobs/${jobId}/contingency-sign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-internal-token': FIELD_TOKEN },
+                    body: JSON.stringify({ signature_base64: record.payload.signature, signer_name: record.payload.signer_name, user_agent: navigator.userAgent })
+                });
+                if (!sigResp.ok) throw new Error('Replay signature upload failed');
+            }
+
+            return true;
+        }
         
         function initCanvasScale() {
             const rect = canvas.getBoundingClientRect();
@@ -423,7 +498,7 @@
         // Trigger initial state
         jobTypeSelect.dispatchEvent(new Event('change'));
 
-        async function queueFullSubmission(payload, photoFiles, signatureBase64, signerName) {
+        async function queueFullSubmission(payload, photoFiles, signatureBase64, signerName, existingJobId = null) {
             return new Promise((resolve, reject) => {
                 const tx = idb.transaction("offline_queue", "readwrite");
                 const store = tx.objectStore("offline_queue");
@@ -432,12 +507,16 @@
                         lead: payload,
                         photos: photoFiles,
                         signature: signatureBase64,
-                        signer_name: signerName
+                        signer_name: signerName,
+                        existing_job_id: existingJobId
                     },
                     timestamp: Date.now(),
                     status: 'pending_sync'
                 });
-                req.onsuccess = () => resolve();
+                req.onsuccess = () => {
+                    updatePendingSyncBadge();
+                    resolve();
+                };
                 req.onerror = () => reject(req.error);
             });
         }
@@ -502,8 +581,10 @@
                     return;
                 }
 
+                let createdJobId = null;
+
                 try {
-                    await processSubmissionCore(payload, photoFiles, signatureBase64, signerName);
+                    await processSubmissionCore(payload, photoFiles, signatureBase64, signerName, (jobId) => createdJobId = jobId);
                     
                     loadingProgress.style.width = '100%';
                     setTimeout(() => {
@@ -515,7 +596,7 @@
                         throw err;
                     }
                     console.warn('Submission failed, queuing full package offline:', err);
-                    await queueFullSubmission(payload, photoFiles, signatureBase64, signerName);
+                    await queueFullSubmission(payload, photoFiles, signatureBase64, signerName, createdJobId);
                     showOfflineBanner('Connection issue detected. Lead, photos, and signature saved locally. Will sync automatically when connection returns.');
                     finishSubmission(loadingModal, submitBtn, originalText);
                 }
@@ -528,7 +609,7 @@
             }
         };
 
-        async function processSubmissionCore(payload, photoFiles, signatureBase64, signerName) {
+        async function processSubmissionCore(payload, photoFiles, signatureBase64, signerName, onJobCreated) {
             const loadingTitle = document.getElementById('loadingTitle');
             const loadingProgress = document.getElementById('loadingProgress');
             
@@ -556,6 +637,8 @@
                 err.isHttpError = true;
                 throw err;
             }
+
+            if (onJobCreated) onJobCreated(jobId);
 
             if (loadingProgress) loadingProgress.style.width = '40%';
 
