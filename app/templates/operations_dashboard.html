@@ -46,6 +46,37 @@
             </div>
         </div>
 
+        <!-- Panel 1.5: Awaiting Delivery -->
+        <div class="flex-1 bg-gray-900 border border-gray-800 rounded-lg flex flex-col shadow-2xl">
+            <div class="p-4 border-b border-gray-800 bg-yellow-950 rounded-t-lg">
+                <h2 class="text-xl font-bold text-yellow-400 uppercase tracking-wider">
+                    Awaiting Delivery
+                </h2>
+                <p class="text-gray-400 text-sm mt-1">Materials ordered. Waiting for arrival on site.</p>
+            </div>
+            <div class="flex-1 overflow-auto p-4 space-y-4">
+                {% for job in awaiting_delivery_jobs %}
+                <div class="bg-gray-800 border border-yellow-900 p-4 rounded-lg">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <span class="text-yellow-400 font-bold">{{ job.invoice_id or job.id[:8] }}</span>
+                            <h3 class="text-white font-bold text-lg">{{ job.homeowner_name }}</h3>
+                            <p class="text-gray-400 text-sm">{{ job.address_line1 }}, {{ job.city }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-2">
+                        <button onclick="confirmOnSite('{{ job.id }}')"
+                                class="flex-1 bg-yellow-700 hover:bg-yellow-600 text-white font-bold py-2 rounded uppercase text-sm transition-colors">
+                            Mark On Site
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-gray-500 text-center py-8">No materials awaiting delivery.</div>
+                {% endfor %}
+            </div>
+        </div>
+
         <!-- Panel 2: Ready to Build (Needs Crew) -->
         <div class="flex-1 bg-gray-900 border border-gray-800 rounded-lg flex flex-col shadow-2xl">
             <div class="p-4 border-b border-gray-800 bg-green-950 rounded-t-lg">
@@ -93,6 +124,8 @@
         const AUTH_TOKEN = "{{ auth_token }}";
 
         async function confirmOrdered(jobId) {
+            if (!confirm('Confirm materials have been ordered for this job?'))
+                return;
             const r = await fetch(`/api/operations/job/${jobId}/materials`, {
                 method: 'PATCH',
                 headers: {
@@ -105,10 +138,27 @@
             else alert('Error updating status');
         }
 
+        async function confirmOnSite(jobId) {
+            if (!confirm('Confirm materials have arrived on site for this job?'))
+                return;
+            const r = await fetch(`/api/operations/job/${jobId}/materials`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Internal-Token': AUTH_TOKEN
+                },
+                body: JSON.stringify({ materials_on_site: true })
+            });
+            if (r.ok) window.location.reload();
+            else alert('Error updating status');
+        }
+
         async function scheduleCrew(e, jobId) {
             e.preventDefault();
             const crew = document.getElementById(`crew_${jobId}`).value;
             const date = document.getElementById(`date_${jobId}`).value;
+            if (!confirm(`Schedule ${crew} for install on ${date}?`))
+                return;
             const r = await fetch(`/api/operations/jobs/${jobId}/schedule`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

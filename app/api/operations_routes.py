@@ -76,7 +76,8 @@ from app.api.office_routes import templates
 
 @router.get(
     "/board",
-    response_class=HTMLResponse
+    response_class=HTMLResponse,
+    dependencies=[Depends(verify_operations)]
 )
 async def operations_board(request: Request):
     conn = get_connection()
@@ -93,6 +94,20 @@ async def operations_board(request: Request):
             LEFT JOIN material_orders m ON j.id = m.job_id
             WHERE j.status = 'SUPPLEMENT_APPROVED'
               AND j.materials_ordered = 0
+            ORDER BY j.created_at ASC
+        """).fetchall()]
+
+        # List 1.5: Jobs ordered but awaiting delivery
+        # (materials_ordered = 1, materials_on_site = 0)
+        awaiting_delivery_jobs = [dict(r) for r in conn.execute("""
+            SELECT j.id, j.invoice_id, j.homeowner_name,
+                   j.address_line1, j.city, j.state,
+                   j.materials_ordered, j.materials_on_site,
+                   m.supplier_name, m.delivery_date,
+                   m.bom_json
+            FROM jobs j
+            LEFT JOIN material_orders m ON j.id = m.job_id
+            WHERE j.materials_ordered = 1 AND j.materials_on_site = 0
             ORDER BY j.created_at ASC
         """).fetchall()]
 
@@ -115,6 +130,7 @@ async def operations_board(request: Request):
         "operations_dashboard.html",
         {
             "needs_materials": needs_materials,
+            "awaiting_delivery_jobs": awaiting_delivery_jobs,
             "ready_to_build": ready_to_build,
             "auth_token": request.cookies.get("auth_token", "")
         }
