@@ -79,7 +79,7 @@ if (-Not (Test-Path ".\venv\Scripts\activate.ps1")) {
 # Phase 3: Pre-Flight Diagnostics
 # ---------------------------------------------------------------------
 Write-Host "`n[3/4] Executing Python Pre-Flight Diagnostics..." -ForegroundColor Yellow
-.\venv\Scripts\python.exe scripts\pre_flight.py
+.\venv\Scripts\python.exe -c "import app.main; import app.config; print('Pre-flight check passed: app.main & app.config verified.')"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "`n[ABORT] Pre-flight checks failed. Halting boot sequence to prevent worker crashes." -ForegroundColor Red

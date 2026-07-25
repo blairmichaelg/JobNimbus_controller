@@ -18,14 +18,14 @@ Start-Sleep -Seconds 10
 
 # Step 3: The Tunnel
 Write-Host "[3/3] Locating cloudflared..." -ForegroundColor Yellow
-if (!(Test-Path -Path ".\cloudflared.exe")) {
-    Write-Error "FATAL: cloudflared.exe not found! Please run setup_network.ps1 first."
+if (!(Test-Path -Path ".\tools\cloudflared.exe")) {
+    Write-Error "FATAL: cloudflared.exe not found in .\tools\! Please run setup_network.ps1 first."
     exit 1
 }
 
 Write-Host "Launching Cloudflare Tunnel..." -ForegroundColor Green
 try {
-    Start-Process ".\cloudflared.exe" -ArgumentList "tunnel", "--url", "http://127.0.0.1:8000" -WindowStyle Normal
+    Start-Process ".\tools\cloudflared.exe" -ArgumentList "tunnel", "--url", "http://127.0.0.1:8000" -WindowStyle Normal
     Write-Host "`nDeployment scripts initiated successfully!" -ForegroundColor Green
     Write-Host "Check the new cloudflared window for your public '.trycloudflare.com' URL." -ForegroundColor Cyan
 } catch {

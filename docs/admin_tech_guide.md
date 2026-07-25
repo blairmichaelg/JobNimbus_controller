@@ -1,0 +1,288 @@
+# Wickham Roofing — Admin (Tech Admin) Guide
+
+**Truck Server v4 · Admin Role**
+
+This guide covers the full Admin workflow: the pipeline dashboard,
+resolving stuck jobs, generating documents, handling carrier approvals
+and denials, managing financials, and using the Emergency Override
+system. As Admin, you hold the highest level of access in the system.
+
+---
+
+## 1. The Pipeline Dashboard (Kanban)
+
+After logging in, you land on **"Wickham Roofing - Pipeline Orchestrator"**
+— your main command center showing every job as a card, organized by
+status column.
+
+### Navigation
+- **👥 Field Reps** — manage canvasser/rep records.
+- **⚠ Triage** — jobs stuck waiting for your review.
+- **Logout**
+
+### Status columns you'll see
+`LEAD_CAPTURED` → `CONTINGENCY_SIGNED` → `EV_ORDERED` → `EV_PARSED` →
+`PENDING_OPERATOR_REVIEW` → `SUPPLEMENT_GENERATED` →
+`AWAITING_CARRIER_RESPONSE` → `SUPPLEMENT_APPROVED` → `MATERIAL_ORDERED`
+→ `INSTALL_SCHEDULED` → `FINAL_INSPECTION` → `INVOICED`
+
+### Alerts to watch for
+- **Red "PENDING_OPERATOR_REVIEW" cards** — a job is blocked and needs
+  your attention in Triage (see Section 2).
+- **Red "SLA EXCEEDED: X Days" badges** — a carrier has gone silent too
+  long and the job needs an escalation letter (see Section 4).
+
+---
+
+## 2. Resolving Stuck Jobs (Operator Triage)
+
+When EagleView or Statement of Loss parsing can't confidently extract a
+required number, the system **refuses to guess** — it hard-blocks the
+job into `PENDING_OPERATOR_REVIEW` instead of silently defaulting to
+zero. This is intentional and protects you from bad math downstream.
+
+### How to resolve a stuck job
+1. Click **⚠ Triage** from the dashboard.
+2. You'll see **"⚠ Operator Triage — Stuck Jobs"** with a list of every
+   job currently blocked, each labeled **"PENDING REVIEW."**
+3. For each stuck job, you'll see the exact fields the system couldn't
+   confidently extract: **Total Area (SF), Pitch (e.g. 6/12), Ridge LF,
+   Hip LF, Valley LF, Eaves LF, Rakes LF.**
+4. Enter the correct values by hand from the actual report. Fields you
+   leave blank will keep their current value (placeholder text: *"Leave
+   blank to keep"*).
+5. Click **"Resolve & Resume Pipeline."**
+   - The button changes to **"Queuing..."** then **"✓ Queued."**
+   - You'll see green confirmation text: **"✓ Job queued. Pipeline will
+     resume momentarily,"** and the card fades out of the triage list.
+   - If something goes wrong, you'll see red text: **"Error: [message]"**
+     directly under the button.
+
+If there are no stuck jobs, you'll see a clean green banner:
+**"✓ No jobs stuck in review. All clear."**
+
+**Why this matters:** Never guess a value just to clear a job faster.
+The whole point of this hard-block is to keep bad numbers out of
+supplements and carrier-facing documents. Take the extra minute to
+verify against the real report.
+
+---
+
+## 3. Uploading EagleView & Statement of Loss
+
+From a job's detail page, you'll find the **Control Panel** section
+with **"Upload Documents."**
+
+### How to upload
+1. Drag and drop the **EagleView PDF** and the **Statement of Loss PDF**
+   into their respective drop zones.
+2. Click **"Upload & Trigger Pipeline."**
+   - The button changes to **"Enqueuing Documents..."**
+   - A progress bar appears and updates through stages like
+     **"Extracting multimodal data..."** and **"Generating Narrative &
+     PDFs..."**
+   - When complete, the page reloads automatically.
+3. If something fails, you'll see a toast: **"Upload failed: [error]"**
+   and the drop zones reappear so you can retry.
+
+### Important current limitation
+**Both files are required together every time.** As of this writing,
+you cannot re-upload just a corrected Statement of Loss on its own —
+the system requires both the EagleView and SoL PDFs to be submitted
+as a pair, even if only one document was actually wrong. If you need
+to correct a single document, re-upload both files together (using the
+original EagleView PDF again if it was already correct). This is a
+known workflow limitation the team is aware of and may improve in a
+future update.
+
+### Common upload errors
+- **"Only PDF files are allowed."** — you attached something other than
+  a PDF.
+- **"Please upload exactly two PDF files (EagleView and Statement of
+  Loss)."** — you're missing one of the two required documents.
+
+---
+
+## 4. Escalating a Stalled Carrier
+
+When a job has exceeded its SLA window with no carrier response, a red
+alert appears on the job detail page: **"⚠ Carrier SLA Exceeded (X Days)"**
+— where X shows exactly how many days it's been overdue. (You may also
+spot this earlier on the Kanban dashboard as **"SLA EXCEEDED: X Days"**
+on the job card itself.)
+
+### How to escalate
+1. Click **"Generate Escalation Demand Letter."**
+2. You'll be asked to confirm: a dialog box appears before anything
+   happens, since this generates a real document tied to the carrier
+   relationship.
+3. Once confirmed, the button changes to **"Generating PDF via
+   Gemini..."** then **"Demand Letter Generated ✓."**
+4. A download link appears: **"⬇ Download Generated Demand Letter."**
+
+Take a moment before confirming — this creates a formal document, so
+make sure escalation is actually warranted before clicking through.
+
+---
+
+## 5. Approving or Denying a Supplement
+
+### Approving
+1. Click **"✓ Mark Supplement Approved."**
+2. You'll be asked to confirm: **"Mark supplement as APPROVED? This
+   will alert Scott and Debi."**
+3. Once confirmed, the page reloads and the job moves forward in the
+   pipeline.
+
+### Denying (triggers AI Rebuttal)
+1. Paste the carrier's denial text into the **"Carrier Denial Text
+   (paste from email)"** box.
+2. Click **"✗ Mark Denied — Generate AI Rebuttal."**
+3. If the text box is empty, you'll see a **red toast notification** in
+   the corner: **"Please paste the carrier denial text first."**
+4. You'll then be asked to confirm, since this action consumes AI
+   processing time and generates a real rebuttal letter: a confirmation
+   dialog appears before the request is sent.
+5. Once confirmed, a toast notification appears instead of a blocking
+   popup, and the system automatically checks every few seconds for
+   completion — you don't need to guess when it's done or manually
+   refresh. Once the rebuttal is ready, the page reloads on its own
+   with the rebuttal available to download. If generation genuinely
+   fails, the system detects that too and reloads to reflect the
+   failed state rather than leaving you waiting indefinitely.
+
+**Take your time before denying.** This isn't reversible, and it kicks
+off real AI generation — make sure the denial text is accurate and
+complete before confirming.
+
+---
+
+## 6. Reviewing Financials
+
+On the job detail page, under **"Financials,"** you can view and edit:
+- Revenue
+- Materials
+- Labor
+- Carrier RCV
+- Deductible
+- ACV Payment
+- Recoverable Dep.
+
+Click **"Save Financials"** when done. You'll see a confirmation toast:
+**"Financials saved!"** If something goes wrong, the toast will show
+the specific error message instead.
+
+---
+
+## 7. Document Vault
+
+Every job has a **Document Vault** for storing artifacts beyond the
+core EagleView/SoL pipeline documents.
+
+### How to upload
+1. Drag a file into the vault drop zone.
+2. On success: **"Document uploaded successfully!"**
+3. On failure: the toast will show the specific error.
+
+### Downloadable documents available per job
+- **⬇ Download QBO CSV**
+- **Notice of Cancellation (PDF)**
+- **Evidence Grid (PDF)**
+- **⬇ Download Supplement PDF**
+- **⬇ Download Generated Demand Letter** (once escalated)
+- **⬇ Download Rebuttal Letter** (once a denial has been processed)
+
+---
+
+## 8. Emergency Admin Override
+
+This is your highest-privilege tool: the ability to **force** a job
+into any status, bypassing the normal pipeline entirely. Use this only
+when a job is genuinely stuck and cannot be resolved through Triage or
+the normal workflow buttons above.
+
+### How to use it
+1. On the job detail page, scroll to the bottom to the red-bordered
+   **"⚠ Admin Override (Emergency Use Only)"** panel and click to expand it.
+2. Read the warning text: *"This forcefully changes the job's status,
+   bypassing the normal pipeline. Use only when a job is stuck and
+   cannot be resolved through Triage or normal workflow buttons. This
+   action is logged."*
+3. Select the **New Status** you want to force the job into from the
+   dropdown.
+4. Type a clear **Reason for Override** — this field is required. You
+   cannot submit without it, and the system will reject the request
+   even if attempted directly through the API without a reason.
+5. Click **"Force Status Change."**
+6. You'll get one final confirmation dialog summarizing exactly what
+   you're about to do and the reason you gave, before anything happens.
+7. On success, you'll see **"✓ Override applied. Reloading..."** and
+   the page refreshes.
+
+### Why the reason field matters
+Every override is permanently logged with the reason you provide. This
+isn't just a formality — it's your audit trail. If you or anyone else
+ever needs to understand why a job's status doesn't match its normal
+history, this note is the explanation. Always write something specific
+and useful, such as:
+- "Carrier confirmed verbal approval by phone; documentation pending. Advancing manually to avoid delay."
+- "Duplicate job created during offline sync error; forcing to CLOSED to remove from active pipeline."
+
+Avoid vague notes like "fixing" or "testing."
+
+### When to use Override vs. Triage
+- **Use Triage** when a job is stuck specifically because of missing
+  measurement data from EagleView/SoL parsing.
+- **Use Override** only for everything else — genuinely stuck jobs, data
+  entry mistakes, duplicate records, or unusual situations the normal
+  workflow buttons can't handle.
+
+**This is not reversible in a simple sense.** You can override again to
+a different status, but any side effects the normal pipeline would have
+triggered along the way (notifications, document generation, etc.) will
+not happen automatically. Use this sparingly and document your reasoning
+clearly every time.
+
+---
+
+## FAQ
+
+**Q: A job is stuck in PENDING_OPERATOR_REVIEW. What do I do?**
+Go to **⚠ Triage**, find the job, enter the missing measurement values
+by hand from the real report, and click **Resolve & Resume Pipeline.**
+
+**Q: Can I re-upload just a corrected Statement of Loss?**
+Not currently — you need to re-upload both the EagleView and Statement
+of Loss PDFs together, even if only one was wrong. Use the same
+EagleView file again if it was already correct.
+
+**Q: I clicked Deny by mistake. Can I undo it?**
+No — denial triggers real AI rebuttal generation immediately after you
+confirm. That's why there's a confirmation dialog now; always double-
+check the denial text before confirming.
+
+**Q: What's the difference between Triage and Admin Override?**
+Triage fixes a specific, known problem (missing measurements from
+parsing). Override is a blunt instrument for anything else — use it
+only when nothing else applies.
+
+**Q: Do I need a reason to use Admin Override?**
+Yes, always. The system will not let you submit an override without
+one, and this reason becomes part of the permanent audit trail.
+
+**Q: How do I know an AI Rebuttal actually generated?**
+After confirming a denial, the system checks automatically in the
+background every few seconds and reloads the page once it's either
+ready or has genuinely failed — you don't need to manually refresh or
+guess how long to wait.
+
+**Q: What if I need to escalate a job but I'm not sure it's warranted yet?**
+Take the extra moment before confirming — escalation generates a real
+demand letter tied to the carrier relationship, so it's worth being
+certain first.
+
+---
+
+*This guide reflects the Admin workflow as of commit `3349568`. If new
+statuses, buttons, or workflows are added in future updates, this guide
+should be reviewed and updated to match.*

@@ -1,7 +1,10 @@
 # setup_network.ps1
 # Automates the download of Cloudflare Tunnel for secure public access
 
-$exeName = "cloudflared.exe"
+if (!(Test-Path -Path "tools")) {
+    New-Item -ItemType Directory -Force -Path "tools" | Out-Null
+}
+$exeName = "tools\cloudflared.exe"
 $downloadUrl = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
 
 if (Test-Path -Path $exeName) {
