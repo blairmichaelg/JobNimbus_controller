@@ -1,56 +1,91 @@
-# Contributing to Wickham Roofing CRM (V4 "Truck Server")
+# CONTRIBUTING TO WICKHAM ROOFING CRM (V4 "TRUCK SERVER")
 
-Welcome to the Wickham Roofing AI pipeline repository. This system powers our entire operations—calculating material orders, gating strict statutory compliance, and producing legally binding PDFs. 
+Welcome to the **Wickham Roofing V4 "Truck Server"** engineering repository. This application represents the core operational infrastructure of our business—governing real financial leads, calculating thousands of dollars in material orders, and producing legally binding statutory insurance documentation.
 
-Because this application runs entirely locally on field office hardware with zero remote cloud SaaS safety nets, we maintain an exceptionally high standard for code integration.
+Because this CRM runs natively on local office hardware without third-party cloud SaaS fail-safes, we enforce an exceptionally rigorous standard for software contributions, schema modifications, and test assertions.
+
+---
 
 ## 1. The Prime Directive: Zero-Regression Stability
-This is not a web app where a bug just causes a broken button. A bug in the math engine results in Wickham Roofing under-ordering thousands of dollars of materials.
 
-Therefore, **we strictly enforce a 100% green test baseline**. 
-If you add a feature, you add tests. If you touch `supplement_engine.py`, you test every mathematical edge case (e.g. lengths of 0, `None` types, zero-clamping). If your pull request drops test coverage or causes a failure, it will be rejected.
+A defect in a standard web application might simply break an interactive button; a mathematical defect in our calculating engine results in severe material short-ordering or financial liability during insurance negotiations.
 
-## 2. Setting Up Your Environment
-To run the system locally for development:
+Therefore, **we strictly enforce a 100% green test baseline across all 229 test assertions**.
+- **Every Feature Requires Tests**: No pull request or code commit will be approved without accompanying pytest functions covering successful executions and defensive failure paths.
+- **Math Kernel Preservation**: Any changes to `app/services/supplement_engine.py` require exhaustive unit assertions proving determinism across extreme inputs (e.g., zero-clamped dimensions, missing properties, floating-point rounding precision).
 
-```bash
+---
+
+## 2. Environment Provisioning for Developers
+
+To configure a non-destructive local software engineering workspace:
+
+```powershell
+# 1. Clone repository & transition to working folder
+git clone https://github.com/blairmichaelg/JobNimbus_controller.git
+cd JobNimbus_controller
+
+# 2. Initialize an isolated python environment
 python -m venv venv
-# Activate the environment
-# Windows: .\venv\Scripts\activate
-# Linux/Mac: source venv/bin/activate
+.\venv\Scripts\activate
 
+# 3. Install required development and testing packages
+pip install --upgrade pip
 pip install -r requirements.txt
+
+# 4. Provision local development environment profile
 cp .env.example .env
 ```
 
-You must ensure that your `APP_ENV` variable in `.env` is set to `development`. This ensures that local test databases (`jobnimbus_dev.db`) are used and production backups are never polluted.
+> [!IMPORTANT]
+> You must ensure that `APP_ENV` inside your local `.env` file is set strictly to `development` or `dev`. This configures the application to utilize ephemeral developer SQLite tables (`data/jobnimbus_dev.db`), completely protecting production ledgers from modification or backup pollution.
 
-## 3. The Architecture Split
-If you are contributing to the AI or Supplement features, you must understand the bifurcation:
-1. **`app/services/supplement_engine.py`**: This is pure math. No databases, no external dependencies, no side-effects. It takes inputs and returns calculated outputs.
-2. **`app/workers/supplement_processor.py`**: This is the orchestrator. It manages the queue, handles the database, writes the audit trails, and catches exceptions.
+---
 
-Do **not** mix orchestration logic into the math engine, and do **not** perform calculations in the orchestrator.
+## 3. Architecture Rules: Separation of Concerns
 
-## 4. Running the Test Suite
-Before committing any changes, run the full test suite and type checker:
+If your contribution intersects with AI analysis, estimation algorithms, or background workers, you must observe strict architectural separation:
 
-```bash
-# Run all tests
-python -m pytest tests/ -v
+1. **`app/services/supplement_engine.py` (Pure Deterministic Kernel)**: This domain is dedicated exclusively to functional mathematics. Do not import database drivers, do not initiate network HTTP calls, and do not introduce stateful side effects. It accepts data structural inputs and emits precise numerical outputs.
+2. **`app/workers/supplement_processor.py` (Asynchronous Orchestrator)**: This layer manages external complexity. It retrieves items from Redis task queues, hydrates models from SQLite, constructs audit trails, handles file IO, and calls generative AI models for narrative compilation.
 
-# Run static type checking
-python -m mypy .
+**Rule:** Never introduce queue orchestration or database operations into the mathematical kernel, and never perform mathematical calculations directly inside the ARQ orchestrator or UI views.
 
-# Run the linter
-ruff check .
+---
+
+## 4. SQLite Schema & Versioned Migrations
+
+The database layer relies on SQLite running in **WAL (Write-Ahead Logging)** mode with explicit **`BEGIN IMMEDIATE`** transaction limits to prevent TOCTOU race conditions and locking crashes.
+- **Modifying the Schema**: Do not manipulate SQLite files directly via external tools (e.g., DBeaver, DB Browser) while Uvicorn servers are running.
+- **Migration Architecture**: Schema modifications must be programmed as reproducible, versioned migration structures managed through `app.core.database:run_migrations()`, guaranteeing safe initialization on clean system boots and seamless rolling updates.
+
+---
+
+## 5. Automated Quality & Linter Matrix
+
+Before committing modifications or pushing to remote git servers, you are required to validate your codebase against our three-tier automated testing suite:
+
+```powershell
+# 1. Execute exhaustive automated testing suite (must pass 100% cleanly)
+.\venv\Scripts\python.exe -m pytest tests/ -v
+
+# 2. Perform static type enforcement inspections
+.\venv\Scripts\python.exe -m mypy app/
+
+# 3. Perform code syntax, formatting, and import organization validation
+.\venv\Scripts\python.exe -m ruff check app/
 ```
 
-Ensure all tests pass and `mypy` returns zero errors.
+All commands must complete with **zero errors and zero failing assertions**.
 
-## 5. Security & Hygiene
-- **Never commit databases**: `*.db`, `*.db-shm`, and `*.db-wal` files are strictly ignored. Never force-add them.
-- **Never commit `.env` files**: All secrets remain completely un-tracked.
-- **Path Traversal & IDOR**: Any endpoint manipulating database records MUST use `uuid.UUID()` validation on its parameters and strictly verify ownership with compound SQL `WHERE` clauses.
+---
 
-Thank you for helping keep the Truck Server robust!
+## 6. Security Hygiene & Authorization Boundaries
+
+When writing routes or expanding API functionalities, abide by the established Phase 3/Phase 4 security conventions:
+- **No Silent Zeros & Token Authentication**: All protected REST and WebSocket routes must bind explicit role verification decorators (`@Depends(verify_admin)`, `@Depends(verify_accounting)`, `@Depends(verify_operations)`, `@Depends(verify_field)`).
+- **IDOR Protection**: Any query searching, altering, or extracting records on behalf of field representatives must execute compound ownership evaluations (e.g., verifying `canvasser_rep_id` against JWT claims).
+- **Path Traversal Defense**: Never concatenate user-supplied input strings directly into file system path references. Rely on `uuid.UUID` parameter typecasting and invoke `sanitize_download_filename` when serving downloads.
+- **Secret & Database Isolation**: Verify that `.env` files and local databases (`*.db`, `*.db-shm`, `*.db-wal`, `tools/*.exe`) remain safely excluded from Git version tracking via `.gitignore`.
+
+Thank you for observing engineering rigor and maintaining the reliability of the Truck Server operating platform!

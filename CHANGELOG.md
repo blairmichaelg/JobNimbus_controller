@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0] - 2026-07-25
+### Added & Fixed (Accounting Ledger Hardening & Root Decluttering)
+- **Accounting Dashboard Remediation**: Fully hardened `accounting_dashboard.html` against JavaScript runtime failures. Fixed variable scope leakage on empty commission states (`cdata`/`ctbody`), deployed safe Number conversions (`|| 0`) on financial formatting to prevent `.toFixed()` type exceptions, and engineered tolerant date parsing for non-UTC timestamps.
+- **Resilient Realtime WebSockets**: Replaced raw WebSocket instantiations in the Accounting ledger with a robust `connectWebSocket()` pattern featuring automatic exponential reconnection retry logic (5-second fallback) upon connection drop or worker reboot.
+- **Manual Commission Override Engine**: Added UI controls ("Adjust %" / "Reset to Default") and backend API routing (`/api/office/accounting/jobs/{job_id}/commission-override`) enabling Accounting personnel (Debi) to manually override standard 10% canvasser commission allocations per job.
+- **Root Workspace Decluttering & Binary Isolation**: Consolidating repository structure by relocating orphaned documentation (`FIELD_RUNBOOK.md`, `security_tasks.md`) directly into the specialized `docs/` folder alongside complete operational role manuals. Isolated networking executable binaries (`cloudflared.exe`) into a dedicated `tools/` directory and secured `.gitignore` exclusion rules.
+- **Local Boot Script Optimization**: Resolved startup crashing in Windows single-click boot scripts (`start_dev.ps1`, `start_prod.ps1`) by replacing references to pruned historical diagnostic files with instant inline Python module inspections validating runtime dependencies and environment health.
+- **Enterprise Documentation Overhaul**: Modernized public engineering documentation (`README.md`, `ARCHITECTURE.md`, `DEPLOYMENT.md`, `CONTRIBUTING.md`) to reflect the multi-role standalone V4 Truck Server operating platform and celebrate our verified 229-test 100% passing test matrix.
+
 ## [1.0.0] - 2026-07-22
 ### Added & Fixed (The Great Pruning & Final Launch Preparation)
 - **Production Cleanliness**: Ruthlessly pruned all dead code, orphaned UI templates, and legacy developer scripts. Removed 51 instances of unused code and legacy `.db`/`.txt` bloat from the repository root.
