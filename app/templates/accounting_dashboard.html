@@ -145,48 +145,58 @@
                     const cdata = await cres.json();
                     const ctbody = document.getElementById('commissions-table');
                     ctbody.innerHTML = '';
-                    cdata.forEach(row => {
-                        ctbody.innerHTML += `
-                            <tr class="hover:bg-gray-800 transition-colors">
-                                <td class="py-4 px-4 text-gray-300 font-mono"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></td>
-                                <td class="py-4 px-4 text-white font-bold">${row.homeowner_name}</td>
-                                <td class="py-4 px-4 text-white">${row.canvasser_name || 'N/A'}</td>
-                                <td class="py-4 px-4 text-white">
-                                    <div class="flex items-center gap-2">
-                                        <span id="commissionAmount-${row.job_id}">$${row.canvasser_commission.toFixed(2)}</span>
-                                        <button onclick="showCommissionOverride('${row.job_id}')" class="text-xs text-blue-400 underline">
-                                            Adjust %
-                                        </button>
-                                    </div>
-                                    <div id="commissionOverrideForm-${row.job_id}" class="hidden mt-1 flex items-center gap-2">
-                                        <input type="number" step="0.1" min="0" max="100"
-                                            id="commissionPctInput-${row.job_id}"
-                                            value="${row.commission_pct_override !== null ? (row.commission_pct_override * 100) : 10}"
-                                            class="bg-gray-800 text-white rounded p-1 text-sm w-20">
-                                        <span class="text-xs text-gray-400">%</span>
-                                        <button onclick="saveCommissionOverride('${row.job_id}')"
-                                            class="bg-blue-700 text-white text-xs px-2 py-1 rounded">
-                                            Save
-                                        </button>
-                                        <button onclick="resetCommissionOverride('${row.job_id}')"
-                                            class="bg-gray-600 text-white text-xs px-2 py-1 rounded">
-                                            Reset
-                                        </button>
-                                    </div>
-                                </td>
-                                <td class="py-4 px-4 text-gray-400">${new Date(row.commission_generated_at + 'Z').toLocaleString()}</td>
-                                <td class="py-4 px-4 text-right">
-                                    <a href="/api/office/jobs/${row.job_id}/docs/commission" target="_blank"
-                                       class="bg-blue-600 hover:bg-blue-500 text-white py-2 px-4 rounded text-xs font-bold transition-colors">
-                                       Download PDF
-                                    </a>
-                                </td>
-                            </tr>
-                        `;
-                    });
-                }
-                if (cdata.length === 0) {
-                    ctbody.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">No commissions currently ready to pay.</td></tr>`;
+                    if (cdata.length === 0) {
+                        ctbody.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">No commissions currently ready to pay.</td></tr>`;
+                    } else {
+                        cdata.forEach(row => {
+                            const commAmount = (Number(row.canvasser_commission) || 0).toFixed(2);
+                            let displayDate = 'N/A';
+                            if (row.commission_generated_at) {
+                                const ts = row.commission_generated_at.endsWith('Z') || row.commission_generated_at.includes('+')
+                                    ? row.commission_generated_at
+                                    : row.commission_generated_at + 'Z';
+                                const parsed = new Date(ts);
+                                if (!isNaN(parsed.getTime())) displayDate = parsed.toLocaleString();
+                            }
+                            ctbody.innerHTML += `
+                                <tr class="hover:bg-gray-800 transition-colors">
+                                    <td class="py-4 px-4 text-gray-300 font-mono"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></td>
+                                    <td class="py-4 px-4 text-white font-bold">${row.homeowner_name}</td>
+                                    <td class="py-4 px-4 text-white">${row.canvasser_name || 'N/A'}</td>
+                                    <td class="py-4 px-4 text-white">
+                                        <div class="flex items-center gap-2">
+                                            <span id="commissionAmount-${row.job_id}">$${commAmount}</span>
+                                            <button onclick="showCommissionOverride('${row.job_id}')" class="text-xs text-blue-400 underline">
+                                                Adjust %
+                                            </button>
+                                        </div>
+                                        <div id="commissionOverrideForm-${row.job_id}" class="hidden mt-1 flex items-center gap-2">
+                                            <input type="number" step="0.1" min="0" max="100"
+                                                id="commissionPctInput-${row.job_id}"
+                                                value="${row.commission_pct_override !== null ? (row.commission_pct_override * 100) : 10}"
+                                                class="bg-gray-800 text-white rounded p-1 text-sm w-20">
+                                            <span class="text-xs text-gray-400">%</span>
+                                            <button onclick="saveCommissionOverride('${row.job_id}')"
+                                                class="bg-blue-700 text-white text-xs px-2 py-1 rounded">
+                                                Save
+                                            </button>
+                                            <button onclick="resetCommissionOverride('${row.job_id}')"
+                                                class="bg-gray-600 text-white text-xs px-2 py-1 rounded">
+                                                Reset
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td class="py-4 px-4 text-gray-400">${displayDate}</td>
+                                    <td class="py-4 px-4 text-right">
+                                        <a href="/api/office/jobs/${row.job_id}/docs/commission" target="_blank"
+                                           class="bg-blue-600 hover:bg-blue-500 text-white py-2 px-4 rounded text-xs font-bold transition-colors">
+                                           Download PDF
+                                        </a>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    }
                 }
             } catch(e) { console.error(e); }
         }
@@ -296,7 +306,7 @@
         }
 
         async function resetCommissionOverride(jobId) {
-            if (!confirm('Reset this job\\'s commission back to the default 10%?'))
+            if (!confirm("Reset this job's commission back to the default 10%?"))
                 return;
 
             try {
@@ -314,11 +324,22 @@
         }
 
         fetchAccounting();
-        const ws = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/api/office/ws/office');
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            if (data.type === 'stale' || data.type === 'new_lead') fetchAccounting();
-        };
+        function connectWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(`${wsProtocol}//${window.location.host}/api/office/ws/office`);
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'stale' || data.type === 'new_lead') fetchAccounting();
+                } catch(err) { console.error('Error parsing WebSocket message:', err); }
+            };
+            ws.onerror = function(err) { console.warn('WebSocket error:', err); };
+            ws.onclose = function() {
+                console.info('WebSocket disconnected. Reconnecting in 5 seconds...');
+                setTimeout(connectWebSocket, 5000);
+            };
+        }
+        connectWebSocket();
     </script>
 </body>
 </html>
