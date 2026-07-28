@@ -28,7 +28,7 @@ from app.api.operations_routes import router as operations_router
 from app.api.auth_routes import router as auth_router
 from app.api.admin_reps_routes import router as admin_reps_router
 from app.api.admin_jobs_routes import router as admin_jobs_router
-from app.api.auth import verify_admin, verify_accounting, get_current_role
+from app.api.auth import verify_admin, verify_accounting, verify_field, get_current_role
 from app.config import get_settings
 from app.core.notifications import notifier
 from app.core.cache import init_db as init_cache_db
@@ -221,8 +221,22 @@ async def auth_redirect_middleware(request: Request, call_next):
 
 @app.websocket("/ws/office")
 async def office_ws(websocket: WebSocket):
-    # Using generic client_id for now, can be extracted from query params or headers if needed
-    await notifier.connect(websocket, client_id="office_client", role="office")
+    # Token validation before handshake accept
+    from app.api.auth import decode_token
+    token = websocket.query_params.get("token") or websocket.cookies.get("auth_token")
+    if not token:
+        await websocket.close(code=1008, reason="Unauthorized: Missing authentication token")
+        return
+    try:
+        payload = decode_token(token)
+        if payload.get("role") not in ["admin", "operations", "accounting"]:
+            await websocket.close(code=1008, reason="Forbidden: Unauthorized role for office feed")
+            return
+    except Exception:
+        await websocket.close(code=1008, reason="Unauthorized: Invalid token")
+        return
+
+    await notifier.connect(websocket, client_id="office_client", role=payload.get("role", "office"))
     try:
         while True:
             data = await websocket.receive_text()
@@ -251,7 +265,7 @@ async def health_check():
 
 # --- Frontend ---
 @app.get("/field", tags=["frontend"])
-async def serve_field_app(request: Request):
+async def serve_field_app(request: Request, role: str = Depends(verify_field)):
     """Serve the Truck Server mobile web interface."""
     return templates.TemplateResponse(request, "field_app.html", {
         "request": request,
@@ -368,7 +382,7 @@ async def serve_accounting_dashboard(request: Request, role: str = Depends(verif
 
 
 @app.get("/office/jobs/{job_id}", tags=["frontend"])
-async def serve_job_detail(request: Request, job_id: str):
+async def serve_job_detail(request: Request, job_id: str, role: str = Depends(verify_admin)):
     """Serve the unified Job Overview dashboard (for Admin)."""
     from fastapi import HTTPException
     job = await asyncio.to_thread(_fetch_job_sync, job_id)

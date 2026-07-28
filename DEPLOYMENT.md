@@ -52,22 +52,17 @@ Open `.env` in a secure editor and configure your production parameter tokens:
 > [!CAUTION]
 > Never commit `.env` or local `.db` files to Git version control. Ensure `.gitignore` guidelines remain intact when executing remote code synchronization.
 
-### 4. Automated One-Click Windows Launch
-To eliminate manual setup errors in field branch environments, V4 includes automated PowerShell orchestration utilities:
+### 4. Automated Windows Launch (Task Scheduler)
+To eliminate manual setup errors in field branch environments, V4 includes automated PowerShell orchestration utilities invoked on system boot:
 
-1. **First-Time Network Provisioning**: Run `setup_network.ps1` once to automatically fetch and place the secure Cloudflare Web Tunneling binary into the isolated `tools/` directory:
-   ```powershell
-   .\setup_network.ps1
-   ```
-2. **Master Production Boot Sequence**: Execute the master start script to initialize the complete operating environment:
-   ```powershell
-   .\start_production.ps1
-   ```
-   **What happens automatically during this boot sequence:**
-   - **Phase 1 (Broker Check)**: Pings local port `6379`. If Redis is offline, it dynamically provisions and boots a container via Docker Desktop or WSL daemon in the background.
-   - **Phase 2 (Diagnostics & Pre-Flight)**: Validates virtual environment integrity and performs inline module inspections (`app.main`, `app.config`) to guarantee zero import failures before launching services.
-   - **Phase 3 (Service Spawning)**: Opens two persistent background terminal windows—one running the **Uvicorn FastAPI Server** (Port 8000) and one running the **ARQ Asynchronous Queue Worker**.
-   - **Phase 4 (Public Tunnel Activation)**: Spawns the **Cloudflare Tunnel (`tools\cloudflared.exe`)** and displays a public, SSL-terminated `.trycloudflare.com` URL. Share this URL directly with field canvassers for remote mobile access!
+1. **First-Time Network Provisioning**: Run `setup_network.ps1` once to automatically fetch and place the secure Cloudflare Web Tunneling binary into the isolated `tools/` directory.
+2. **Master Production Boot Sequence**: The server is now configured to boot automatically via **Windows Task Scheduler**. Upon user login, Task Scheduler triggers the individual wrapper scripts located in `scripts\services\`:
+   - `srv_redis.ps1`: Ensures Redis is running (or boots a container if needed).
+   - `srv_fastapi.ps1`: Launches the Uvicorn FastAPI Server (Port 8000) with logging to `logs\fastapi_*.log`.
+   - `srv_worker.ps1`: Launches the ARQ Asynchronous Queue Worker with logging to `logs\arq_worker_*.log`.
+   - `srv_tunnel.ps1`: Spawns the Cloudflare Tunnel (`tools\cloudflared.exe`) and logs the public URL.
+   
+These wrapper scripts handle automated restart loops, port conflict resolution, and logging without manual intervention. To check the system health, verify the logs in the `logs\` directory or ping the `/health` endpoint.
 
 ---
 

@@ -5,7 +5,7 @@ Issues HttpOnly cookies upon successful PIN validation.
 Replaces the old token-based backdoors.
 """
 
-from fastapi import APIRouter, Form, Response
+from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import RedirectResponse
 from app.config import get_settings
 from app.api.auth import create_access_token
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login")
-async def login(response: Response, pin: str = Form(...), redirect_url: str = Form("/")):
+async def login(request: Request, response: Response, pin: str = Form(...), redirect_url: str = Form("/")) :
     settings = get_settings()
 
     # Map PINs to roles — .env is the ONLY source of truth.
@@ -58,13 +58,30 @@ async def login(response: Response, pin: str = Form(...), redirect_url: str = Fo
         rep_id=rep_id if role == "field" else None,
     )
 
-    # Redirect to the page that originally requested authentication
+    # Automatic role-to-dashboard routing when accessing via root login form
+    if redirect_url == "/" or not redirect_url.startswith("/"):
+        if role == "admin":
+            redirect_url = "/admin"
+        elif role == "accounting":
+            redirect_url = "/accounting"
+        elif role == "operations":
+            redirect_url = "/api/operations/board"
+        elif role == "field":
+            redirect_url = "/field"
+
+    # Dynamically determine if connection is encrypted over HTTPS (directly or via Cloudflare edge)
+    is_https = (
+        request.headers.get("x-forwarded-proto", "").lower() == "https"
+        or request.url.scheme == "https"
+    )
+
+    # Redirect to target dashboard or original requested URL
     res = RedirectResponse(url=redirect_url, status_code=303)
     res.set_cookie(
         key="auth_token",
         value=token,
         httponly=True,
-        secure=True if settings.app_env == "prod" else False,
+        secure=is_https if settings.app_env == "prod" else False,
         samesite="lax",
         max_age=12 * 3600,
     )

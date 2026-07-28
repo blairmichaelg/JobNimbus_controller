@@ -1,4 +1,10 @@
 import pytest
+import os
+
+os.environ["ADMIN_PIN"] = "9999"
+os.environ["ACCOUNTING_PIN"] = "8888"
+os.environ["OPERATIONS_PIN"] = "7777"
+os.environ["APP_ENV"] = "test"
 
 from app.core.database import run_migrations as init_db
 
@@ -8,6 +14,10 @@ def setup_test_db(tmp_path_factory):
     Ensure the database is initialized with all tables (including pricing)
     for the test suite. We just point the DB_PATH to a temp file.
     """
+    from app.config import get_settings
+    if hasattr(get_settings, "cache_clear"):
+        get_settings.cache_clear()
+
     test_db = tmp_path_factory.mktemp("db") / "test_truck_server.db"
     
     import app.core.database
@@ -15,5 +25,18 @@ def setup_test_db(tmp_path_factory):
     
     # Initialize schema
     init_db()
+
+    # Seed default field rep with PIN 1111 for automated tests
+    conn = app.core.database.get_connection()
+    try:
+        from passlib.context import CryptContext
+        pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        conn.execute(
+            "INSERT OR IGNORE INTO field_reps (id, name, pin_hash, is_active) VALUES (?, ?, ?, 1)",
+            ("00000000-0000-0000-0000-000000000001", "Test Field Rep", pwd_ctx.hash("1111"))
+        )
+        conn.commit()
+    finally:
+        conn.close()
     
     yield

@@ -123,7 +123,9 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 > [!TIP]
-> **Windows One-Click Automation**: On Windows desktop environments, execute `.\start_production.ps1` to automatically verify local dependencies, boot internal Redis brokers, spawn Uvicorn + ARQ background worker terminals, and establish a public Cloudflare Web Tunnel (`tools\cloudflared.exe`) in a single step!
+> **Windows One-Click Automation**: On Windows desktop environments, the server is now configured to boot automatically via **Task Scheduler** on login. Task Scheduler invokes a suite of wrapper scripts (`scripts\services\srv_redis.ps1`, `srv_fastapi.ps1`, `srv_worker.ps1`, `srv_tunnel.ps1`) that handle automated recovery, logging, and port binding.
+> 
+> **Service Health & Restart**: Log files for all background services are located in the `logs\` directory. To manually restart a service, you can terminate its window and re-run the respective `srv_*.ps1` script from the `scripts\services\` directory, or simply use `Restart-Computer` for a clean reboot and auto-recovery. Health can be checked via the `/health` endpoint.
 
 ---
 

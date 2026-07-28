@@ -1,0 +1,6 @@
+tunnel: ecbd6ce8-0095-4c2d-a035-cb9a93726c0e
+credentials-file: C:\Users\Michael\.cloudflared\ecbd6ce8-0095-4c2d-a035-cb9a93726c0e.json
+ingress:
+  - hostname: app.wickhamroofing.app
+    service: http://127.0.0.1:8000
+  - service: http_status:404

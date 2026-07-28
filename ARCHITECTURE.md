@@ -131,8 +131,8 @@ JobNimbus_controller/
 ├── generated_exports/          # Cached Accounting QuickBooks Online (QBO) CSV Exports
 ├── setup_network.ps1           # Cloudflare Tunnel automated download utility
 ├── start_dev.ps1               # Local developer boot sequence script (Port 8001)
-├── start_prod.ps1              # Local simulated production boot script (Port 8000)
-├── start_production.ps1        # Master automated one-click Windows production orchestrator
+├── scripts/                    # Maintenance and operational scripts
+│   └── services/               # Wrapper scripts for Task Scheduler (srv_*.ps1)
 ├── render.yaml                 # Infrastructure-as-Code container deployment specifications
 ├── Dockerfile                  # Container build instructions for cloud fallback hosting
 ├── Procfile                    # Buildpack process directives for cloud environments

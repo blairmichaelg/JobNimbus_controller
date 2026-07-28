@@ -144,8 +144,15 @@ def run_migrations() -> None:
             
             conn.execute("UPDATE schema_version SET version = 3, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
 
+        if current_version < 4:
+            import importlib
+            m4 = importlib.import_module("app.core.migrations.0004_add_commission_overrides")
+            m4.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 4, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+
         conn.execute("COMMIT")
-        logger.info("migrations_applied", current_version=current_version, target_version=3)
+        logger.info("migrations_applied", current_version=current_version, target_version=4)
         
         # Since seed logic was removed from up(), do it here outside the transaction
         if current_version < 1:

@@ -22,6 +22,11 @@ reportlab>=4.0
 # === PDF Parsing (EagleView table extraction) ===
 pdfplumber>=0.11.0
 
+# === Security & Authentication ===
+PyJWT>=2.8.0
+bcrypt>=4.0.0
+passlib>=1.7.4
+
 # === Configuration & Validation ===
 python-dotenv>=1.0.0
 pydantic>=2.0.0
