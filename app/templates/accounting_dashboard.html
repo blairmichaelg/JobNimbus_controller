@@ -10,7 +10,7 @@
     <div class="p-8 h-full flex flex-col">
         <div class="flex justify-between items-center border-b border-gray-800 pb-4 mb-8">
             <h1 class="text-3xl font-bold text-green-400 uppercase tracking-widest">Accounting Ledger</h1>
-            <a href="/login" class="text-gray-500 hover:text-white">Logout</a>
+            <a href="/auth/logout" class="text-gray-500 hover:text-white">Logout</a>
         </div>
         
         <div class="flex-1 bg-gray-900 border border-gray-700 rounded p-6 shadow-2xl flex flex-col">
@@ -94,7 +94,7 @@
                         const suppText = row.supplement_received ? '✓ Received' : 'Pending';
                         tbody.innerHTML += `
                             <tr class="hover:bg-gray-800 transition-colors">
-                                <td class="py-4 px-4 text-gray-300 font-mono"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></td>
+                                <td class="py-4 px-4 text-gray-300 font-mono"><a href="/office/jobs/${row.job_id}" target="_blank" class="hover:underline"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></a></td>
                                 <td class="py-4 px-4 text-white font-bold">${row.name}</td>
                                 <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
                                 <td class="px-4 py-3">
@@ -160,7 +160,7 @@
                             }
                             ctbody.innerHTML += `
                                 <tr class="hover:bg-gray-800 transition-colors">
-                                    <td class="py-4 px-4 text-gray-300 font-mono"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></td>
+                                    <td class="py-4 px-4 text-gray-300 font-mono"><a href="/office/jobs/${row.job_id}" target="_blank" class="hover:underline"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></a></td>
                                     <td class="py-4 px-4 text-white font-bold">${row.homeowner_name}</td>
                                     <td class="py-4 px-4 text-white">${row.canvasser_name || 'N/A'}</td>
                                     <td class="py-4 px-4 text-white">

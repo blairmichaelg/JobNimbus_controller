@@ -376,6 +376,35 @@
                     <!-- Document Vault Section -->
                     <div class="mt-6">
                         <h3 class="text-md font-medium text-gray-300 mb-3">Document Vault</h3>
+                        
+                        <!-- List existing documents -->
+                        {% if job.documents %}
+                        <div class="mb-4 bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                            <table class="w-full text-sm text-left text-gray-300">
+                                <thead class="text-xs text-gray-400 uppercase bg-gray-900 border-b border-gray-700">
+                                    <tr>
+                                        <th scope="col" class="px-4 py-3">Filename</th>
+                                        <th scope="col" class="px-4 py-3">Type</th>
+                                        <th scope="col" class="px-4 py-3">Date</th>
+                                        <th scope="col" class="px-4 py-3 text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for doc in job.documents %}
+                                    <tr class="border-b border-gray-700 hover:bg-gray-700">
+                                        <td class="px-4 py-3 font-medium text-white">{{ doc.filename }}</td>
+                                        <td class="px-4 py-3">{{ doc.file_type }}</td>
+                                        <td class="px-4 py-3">{{ doc.created_at[:16] }}</td>
+                                        <td class="px-4 py-3 text-right">
+                                            <a href="/api/office/jobs/{{ job.id }}/docs/download/{{ doc.id }}" target="_blank" class="text-blue-400 hover:text-blue-300">Download</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+
                         <div id="dropZoneVault" class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 hover:bg-gray-700 transition-colors cursor-pointer group">
                             <div class="text-gray-400 group-hover:text-gray-300">
                                 <p class="font-medium text-lg mb-1">📁 Upload Any Document</p>
@@ -385,6 +414,7 @@
                         </div>
                     </div>
 
+                    {% if role in ['admin', 'accounting'] %}
                     <!-- Financials Section -->
                     <div class="mt-6">
                         <h3 class="text-md font-medium text-gray-300 mb-3">Financials</h3>
@@ -401,7 +431,11 @@
                             <button type="submit" class="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700">Save Financials</button>
                         </form>
                     </div>
+                    {% elif role == 'operations' %}
+                    <!-- Operations view of financials (Read-Only mode can be added here if needed in future, currently hidden from editing) -->
+                    {% endif %}
 
+                    {% if role == 'admin' %}
                     <!-- Admin Override Section -->
                     <div class="mt-6 border-2 border-red-700 rounded-lg p-4 bg-red-950">
                         <button id="showOverridePanelBtn" class="text-red-400 font-bold text-sm w-full text-left">
@@ -442,6 +476,8 @@
                             <p id="overrideResult" class="text-sm mt-2"></p>
                         </div>
                     </div>
+                    {% endif %}
+
                 </div>
             </div>
         </div>

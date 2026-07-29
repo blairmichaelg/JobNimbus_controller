@@ -401,10 +401,18 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, cl
         )
         
         agreement_id = str(uuid.uuid4())
-        ts = datetime.utcnow().isoformat() + "Z"
-        await asyncio.to_thread(_sync_insert_agreement, agreement_id, job_id, pdf_path, str(sig_file_path), ts, payload.signer_name, payload.ip_address, payload.user_agent)
-            
-        await asyncio.to_thread(update_job_status, job_id, "CONTINGENCY_SIGNED", f"Contingency signed by {payload.signer_name}")
+        from app.core.database import insert_job_document
+        import hashlib
+        
+        def _insert_doc_and_agreement():
+            ts = datetime.utcnow().isoformat() + "Z"
+            _sync_insert_agreement(agreement_id, job_id, pdf_path, str(sig_file_path), ts, payload.signer_name, payload.ip_address, payload.user_agent)
+            with open(pdf_path, "rb") as f:
+                file_hash = hashlib.sha256(f.read()).hexdigest()
+            insert_job_document(job_id, Path(pdf_path).name, "CONTINGENCY_SIGNED", str(pdf_path), file_hash)
+            update_job_status(job_id, "CONTINGENCY_SIGNED", f"Contingency signed by {payload.signer_name}")
+
+        await asyncio.to_thread(_insert_doc_and_agreement)
         
         await notifier.broadcast({
             "type": "contingency_signed",

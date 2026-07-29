@@ -28,11 +28,11 @@ from app.api.operations_routes import router as operations_router
 from app.api.auth_routes import router as auth_router
 from app.api.admin_reps_routes import router as admin_reps_router
 from app.api.admin_jobs_routes import router as admin_jobs_router
-from app.api.auth import verify_admin, verify_accounting, verify_field, get_current_role
+from app.api.auth import verify_admin, verify_accounting, verify_field, verify_office_role, get_current_role
 from app.config import get_settings
 from app.core.notifications import notifier
 from app.core.cache import init_db as init_cache_db
-from app.core.database import run_migrations as init_crm_db, get_connection, list_field_reps, _fetch_job_sync
+from app.core.database import run_migrations as init_crm_db, get_connection, list_field_reps, _fetch_job_sync, get_job_documents
 import os
 import asyncio
 
@@ -382,14 +382,19 @@ async def serve_accounting_dashboard(request: Request, role: str = Depends(verif
 
 
 @app.get("/office/jobs/{job_id}", tags=["frontend"])
-async def serve_job_detail(request: Request, job_id: str, role: str = Depends(verify_admin)):
-    """Serve the unified Job Overview dashboard (for Admin)."""
+async def serve_job_detail(request: Request, job_id: str, role: str = Depends(verify_office_role)):
+    """Serve the unified Job Overview dashboard (for Admin, Operations, Accounting)."""
     from fastapi import HTTPException
     job = await asyncio.to_thread(_fetch_job_sync, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+        
+    documents = await asyncio.to_thread(get_job_documents, job_id)
+    job["documents"] = documents
+
     return templates.TemplateResponse(request, "job_detail.html", {
         "request": request, 
         "job": job,
+        "role": role,
         "auth_token": request.cookies.get("auth_token", "")
     })

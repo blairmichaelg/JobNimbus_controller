@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.0] - 2026-07-29
+### Added & Fixed (Shared Job Workspace & Document Vault)
+- **Unified Single Source of Truth**: Transitioned from a fragmented, role-split dashboard architecture to a shared, unified Job Workspace (`/office/jobs/{job_id}`).
+- **Role-Based Access Control (RBAC)**: Implemented `verify_office_role` to allow Admin, Operations, and Accounting access to the shared workspace, dynamically hiding sensitive financial data and admin-override controls via Jinja templates based on user role.
+- **Universal Document Vault**: Built a centralized, dynamic rendering loop within the unified dashboard that pulls directly from the `job_documents` SQLite table, providing a clean list of all files with immediate download links.
+- **Field App Compliance**: Forced display of the full Contingency Agreement legal text to Field Reps, requiring an explicit checkbox acknowledgment before unlocking the signature capture pad.
+- **Strict Vault Security**: Enforced field-safe restrictions on the vault download endpoint. Field Reps are strictly hard-blocked (`403 Forbidden`) from accessing financial files, estimates, supplements, invoices, and QBO exports.
+- **Automated Document Registration**: Generating a signed Contingency Agreement PDF now automatically registers the document into the `job_documents` table for instantaneous Document Vault visibility.
+- **Brand Consistency**: Generated and natively embedded a Wickham Roofing logo (`logo.png`) into the core PDF generator letterhead and standard login screens.
+- **Navigation Polish**: Replaced hardcoded dashboard `/login` hooks with proper `/auth/logout` handlers. Added 'View Job' deep-links across Accounting and Operations ledgers.
+
 ## [1.2.0] - 2026-07-28
 ### Added & Fixed (Service Architecture & Auth Hardening)
 - **New Service Architecture**: Migrated away from manual script execution to a persistent, automated Task Scheduler-based startup. Introduced specialized wrapper scripts (`srv_redis.ps1`, `srv_fastapi.ps1`, `srv_worker.ps1`, `srv_tunnel.ps1`) to handle automated restart loops, dedicated logging, and port resolution on system boot.

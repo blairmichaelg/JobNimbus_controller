@@ -348,10 +348,11 @@ async def download_evidence_grid(job_id: str):
         raise HTTPException(status_code=500, detail="Failed to generate Evidence Grid.")
 
 
-@router.get("/jobs/{job_id}/docs/download/{doc_id}", dependencies=[Depends(verify_admin)])
-def download_job_document(job_id: str, doc_id: str):
+@router.get("/jobs/{job_id}/docs/download/{doc_id}", dependencies=[Depends(get_current_role)])
+def download_job_document(job_id: str, doc_id: str, role: str = Depends(get_current_role)):
     """
     Download a file from the Universal Document Vault.
+    Enforces RBAC: Field reps cannot access financial or office-only documents.
     """
     conn = get_connection()
     try:
@@ -359,6 +360,17 @@ def download_job_document(job_id: str, doc_id: str):
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Document not found.")
+            
+        if role == "field":
+            safe_types = ["PHOTO", "EAGLEVIEW_PDF", "CONTINGENCY_SIGNED", "image/jpeg", "image/png", "application/pdf"]
+            if row["file_type"] not in safe_types:
+                raise HTTPException(status_code=403, detail="Not authorized to view this document type.")
+            
+            # Additional safety for generic PDFs
+            filename_lower = row["filename"].lower()
+            unsafe_keywords = ["estimate", "supplement", "commission", "qbo", "invoice", "statement_of_loss", "sol", "po_", "material"]
+            if any(keyword in filename_lower for keyword in unsafe_keywords):
+                raise HTTPException(status_code=403, detail="Not authorized to view this financial document.")
         
         path = Path(row["storage_path"])
         if not path.exists():

@@ -85,3 +85,8 @@ async def verify_field(role: str = Depends(get_current_role)):
     if role not in ["admin", "field"]:
         raise HTTPException(status_code=403, detail="Not authorized for field access")
     return role
+
+async def verify_office_role(role: str = Depends(get_current_role)):
+    if role not in ["admin", "operations", "accounting"]:
+        raise HTTPException(status_code=403, detail="Not authorized for office access")
+    return role

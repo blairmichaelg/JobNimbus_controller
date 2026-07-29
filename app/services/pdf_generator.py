@@ -83,6 +83,15 @@ class PDFGenerator:
         canvas.drawString(50, 735, "123 Roofing Lane, Thomasville, GA 31792")
         canvas.drawString(50, 720, f"Phone: {COMPANY_PHONE} | Email: {COMPANY_EMAIL}")
 
+        import os
+        logo_path = "app/static/logo.png"
+        if os.path.exists(logo_path):
+            try:
+                canvas.drawImage(logo_path, 450, 715, width=110, height=45, preserveAspectRatio=True, anchor='ne')
+            except Exception as e:
+                pass
+
+
         # Line under header
         canvas.setStrokeColor(colors.black)
         canvas.setLineWidth(1)
