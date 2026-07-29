@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.2] - 2026-07-29
+### Added & Fixed
+- **Hover Extractor Service**: Built an isolated `hover_extractor.py` service capable of natively parsing Hover Roof Measurement PDFs into standard `EagleViewData` models. Includes a strict feet-inches to decimal conversion helper and a PDF format detector that automatically discriminates between Hover and EagleView documents.
+- **Hover Automated Tests**: Implemented comprehensive integration and unit tests in `test_hover_extractor.py` validating area, pitch, and facet extraction against real-world Hover files, achieving 100% test passage with zero regressions to the existing EagleView pipeline.
+
 ## [1.4.1] - 2026-07-29
 ### Added & Fixed
 - **Accounting Test Coverage**: Added `test_accounting_financials_allowed` to `test_rbac_hardening.py` confirming the accounting role can successfully bypass operations blockades and save financials.
