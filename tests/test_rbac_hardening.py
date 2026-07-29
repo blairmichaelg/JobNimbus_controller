@@ -48,6 +48,41 @@ def test_operations_financials_forbidden(setup_db):
     assert "Not authorized for accounting access" in response.json()["detail"]
 
 
+def test_accounting_financials_allowed(setup_db):
+    conn = get_connection()
+    try:
+        job_id = "test-job-rbac-accounting"
+        conn.execute("INSERT OR IGNORE INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     (job_id, "Jane", "123 Main", "City", "ST", "12345", "555-5555"))
+        conn.commit()
+    finally:
+        conn.close()
+
+    token = create_access_token(role="accounting")
+    
+    payload = {
+        "revenue": 10000,
+        "materials": 3000,
+        "labor": 3000,
+        "carrier_rcv": 9000,
+        "deductible": 1000,
+        "acv_payment": 8000,
+        "recoverable_depreciation": 1000,
+        "overhead_pct": 0.25,
+        "commission_pct": 0.10,
+        "permits_fee": 0
+    }
+    
+    response = client.post(
+        f"/api/office/jobs/{job_id}/financials",
+        json=payload,
+        headers={"x-internal-token": token}
+    )
+    
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+
+
 def test_field_rep_document_access(tmp_path):
     conn = get_connection()
     job_id = "test-job-rbac-2"

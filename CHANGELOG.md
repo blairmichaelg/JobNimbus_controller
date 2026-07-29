@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1] - 2026-07-29
+### Added & Fixed
+- **Accounting Test Coverage**: Added `test_accounting_financials_allowed` to `test_rbac_hardening.py` confirming the accounting role can successfully bypass operations blockades and save financials.
+- **Transaction Lock Fix**: Patched a latent transaction error by adding a missing `BEGIN IMMEDIATE` lock to `upsert_job_financials`.
+- **Measurement Report Category**: Added standard `MEASUREMENT_REPORT` (EagleView) selector to the job workspace upload component, routing documents safely to `field_safe` status.
+
 ## [1.4.0] - 2026-07-29
 ### Added & Fixed (Final Production Hardening & RBAC Workspace)
 - **Financial Visibility Lock**: Hardened the Unified Job Workspace so Operations personnel have strict read-only access to job financials. The Save button is stripped from the DOM and the API endpoints rigorously enforce `verify_accounting` tokens.
