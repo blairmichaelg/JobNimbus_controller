@@ -151,8 +151,15 @@ def run_migrations() -> None:
             
             conn.execute("UPDATE schema_version SET version = 4, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
 
+        if current_version < 5:
+            import importlib
+            m5 = importlib.import_module("app.core.migrations.0005_add_document_visibility")
+            m5.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 5, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+
         conn.execute("COMMIT")
-        logger.info("migrations_applied", current_version=current_version, target_version=4)
+        logger.info("migrations_applied", current_version=current_version, target_version=5)
         
         # Since seed logic was removed from up(), do it here outside the transaction
         if current_version < 1:
@@ -494,19 +501,19 @@ def insert_schedule(job_id: str, crew_name: str, install_date: str, delivery_dat
         conn.close()
 
 
-def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str, sha256_hash: str | None = None) -> str:
+def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str, sha256_hash: str | None = None, visibility: str = "office_only", category: str = "UNSPECIFIED") -> str:
     """Register a generated or uploaded file in the universal document vault."""
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
         doc_id = str(uuid.uuid4())
         conn.execute(
-            """INSERT INTO job_documents (id, job_id, filename, file_type, storage_path, sha256_hash) 
-            VALUES (?, ?, ?, ?, ?, ?)""",
-            (doc_id, job_id, filename, file_type, storage_path, sha256_hash)
+            """INSERT INTO job_documents (id, job_id, filename, file_type, storage_path, sha256_hash, visibility, category) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (doc_id, job_id, filename, file_type, storage_path, sha256_hash, visibility, category)
         )
         conn.execute("COMMIT")
-        logger.info("job_document_registered", doc_id=doc_id, job_id=job_id, file_type=file_type)
+        logger.info("job_document_registered", doc_id=doc_id, job_id=job_id, file_type=file_type, visibility=visibility, category=category)
         return doc_id
     except Exception as e:
         logger.error("job_document_registration_failed", error=str(e))

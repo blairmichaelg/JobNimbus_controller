@@ -230,7 +230,9 @@ async def run_retail_quote_pipeline(job_id: str) -> dict:
         filename="Retail_Quote.pdf",
         file_type="RETAIL_QUOTE_PDF",
         storage_path=quote_pdf_path,
-        sha256_hash=pdf_hash
+        sha256_hash=pdf_hash,
+        visibility="office_only",
+        category="ESTIMATE"
     )
 
     # 6. Transition job
@@ -438,7 +440,9 @@ as a formal letter addressed to the carrier's claims department.
         filename="Rebuttal_Letter.pdf",
         file_type="REBUTTAL_PDF",
         storage_path=rebuttal_pdf_path,
-        sha256_hash=pdf_hash
+        sha256_hash=pdf_hash,
+        visibility="office_only",
+        category="ESCALATION_REPORT"
     )
 
     # 9. Transition to SUPPLEMENT_SUBMITTED
@@ -812,7 +816,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
 
         # 7. Vault Document & Update State (Threaded)
         if not ctx.get("is_test"):
-            await asyncio.to_thread(insert_job_document, job_id, "Supplement_Request.pdf", "application/pdf", str(permanent_pdf_path))
+            await asyncio.to_thread(insert_job_document, job_id, "Supplement_Request.pdf", "application/pdf", str(permanent_pdf_path), None, "office_only", "SUPPLEMENT_REPORT")
             await asyncio.to_thread(update_job_status, job_id, JobStatus.SUPPLEMENT_GENERATED)
 
         log.info("supplement_processing_complete")

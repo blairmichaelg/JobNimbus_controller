@@ -13,7 +13,7 @@ from typing import List, Dict, Union, Any
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Request, BackgroundTasks, Body
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from app.api.auth import get_current_role
+from app.api.auth import get_current_role, get_current_claims
 from pydantic import BaseModel
 
 from app.core.database import get_connection, update_job_status
@@ -229,7 +229,7 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
     try:
         result = await run_full_office_pipeline(job_id, pdf_path, customer_name=homeowner_name)
         # Register document with hash
-        await asyncio.to_thread(insert_job_document, job_id, "eagleview.pdf", "application/pdf", str(pdf_path), file_hash)
+        await asyncio.to_thread(insert_job_document, job_id, "eagleview.pdf", "application/pdf", str(pdf_path), file_hash, "field_safe", "EAGLEVIEW_REPORT")
     except Exception as e:
         logger.error("master_pipeline_failed_route", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"Pipeline Orchestration Failed: {str(e)}")
@@ -285,10 +285,10 @@ async def upload_supplement_docs(
         
         # Insert them right away
         ev_doc_id = await asyncio.to_thread(
-            insert_job_document, job_id, ev_path.name, "EAGLEVIEW_PDF", str(ev_path), ev_sha256
+            insert_job_document, job_id, ev_path.name, "EAGLEVIEW_PDF", str(ev_path), ev_sha256, "field_safe", "EAGLEVIEW_REPORT"
         )
         sol_doc_id = await asyncio.to_thread(
-            insert_job_document, job_id, sol_path.name, "SOL_PDF", str(sol_path), sol_sha256
+            insert_job_document, job_id, sol_path.name, "SOL_PDF", str(sol_path), sol_sha256, "office_only", "STATEMENT_OF_LOSS"
         )
 
         await request.app.state.redis_pool.enqueue_job(
@@ -348,29 +348,31 @@ async def download_evidence_grid(job_id: str):
         raise HTTPException(status_code=500, detail="Failed to generate Evidence Grid.")
 
 
-@router.get("/jobs/{job_id}/docs/download/{doc_id}", dependencies=[Depends(get_current_role)])
-def download_job_document(job_id: str, doc_id: str, role: str = Depends(get_current_role)):
+@router.get("/jobs/{job_id}/docs/download/{doc_id}")
+def download_job_document(
+    job_id: str, 
+    doc_id: str, 
+    role: str = Depends(get_current_role), 
+    claims: dict = Depends(get_current_claims)
+):
     """
     Download a file from the Universal Document Vault.
     Enforces RBAC: Field reps cannot access financial or office-only documents.
     """
+    from app.api.field_routes import assert_field_rep_owns_job
+    if role == "field":
+        assert_field_rep_owns_job(claims, job_id)
+
     conn = get_connection()
     try:
-        cursor = conn.execute("SELECT storage_path, filename, file_type FROM job_documents WHERE id = ? AND job_id = ?", (doc_id, job_id))
+        cursor = conn.execute("SELECT storage_path, filename, file_type, visibility FROM job_documents WHERE id = ? AND job_id = ?", (doc_id, job_id))
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Document not found.")
             
         if role == "field":
-            safe_types = ["PHOTO", "EAGLEVIEW_PDF", "CONTINGENCY_SIGNED", "image/jpeg", "image/png", "application/pdf"]
-            if row["file_type"] not in safe_types:
-                raise HTTPException(status_code=403, detail="Not authorized to view this document type.")
-            
-            # Additional safety for generic PDFs
-            filename_lower = row["filename"].lower()
-            unsafe_keywords = ["estimate", "supplement", "commission", "qbo", "invoice", "statement_of_loss", "sol", "po_", "material"]
-            if any(keyword in filename_lower for keyword in unsafe_keywords):
-                raise HTTPException(status_code=403, detail="Not authorized to view this financial document.")
+            if row["visibility"] != "field_safe":
+                raise HTTPException(status_code=403, detail="Not authorized to view this document.")
         
         path = Path(row["storage_path"])
         if not path.exists():
@@ -434,7 +436,10 @@ async def upload_job_document(job_id: str, file_type: str = Form(...), file: Upl
             return {"status": "success", "filename": safe_name, "message": "Duplicate file detected."}
             
         try:
-            await asyncio.to_thread(insert_job_document, job_id, safe_name, actual_type, str(pdf_path), file_hash)
+            category = file_type.upper() if file_type else "UNSPECIFIED"
+            visibility = "field_safe" if category in ["HOVER_REPORT", "MEASUREMENT_REPORT", "PHOTO"] else "office_only"
+            
+            await asyncio.to_thread(insert_job_document, job_id, safe_name, actual_type, str(pdf_path), file_hash, visibility, category)
         except Exception:
             pdf_path.unlink(missing_ok=True)
             raise
@@ -534,7 +539,7 @@ def _sync_update_job_financials(job_id: str, payload: FinancialsPayload):
     )
     return results
 
-@router.post("/jobs/{job_id}/financials", dependencies=[Depends(verify_admin)])
+@router.post("/jobs/{job_id}/financials", dependencies=[Depends(verify_accounting)])
 async def update_job_financials(job_id: str, payload: FinancialsPayload, bg_tasks: BackgroundTasks):
     """
     Process pre-build job costing parameters from the Office Dashboard.

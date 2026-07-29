@@ -98,7 +98,9 @@ async def process_commission(
         filename="Commission_Statement.pdf",
         file_type="COMMISSION_PDF",
         storage_path=pdf_path,
-        sha256_hash=pdf_hash
+        sha256_hash=pdf_hash,
+        visibility="office_only",
+        category="COMMISSION_STATEMENT"
     )
 
     def _mark():

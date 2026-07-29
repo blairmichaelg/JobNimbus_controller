@@ -182,6 +182,8 @@ financial context and supplement report.
         file_type="ESCALATION_PDF",
         storage_path=pdf_path,
         sha256_hash=pdf_hash,
+        visibility="office_only",
+        category="ESCALATION_REPORT"
     )
 
     # ── Mark escalation sent AND reset supplement_sent_at (restart SLA) ──

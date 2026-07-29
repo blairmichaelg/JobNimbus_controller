@@ -405,6 +405,18 @@
                         </div>
                         {% endif %}
 
+                        <div class="mb-3">
+                            <label class="block text-sm text-gray-400 mb-1">Document Category</label>
+                            <select id="vault_category" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600">
+                                <option value="HOVER_REPORT">Hover / Measurement Report (Field Safe)</option>
+                                <option value="PHOTO">Job Photo (Field Safe)</option>
+                                <option value="MATERIAL_ORDER">Material Order (Office Only)</option>
+                                <option value="FINANCIAL_DOCUMENT">Financial Document (Office Only)</option>
+                                <option value="INTERNAL_NOTES">Internal Notes (Office Only)</option>
+                                <option value="OTHER">Other / Miscellaneous (Office Only)</option>
+                            </select>
+                        </div>
+
                         <div id="dropZoneVault" class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 hover:bg-gray-700 transition-colors cursor-pointer group">
                             <div class="text-gray-400 group-hover:text-gray-300">
                                 <p class="font-medium text-lg mb-1">📁 Upload Any Document</p>
@@ -414,25 +426,25 @@
                         </div>
                     </div>
 
-                    {% if role in ['admin', 'accounting'] %}
+                    {% if role in ['admin', 'accounting', 'operations'] %}
                     <!-- Financials Section -->
                     <div class="mt-6">
                         <h3 class="text-md font-medium text-gray-300 mb-3">Financials</h3>
                         <form id="financialsForm" class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
-                                <div><label class="block text-sm text-gray-400">Revenue</label><input type="number" id="fin_revenue" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
-                                <div><label class="block text-sm text-gray-400">Materials</label><input type="number" id="fin_materials" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
-                                <div><label class="block text-sm text-gray-400">Labor</label><input type="number" id="fin_labor" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
-                                <div><label class="block text-sm text-gray-400">Carrier RCV</label><input type="number" id="fin_carrier_rcv" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
-                                <div><label class="block text-sm text-gray-400">Deductible</label><input type="number" id="fin_deductible" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
-                                <div><label class="block text-sm text-gray-400">ACV Payment</label><input type="number" id="fin_acv_payment" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
-                                <div class="col-span-2"><label class="block text-sm text-gray-400">Recoverable Dep.</label><input type="number" id="fin_recoverable_depreciation" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01"></div>
+                                <div><label class="block text-sm text-gray-400">Revenue</label><input type="number" id="fin_revenue" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">Materials</label><input type="number" id="fin_materials" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">Labor</label><input type="number" id="fin_labor" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">Carrier RCV</label><input type="number" id="fin_carrier_rcv" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">Deductible</label><input type="number" id="fin_deductible" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">ACV Payment</label><input type="number" id="fin_acv_payment" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div class="col-span-2"><label class="block text-sm text-gray-400">Recoverable Dep.</label><input type="number" id="fin_recoverable_depreciation" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
                             </div>
+                            {% if role in ['admin', 'accounting'] %}
                             <button type="submit" class="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700">Save Financials</button>
+                            {% endif %}
                         </form>
                     </div>
-                    {% elif role == 'operations' %}
-                    <!-- Operations view of financials (Read-Only mode can be added here if needed in future, currently hidden from editing) -->
                     {% endif %}
 
                     {% if role == 'admin' %}
@@ -660,9 +672,11 @@
             if (!file) return;
             vaultLabel.innerText = "Uploading...";
             
+            const categorySelect = document.getElementById('vault_category');
+            const categoryVal = categorySelect ? categorySelect.value : 'UNSPECIFIED';
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('file_type', 'Vault Document');
+            formData.append('file_type', categoryVal);
             
             try {
                 const response = await fetch(`/api/office/jobs/{{ job.id }}/docs/upload`, {

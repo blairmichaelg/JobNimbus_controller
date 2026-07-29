@@ -15,7 +15,7 @@ def mock_background_tasks(monkeypatch):
 
 @pytest.fixture
 def set_auth():
-    response = client.post("/auth/login", data={"pin": "2222", "redirect_url": "/"}, follow_redirects=False)
+    response = client.post("/auth/login", data={"pin": "7777", "redirect_url": "/"}, follow_redirects=False)
     client.cookies.set("auth_token", response.cookies.get("auth_token"))
 
 @pytest.fixture

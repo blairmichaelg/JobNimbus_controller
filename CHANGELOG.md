@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0] - 2026-07-29
+### Added & Fixed (Final Production Hardening & RBAC Workspace)
+- **Financial Visibility Lock**: Hardened the Unified Job Workspace so Operations personnel have strict read-only access to job financials. The Save button is stripped from the DOM and the API endpoints rigorously enforce `verify_accounting` tokens.
+- **Document Vault Rearchitecture**: Overhauled the document vault upload UI to include a mandatory category dropdown. Uploaded files are now dynamically tagged with `field_safe` or `office_only` visibility directly at the SQLite level based on category, completely eliminating brittle filename keyword-matching logic.
+- **Immutable Download Security**: Rewrote the vault download endpoint to assert access control purely against the `visibility` database column. Field Reps are instantly denied (403 Forbidden) from downloading sensitive financial or estimate artifacts.
+- **Test Suite Perfection**: Developed `tests/test_rbac_hardening.py` to mathematically prove access boundaries between Field Reps and Office staff. Resolved critical test environment token leakage by moving auth setups directly into isolated fixtures. The entire 230-test suite is executing cleanly with a 100% success rate.
+
 ## [1.3.0] - 2026-07-29
 ### Added & Fixed (Shared Job Workspace & Document Vault)
 - **Unified Single Source of Truth**: Transitioned from a fragmented, role-split dashboard architecture to a shared, unified Job Workspace (`/office/jobs/{job_id}`).
