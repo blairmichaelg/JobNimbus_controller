@@ -87,10 +87,10 @@
                         <h3 class="text-md font-medium text-gray-300 mb-3">Upload Documents</h3>
                         <form id="uploadForm" class="space-y-4 relative">
                             <div class="grid grid-cols-1 gap-4">
-                                <!-- EagleView Upload -->
+                                <!-- Measurement Report Upload -->
                                 <div id="dropZoneEV" class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 hover:bg-gray-700 transition-colors cursor-pointer group">
                                     <div class="text-gray-400 group-hover:text-gray-300">
-                                        <p class="font-medium text-lg mb-1">📐 EagleView Report</p>
+                                        <p class="font-medium text-lg mb-1">📐 Measurement Report (EagleView or Hover)</p>
                                         <p id="evFileName" class="text-sm text-blue-400 mt-2">Click or drag PDF</p>
                                     </div>
                                     <input type="file" id="ev_input" accept=".pdf" class="hidden">
@@ -409,7 +409,7 @@
                             <label class="block text-sm text-gray-400 mb-1">Document Category</label>
                             <select id="vault_category" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600">
                                 <option value="HOVER_REPORT">Hover / Measurement Report (Field Safe)</option>
-                                <option value="MEASUREMENT_REPORT">EagleView / Measurement Report (Field Safe)</option>
+                                <option value="MEASUREMENT_REPORT">Measurement Report (EagleView or Hover) (Field Safe)</option>
                                 <option value="PHOTO">Job Photo (Field Safe)</option>
                                 <option value="MATERIAL_ORDER">Material Order (Office Only)</option>
                                 <option value="FINANCIAL_DOCUMENT">Financial Document (Office Only)</option>
@@ -579,7 +579,7 @@
             e.preventDefault();
             
             if (!evFile || !solFile) {
-                showToast('Please upload exactly two PDF files (EagleView and Statement of Loss).', 'error');
+                showToast('Please upload exactly two PDF files (Measurement Report and Statement of Loss).', 'error');
                 return;
             }
 

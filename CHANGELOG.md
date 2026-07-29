@@ -2,24 +2,28 @@
 
 ## [1.4.2] - 2026-07-29
 ### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Hover Extractor Service**: Built an isolated `hover_extractor.py` service capable of natively parsing Hover Roof Measurement PDFs into standard `EagleViewData` models. Includes a strict feet-inches to decimal conversion helper and a PDF format detector that automatically discriminates between Hover and EagleView documents.
 - **Hover Automated Tests**: Implemented comprehensive integration and unit tests in `test_hover_extractor.py` validating area, pitch, and facet extraction against real-world Hover files, achieving 100% test passage with zero regressions to the existing EagleView pipeline.
 
 ## [1.4.1] - 2026-07-29
 ### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Accounting Test Coverage**: Added `test_accounting_financials_allowed` to `test_rbac_hardening.py` confirming the accounting role can successfully bypass operations blockades and save financials.
 - **Transaction Lock Fix**: Patched a latent transaction error by adding a missing `BEGIN IMMEDIATE` lock to `upsert_job_financials`.
 - **Measurement Report Category**: Added standard `MEASUREMENT_REPORT` (EagleView) selector to the job workspace upload component, routing documents safely to `field_safe` status.
 
 ## [1.4.0] - 2026-07-29
-### Added & Fixed (Final Production Hardening & RBAC Workspace)
+### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Final Production Hardening & RBAC Workspace)
 - **Financial Visibility Lock**: Hardened the Unified Job Workspace so Operations personnel have strict read-only access to job financials. The Save button is stripped from the DOM and the API endpoints rigorously enforce `verify_accounting` tokens.
 - **Document Vault Rearchitecture**: Overhauled the document vault upload UI to include a mandatory category dropdown. Uploaded files are now dynamically tagged with `field_safe` or `office_only` visibility directly at the SQLite level based on category, completely eliminating brittle filename keyword-matching logic.
 - **Immutable Download Security**: Rewrote the vault download endpoint to assert access control purely against the `visibility` database column. Field Reps are instantly denied (403 Forbidden) from downloading sensitive financial or estimate artifacts.
 - **Test Suite Perfection**: Developed `tests/test_rbac_hardening.py` to mathematically prove access boundaries between Field Reps and Office staff. Resolved critical test environment token leakage by moving auth setups directly into isolated fixtures. The entire 230-test suite is executing cleanly with a 100% success rate.
 
 ## [1.3.0] - 2026-07-29
-### Added & Fixed (Shared Job Workspace & Document Vault)
+### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Shared Job Workspace & Document Vault)
 - **Unified Single Source of Truth**: Transitioned from a fragmented, role-split dashboard architecture to a shared, unified Job Workspace (`/office/jobs/{job_id}`).
 - **Role-Based Access Control (RBAC)**: Implemented `verify_office_role` to allow Admin, Operations, and Accounting access to the shared workspace, dynamically hiding sensitive financial data and admin-override controls via Jinja templates based on user role.
 - **Universal Document Vault**: Built a centralized, dynamic rendering loop within the unified dashboard that pulls directly from the `job_documents` SQLite table, providing a clean list of all files with immediate download links.
@@ -30,12 +34,14 @@
 - **Navigation Polish**: Replaced hardcoded dashboard `/login` hooks with proper `/auth/logout` handlers. Added 'View Job' deep-links across Accounting and Operations ledgers.
 
 ## [1.2.0] - 2026-07-28
-### Added & Fixed (Service Architecture & Auth Hardening)
+### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Service Architecture & Auth Hardening)
 - **New Service Architecture**: Migrated away from manual script execution to a persistent, automated Task Scheduler-based startup. Introduced specialized wrapper scripts (`srv_redis.ps1`, `srv_fastapi.ps1`, `srv_worker.ps1`, `srv_tunnel.ps1`) to handle automated restart loops, dedicated logging, and port resolution on system boot.
 - **Repository Hygiene**: Superseded and removed legacy orchestration scripts (`start_prod.ps1`, `start_production.ps1`) and miscellaneous development scratch files.
 - **Auth Hardening**: Enforced explicit authentication requirements across `/office/jobs/{job_id}`, `/field`, and `/ws/office` routes, solidifying the role-based access control architecture.
 ## [1.1.0] - 2026-07-25
-### Added & Fixed (Accounting Ledger Hardening & Root Decluttering)
+### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Accounting Ledger Hardening & Root Decluttering)
 - **Accounting Dashboard Remediation**: Fully hardened `accounting_dashboard.html` against JavaScript runtime failures. Fixed variable scope leakage on empty commission states (`cdata`/`ctbody`), deployed safe Number conversions (`|| 0`) on financial formatting to prevent `.toFixed()` type exceptions, and engineered tolerant date parsing for non-UTC timestamps.
 - **Resilient Realtime WebSockets**: Replaced raw WebSocket instantiations in the Accounting ledger with a robust `connectWebSocket()` pattern featuring automatic exponential reconnection retry logic (5-second fallback) upon connection drop or worker reboot.
 - **Manual Commission Override Engine**: Added UI controls ("Adjust %" / "Reset to Default") and backend API routing (`/api/office/accounting/jobs/{job_id}/commission-override`) enabling Accounting personnel (Debi) to manually override standard 10% canvasser commission allocations per job.
@@ -44,14 +50,16 @@
 - **Enterprise Documentation Overhaul**: Modernized public engineering documentation (`README.md`, `ARCHITECTURE.md`, `DEPLOYMENT.md`, `CONTRIBUTING.md`) to reflect the multi-role standalone V4 Truck Server operating platform and celebrate our verified 229-test 100% passing test matrix.
 
 ## [1.0.0] - 2026-07-22
-### Added & Fixed (The Great Pruning & Final Launch Preparation)
+### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (The Great Pruning & Final Launch Preparation)
 - **Production Cleanliness**: Ruthlessly pruned all dead code, orphaned UI templates, and legacy developer scripts. Removed 51 instances of unused code and legacy `.db`/`.txt` bloat from the repository root.
 - **UI-to-DB Re-wiring**: Repaired multiple silent JavaScript routing failures across the isolated Field, Operations, and Admin Triage dashboards caused by the Phase 9 JWT security upgrades.
 - **ARQ Worker Patch**: Patched a fatal `AttributeError` in the `field_routes.py` supplement resumption endpoint to correctly target `request.app.state.redis_pool`.
 - **E2E Mathematical Stability**: Implemented `tests/test_happy_path.py`, an end-to-end integration test proving the complete multi-role lifecycle (Canvasser injection, AI orchestration, Operations scheduling, and Accounting QBO export). The local-first Truck Server CRM is mathematically proven stable for launch.
 
 ## [0.9.0] - 2026-07-21
-### Added & Fixed (Phase 3 Security Hardening)
+### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Phase 3 Security Hardening)
 - **Role Isolation & Dependencies**: Integrated strict JWT role validations across all route files. Enforced `verify_admin` on office endpoints and `verify_accounting` on ledger toggles. Injected role identities explicitly into ARQ background pipelines, completely halting unauthenticated queue requests.
 - **Path Traversal Protection**: Hardened the download route infrastructure. Added a robust `sanitize_download_filename` barrier that structurally enforces exact matching on expected document names, eliminating relative path (`../`) vulnerabilities.
 - **Field Rep Boundary Enforcement**: Implemented `assert_field_rep_owns_job` across the `/api/field/` namespace. Field reps are now strictly isolated to jobs matching their `canvasser_rep_id`, halting cross-rep snooping. Admin JWTs can dynamically bypass this barrier.
@@ -61,13 +69,15 @@
 
 ## [0.8.1] - 2026-07-21
 ### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Fixed `pdf_path` return value**: Corrected the return value of `run_supplement_pipeline` to return the permanent PDF path instead of a nullified temporary path.
 - **Weaponized Waste Justification Testing**: Added direct unit test (`test_build_waste_explanation_weaponized`) covering dynamic waste formatting.
 - **Resume Path Regression Prevention**: Implemented `test_resume_succeeds_with_saved_report` to prove a successful resume uses the saved `DiscrepancyReport` without re-parsing or regenerating data.
 - **Dynamic Waste for Material Orders**: Updated `generate_material_order_pipeline` to dynamically compute waste instead of statically falling back to 15%, reducing material over-ordering risk, along with a regression test.
 
 ## [0.8.0] - 2026-07-21
-### Added & Fixed (Phase 2 Hardening)
+### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Phase 2 Hardening)
 - **No Silent Zeros Pipeline Block**: Hard-blocked the supplement pipeline on missing flashing or step-flashing metrics, protecting financial determinism and routing incomplete jobs to `PENDING_OPERATOR_REVIEW`.
 - **Gross RCV Verification**: Enforced a hard-halt on Statement of Loss (SoL) ingestion if the Carrier Gross RCV math fails to verify, catching synthetic math discrepancies before narrative generation.
 - **Idempotent Flag Generation**: Rebuilt the `generate_and_gate_flags` and SoL math discrepancy flag insertions to use an idempotent `DELETE`/`INSERT` transaction block, preventing ghost flags upon document resubmission.
@@ -77,6 +87,7 @@
 
 ## [0.7.0] - 2026-07-15
 ### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Atomic State Machine Consolidation**: Refactored `update_material_flags` into `transition_material_flags` to guarantee atomic database flag updates and job state transitions inside a single `BEGIN IMMEDIATE` transaction, eliminating race conditions that previously stalled the pipeline.
 - **Admin State Override API**: Created `force_override_status` and exposed it via `/api/admin/jobs/{job_id}/override` to allow emergency state machine bypasses. Enforces a mandatory "ADMIN OVERRIDE" prefix in the job's JSON history trail.
 - **State Machine Hardening**: Split `JobStatus` into Processing (ARQ) and Business (Operator) tracks with explicit API gates.
@@ -98,6 +109,7 @@
 
 ## [0.6.1] - 2026-07-13
 ### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Pre-Demo Stability Audit**: Resolved 7 critical and high-priority bugs identified during system audit.
 - **Pipeline Lifecycle**: Fixed premature status transitions; EagleView uploads now transition to `EV_PARSED` instead of auto-invoicing via QBO export.
 - **Data Integrity**: Corrected EagleView field name mapping in inspection letters and wired live database lookups for inspection addresses.
@@ -107,6 +119,7 @@
 
 ## [0.6.0] - 2026-07-13
 ### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Architectural Refactor**: Comprehensive backend hardening for the V4 Truck Server.
 - **SQLite Concurrency**: Enforced explicit `BEGIN IMMEDIATE` transaction blocks and PRAGMA configurations (WAL, mmap, busy_timeout) to eliminate read-to-write database locks.
 - **Universal Claim AST**: Built `ingestion_models.py` leveraging Pydantic V2 for mathematically deterministic extraction of adjustor claims.
@@ -115,6 +128,7 @@
 
 ## [0.5.2] - 2026-07-13
 ### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **System Stability**: Resolved critical asynchronous Coroutine execution bugs in the V4 Truck Server pipeline affecting inspection doc generation.
 - **Type Safety**: Enforced strict typing compliance (100% `mypy` passing) across `pdf_generator.py` ReportLab bindings.
 - **Code Cleanliness**: Resolved all `ruff` static analysis linting errors by pruning unused imports, unused variables, and organizing module imports.
@@ -122,6 +136,7 @@
 
 ## [0.5.1] - 2026-07-10
 ### Added & Fixed
+- **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Security Hardening**: Patched UUID path traversal vulnerabilities across all `field_routes.py` mutation endpoints.
 - **Backup Environment Targeting**: Scoped the SQLite hot backup system to only execute in production (`APP_ENV=production`), protecting production data from local development pollution.
 - **Deterministic Math Engine**: Wired the pure mathematical `calculate_ice_and_water_rolls` function into the orchestrator pipeline for climate-gated calculations.

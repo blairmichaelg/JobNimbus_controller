@@ -17,7 +17,9 @@ from app.api.auth import get_current_role, get_current_claims
 from pydantic import BaseModel
 
 from app.core.database import get_connection, update_job_status
+from app.core.pipeline import parse_measurement_pdf
 from app.services.pdf_extractor import extract_eagleview_data
+from app.services.hover_extractor import detect_pdf_format
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
@@ -211,6 +213,18 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="Failed to save EagleView PDF")
 
 
+
+    # Format Detection Route
+    try:
+        fmt = detect_pdf_format(pdf_path)
+        if fmt == "UNKNOWN":
+            pdf_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=400, detail="Unknown measurement PDF format. Must be EagleView or Hover.")
+    except Exception as e:
+        pdf_path.unlink(missing_ok=True)
+        if isinstance(e, HTTPException): raise
+        raise HTTPException(status_code=400, detail=str(e))
+
     # 2. Check for duplicate hash
     existing_doc = await asyncio.to_thread(get_job_document_by_hash, job_id, file_hash)
     if existing_doc:
@@ -231,7 +245,8 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
         # Register document with hash
         await asyncio.to_thread(insert_job_document, job_id, "eagleview.pdf", "application/pdf", str(pdf_path), file_hash, "field_safe", "EAGLEVIEW_REPORT")
     except Exception as e:
-        logger.error("master_pipeline_failed_route", job_id=job_id, error=str(e))
+        import traceback
+        logger.error("master_pipeline_failed_route", job_id=job_id, error=traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Pipeline Orchestration Failed: {str(e)}")
 
     return {"status": "success", "message": "Master Pipeline complete, QBO CSV generated.", "pipeline_result": result}
@@ -268,6 +283,19 @@ async def upload_supplement_docs(
         logger.error("supplement_docs_upload_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to save PDFs")
 
+
+
+    try:
+        fmt = detect_pdf_format(ev_path)
+        if fmt == "UNKNOWN":
+            ev_path.unlink(missing_ok=True)
+            sol_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=400, detail="Unknown measurement PDF format. Must be EagleView or Hover.")
+    except Exception as e:
+        ev_path.unlink(missing_ok=True)
+        sol_path.unlink(missing_ok=True)
+        if isinstance(e, HTTPException): raise
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Deduplication check
     existing_ev = await asyncio.to_thread(get_job_document_by_hash, job_id, ev_hash)
@@ -468,7 +496,7 @@ async def get_inspection_letter(job_id: str):
     if not ev_pdf.exists():
         raise HTTPException(400, "EagleView not yet uploaded. Cannot generate letter.")
         
-    ev_data_obj, _ = await extract_eagleview_data(ev_pdf)
+    ev_data_obj, _ = await parse_measurement_pdf(ev_pdf)
     ev_data = ev_data_obj.model_dump() if hasattr(ev_data_obj, 'model_dump') else dict(ev_data_obj)
 
     inspection_summary = {"damage_count": 0, "predominant_damage_type": "None", "severity": "Low"}

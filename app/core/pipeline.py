@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from app.services.pdf_extractor import extract_eagleview_data
+from app.services.hover_extractor import extract_hover_data, detect_pdf_format
 from app.core.reconciliation import reconcile
 from app.core.supplement_models import StatementOfLoss
 from app.services.qbo_export import generate_qbo_invoice
@@ -18,6 +19,16 @@ from app.services.supplement_engine import SupplementEngine
 from app.core.supplement_models import EagleViewData
 
 logger = structlog.get_logger("app.core.pipeline")
+
+
+async def parse_measurement_pdf(pdf_path: str | Path):
+    fmt = detect_pdf_format(pdf_path)
+    if fmt == "HOVER":
+        return await extract_hover_data(pdf_path)
+    elif fmt == "EAGLEVIEW":
+        return await extract_eagleview_data(pdf_path)
+    else:
+        raise ValueError(f"Unknown measurement PDF format: {pdf_path}")
 
 async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name: str = "Unknown Customer") -> dict[str, Any]:
     """The Master Orchestrator for the V4 Pipeline.
@@ -40,7 +51,7 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
     
     try:
         # 1. Parse EV PDF
-        ev_data, ev_hash = await extract_eagleview_data(ev_pdf_path)
+        ev_data, ev_hash = await parse_measurement_pdf(ev_pdf_path)
         log.info("pipeline_ev_parsed", sq=ev_data.total_area_sf / 100.0)
 
         import asyncio
@@ -66,7 +77,7 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
         
         import asyncio
         # 3. Generate QBO CSV as a reference export (does NOT auto-invoice)
-        csv_path = await asyncio.to_thread(generate_qbo_invoice, job_id, bom, customer_name)
+        csv_path = generate_qbo_invoice(job_id, bom, customer_name)
         log.info("pipeline_qbo_generated", csv_path=csv_path)
         
         # 4. Transition Status to PENDING_OPERATOR_REVIEW
@@ -98,7 +109,7 @@ async def generate_material_order_pipeline(job_id: str, supplier_name: str, deli
     if not pdf_path.exists():
         raise ValueError("EagleView PDF not found. Cannot generate PO.")
         
-    ev_data, _ = await extract_eagleview_data(pdf_path)
+    ev_data, _ = await parse_measurement_pdf(pdf_path)
     sol_pdf_path = job_dir / "statement_of_loss.pdf"
     if sol_pdf_path.exists():
         ai_svc = AIService()
@@ -631,7 +642,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
                 raise ValueError("PDF paths must be provided when not resuming")
             
             # 1. Extract EV Data
-            ev_data, ev_hash = await extract_eagleview_data(str(ev_pdf_path))
+            ev_data, ev_hash = await parse_measurement_pdf(str(ev_pdf_path))
 
             from app.core.database import _fetch_job_sync
             job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)  # type: ignore
