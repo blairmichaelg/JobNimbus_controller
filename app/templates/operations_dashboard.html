@@ -9,7 +9,7 @@
 <body class="bg-black text-gray-100 h-screen flex flex-col font-mono overflow-hidden">
     <div class="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900 shadow-md">
         <h1 class="text-3xl font-bold text-blue-400 uppercase tracking-widest flex items-center">
-            <svg class="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            <img src="/static/logo.png" alt="Wickham Roofing Logo" class="w-10 h-10 mr-3 rounded">
             Operations Command
         </h1>
         <a href="/auth/logout" class="text-gray-400 hover:text-white px-4 py-2 border border-gray-700 rounded transition-colors">Logout</a>
@@ -32,6 +32,7 @@
                             <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-bold">{{ job.invoice_id or job.id[:8] }}</a>
                             <h3 class="text-white font-bold text-lg">{{ job.homeowner_name }}</h3>
                             <p class="text-gray-400 text-sm">{{ job.address_line1 }}, {{ job.city }}</p>
+                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="mt-2 inline-block text-blue-400 hover:text-blue-300 text-sm font-bold">View Details &rarr;</a>
                         </div>
                     </div>
                     <div class="mt-4 flex gap-2">
@@ -63,6 +64,7 @@
                             <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-bold">{{ job.invoice_id or job.id[:8] }}</a>
                             <h3 class="text-white font-bold text-lg">{{ job.homeowner_name }}</h3>
                             <p class="text-gray-400 text-sm">{{ job.address_line1 }}, {{ job.city }}</p>
+                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="mt-2 inline-block text-blue-400 hover:text-blue-300 text-sm font-bold">View Details &rarr;</a>
                         </div>
                     </div>
                     <div class="mt-4 flex gap-2">
@@ -94,6 +96,7 @@
                             <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-bold">{{ job.invoice_id or job.id[:8] }}</a>
                             <h3 class="text-white font-bold text-lg">{{ job.homeowner_name }}</h3>
                             <p class="text-gray-400 text-sm">{{ job.address_line1 }}, {{ job.city }}</p>
+                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="mt-2 inline-block text-blue-400 hover:text-blue-300 text-sm font-bold">View Details &rarr;</a>
                         </div>
                     </div>
                     <form onsubmit="scheduleCrew(event, '{{ job.id }}')" class="space-y-3">

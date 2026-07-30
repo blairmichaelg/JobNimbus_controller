@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accounting Drill-Down - {{ job.invoice_id or job.id[:8] }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-gray-100 p-8 font-mono">
+    <div class="max-w-4xl mx-auto space-y-6">
+        <div class="flex items-center justify-between border-b border-gray-800 pb-4">
+            <h1 class="text-3xl font-bold text-green-400 uppercase tracking-widest flex items-center">
+                <img src="/static/logo.png" alt="Wickham Roofing Logo" class="w-10 h-10 mr-3 rounded">
+                Accounting Drill-Down: {{ job.invoice_id or job.id[:8] }}
+            </h1>
+            <a href="/office" class="text-gray-400 hover:text-white">&larr; Back to Dashboard</a>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6">
+            <div class="bg-gray-900 p-6 rounded border border-gray-700 shadow-2xl">
+                <h2 class="text-xl font-semibold mb-4 text-green-300 border-b border-gray-700 pb-2">Financial Overview</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-gray-500 text-sm">Revenue</p>
+                        <p class="text-white text-xl">${{ "%.2f"|format(job.revenue or 0) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">Materials Cost</p>
+                        <p class="text-red-400 text-xl">-${{ "%.2f"|format(job.materials_cost or 0) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">Labor Cost</p>
+                        <p class="text-red-400 text-xl">-${{ "%.2f"|format(job.labor_cost or 0) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">Carrier RCV</p>
+                        <p class="text-white text-xl">${{ "%.2f"|format(job.carrier_rcv or 0) }}</p>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-700">
+                    <p class="text-gray-500 text-sm">Total Margin</p>
+                    <p class="text-green-400 text-2xl font-bold">${{ "%.2f"|format((job.revenue or 0) - (job.materials_cost or 0) - (job.labor_cost or 0)) }}</p>
+                </div>
+            </div>
+            
+            <div class="bg-gray-900 p-6 rounded border border-gray-700 shadow-2xl">
+                <h2 class="text-xl font-semibold mb-4 text-green-300 border-b border-gray-700 pb-2">Client & Status</h2>
+                <p class="text-gray-500 text-sm">Homeowner</p>
+                <p class="text-white">{{ job.homeowner_name }}</p>
+                <p class="text-gray-500 text-sm mt-2">Status</p>
+                <p class="text-green-300 font-bold">{{ job.status }}</p>
+                <p class="text-gray-500 text-sm mt-2">Invoiced?</p>
+                <p class="text-white">{{ 'Yes' if job.status == 'INVOICED' else 'No' }}</p>
+            </div>
+        </div>
+
+        <div class="bg-gray-900 p-6 rounded border border-gray-700 shadow-2xl">
+            <h2 class="text-xl font-semibold mb-4 text-green-300 border-b border-gray-700 pb-2">Accounting & Financial Documents</h2>
+            <ul class="space-y-2">
+                {% for doc in job.documents %}
+                    <li class="flex justify-between items-center bg-black p-3 rounded border border-gray-800">
+                        <span>📄 {{ doc.filename }} <span class="text-xs text-gray-500">({{ doc.category }})</span></span>
+                        <a href="/api/office/documents/{{ doc.id }}/download" class="text-green-400 hover:text-green-300">Download</a>
+                    </li>
+                {% else %}
+                    <p class="text-gray-500">No documents on file.</p>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

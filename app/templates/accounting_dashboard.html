@@ -9,7 +9,10 @@
 <body class="bg-black text-gray-100 h-screen flex flex-col overflow-hidden font-mono">
     <div class="p-8 h-full flex flex-col">
         <div class="flex justify-between items-center border-b border-gray-800 pb-4 mb-8">
-            <h1 class="text-3xl font-bold text-green-400 uppercase tracking-widest">Accounting Ledger</h1>
+            <div class="flex items-center">
+                <img src="/static/logo.png" alt="Wickham Roofing Logo" class="w-10 h-10 mr-3 rounded">
+                <h1 class="text-3xl font-bold text-green-400 uppercase tracking-widest">Accounting Ledger</h1>
+            </div>
             <a href="/auth/logout" class="text-gray-500 hover:text-white">Logout</a>
         </div>
         
@@ -94,7 +97,10 @@
                         const suppText = row.supplement_received ? '✓ Received' : 'Pending';
                         tbody.innerHTML += `
                             <tr class="hover:bg-gray-800 transition-colors">
-                                <td class="py-4 px-4 text-gray-300 font-mono"><a href="/office/jobs/${row.job_id}" target="_blank" class="hover:underline"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></a></td>
+                                <td class="py-4 px-4 text-gray-300 font-mono">
+                                    <a href="/office/jobs/${row.job_id}" target="_blank" class="hover:underline"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></a>
+                                    <a href="/office/jobs/${row.job_id}" target="_blank" class="mt-1 block text-green-400 hover:text-green-300 text-xs font-bold uppercase tracking-wider">View Details &rarr;</a>
+                                </td>
                                 <td class="py-4 px-4 text-white font-bold">${row.name}</td>
                                 <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
                                 <td class="px-4 py-3">

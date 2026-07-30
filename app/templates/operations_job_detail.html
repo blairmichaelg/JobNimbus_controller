@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operations Details - {{ job.invoice_id or job.id[:8] }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 p-8 font-mono">
+    <div class="max-w-4xl mx-auto space-y-6">
+        <div class="flex items-center justify-between border-b border-gray-700 pb-4">
+            <h1 class="text-3xl font-bold text-blue-400 uppercase tracking-widest flex items-center">
+                <img src="/static/logo.png" alt="Wickham Roofing Logo" class="w-10 h-10 mr-3 rounded">
+                Operations Details: {{ job.invoice_id or job.id[:8] }}
+            </h1>
+            <a href="/office" class="text-gray-400 hover:text-white">&larr; Back to Dashboard</a>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-6">
+            <div class="bg-gray-800 p-6 rounded border border-gray-700 shadow-md">
+                <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Client Info</h2>
+                <p class="text-gray-400 text-sm">Name</p>
+                <p class="text-white text-lg">{{ job.homeowner_name }}</p>
+                <p class="text-gray-400 text-sm mt-2">Address</p>
+                <p class="text-white">{{ job.address_line1 }}</p>
+                <p class="text-white">{{ job.city }}, {{ job.state }} {{ job.postal_code }}</p>
+            </div>
+            <div class="bg-gray-800 p-6 rounded border border-gray-700 shadow-md">
+                <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Status & Crew</h2>
+                <p class="text-gray-400 text-sm">Status</p>
+                <p class="text-blue-300 text-lg font-bold">{{ job.status }}</p>
+                <p class="text-gray-400 text-sm mt-2">Materials Order Status</p>
+                <p class="text-white font-mono">{{ 'Ordered' if job.material_order_id else 'Pending' }}</p>
+                <p class="text-gray-400 text-sm mt-2">Schedule</p>
+                <p class="text-white">{{ job.schedule_date or 'TBD' }}</p>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded border border-gray-700 shadow-md">
+            <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Non-Financial Documents</h2>
+            <ul class="space-y-2">
+                {% for doc in job.documents %}
+                    {% if doc.visibility != 'financial' %}
+                    <li class="flex justify-between items-center bg-gray-900 p-3 rounded border border-gray-700">
+                        <span>📄 {{ doc.filename }} <span class="text-gray-400 text-sm">({{ doc.category }})</span></span>
+                        <a href="/api/office/documents/{{ doc.id }}/download" class="text-blue-400 hover:text-blue-300">Download</a>
+                    </li>
+                    {% endif %}
+                {% else %}
+                    <p class="text-gray-400">No documents uploaded.</p>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
