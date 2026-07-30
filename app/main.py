@@ -392,13 +392,7 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
     documents = await asyncio.to_thread(get_job_documents, job_id)
     job["documents"] = documents
 
-    template_name = "job_detail.html"
-    if role == "operations":
-        template_name = "operations_job_detail.html"
-    elif role == "accounting":
-        template_name = "accounting_job_detail.html"
-
-    return templates.TemplateResponse(request, template_name, {
+    return templates.TemplateResponse(request, "job_detail.html", {
         "request": request, 
         "job": job,
         "role": role,
