@@ -12,6 +12,12 @@ def dummy_pdf_path(tmp_path):
     pdf.write_bytes(b"dummy pdf")
     return pdf
 
+@pytest.fixture(autouse=True)
+def mock_pdf_detector():
+    with patch("app.core.pipeline.detect_pdf_format", return_value="EAGLEVIEW"), \
+         patch("app.api.office_routes.detect_pdf_format", return_value="EAGLEVIEW"):
+        yield
+
 # 1. test_eagleview_raises_on_missing_pitch
 @pytest.mark.asyncio
 async def test_eagleview_raises_on_missing_pitch(dummy_pdf_path):

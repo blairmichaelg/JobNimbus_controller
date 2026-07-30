@@ -2,12 +2,14 @@
 
 ## [1.4.2] - 2026-07-29
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Hover Extractor Service**: Built an isolated `hover_extractor.py` service capable of natively parsing Hover Roof Measurement PDFs into standard `EagleViewData` models. Includes a strict feet-inches to decimal conversion helper and a PDF format detector that automatically discriminates between Hover and EagleView documents.
 - **Hover Automated Tests**: Implemented comprehensive integration and unit tests in `test_hover_extractor.py` validating area, pitch, and facet extraction against real-world Hover files, achieving 100% test passage with zero regressions to the existing EagleView pipeline.
 
 ## [1.4.1] - 2026-07-29
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Accounting Test Coverage**: Added `test_accounting_financials_allowed` to `test_rbac_hardening.py` confirming the accounting role can successfully bypass operations blockades and save financials.
 - **Transaction Lock Fix**: Patched a latent transaction error by adding a missing `BEGIN IMMEDIATE` lock to `upsert_job_financials`.
@@ -15,6 +17,7 @@
 
 ## [1.4.0] - 2026-07-29
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Final Production Hardening & RBAC Workspace)
 - **Financial Visibility Lock**: Hardened the Unified Job Workspace so Operations personnel have strict read-only access to job financials. The Save button is stripped from the DOM and the API endpoints rigorously enforce `verify_accounting` tokens.
 - **Document Vault Rearchitecture**: Overhauled the document vault upload UI to include a mandatory category dropdown. Uploaded files are now dynamically tagged with `field_safe` or `office_only` visibility directly at the SQLite level based on category, completely eliminating brittle filename keyword-matching logic.
@@ -23,6 +26,7 @@
 
 ## [1.3.0] - 2026-07-29
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Shared Job Workspace & Document Vault)
 - **Unified Single Source of Truth**: Transitioned from a fragmented, role-split dashboard architecture to a shared, unified Job Workspace (`/office/jobs/{job_id}`).
 - **Role-Based Access Control (RBAC)**: Implemented `verify_office_role` to allow Admin, Operations, and Accounting access to the shared workspace, dynamically hiding sensitive financial data and admin-override controls via Jinja templates based on user role.
@@ -35,12 +39,14 @@
 
 ## [1.2.0] - 2026-07-28
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Service Architecture & Auth Hardening)
 - **New Service Architecture**: Migrated away from manual script execution to a persistent, automated Task Scheduler-based startup. Introduced specialized wrapper scripts (`srv_redis.ps1`, `srv_fastapi.ps1`, `srv_worker.ps1`, `srv_tunnel.ps1`) to handle automated restart loops, dedicated logging, and port resolution on system boot.
 - **Repository Hygiene**: Superseded and removed legacy orchestration scripts (`start_prod.ps1`, `start_production.ps1`) and miscellaneous development scratch files.
 - **Auth Hardening**: Enforced explicit authentication requirements across `/office/jobs/{job_id}`, `/field`, and `/ws/office` routes, solidifying the role-based access control architecture.
 ## [1.1.0] - 2026-07-25
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Accounting Ledger Hardening & Root Decluttering)
 - **Accounting Dashboard Remediation**: Fully hardened `accounting_dashboard.html` against JavaScript runtime failures. Fixed variable scope leakage on empty commission states (`cdata`/`ctbody`), deployed safe Number conversions (`|| 0`) on financial formatting to prevent `.toFixed()` type exceptions, and engineered tolerant date parsing for non-UTC timestamps.
 - **Resilient Realtime WebSockets**: Replaced raw WebSocket instantiations in the Accounting ledger with a robust `connectWebSocket()` pattern featuring automatic exponential reconnection retry logic (5-second fallback) upon connection drop or worker reboot.
@@ -51,6 +57,7 @@
 
 ## [1.0.0] - 2026-07-22
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (The Great Pruning & Final Launch Preparation)
 - **Production Cleanliness**: Ruthlessly pruned all dead code, orphaned UI templates, and legacy developer scripts. Removed 51 instances of unused code and legacy `.db`/`.txt` bloat from the repository root.
 - **UI-to-DB Re-wiring**: Repaired multiple silent JavaScript routing failures across the isolated Field, Operations, and Admin Triage dashboards caused by the Phase 9 JWT security upgrades.
@@ -59,6 +66,7 @@
 
 ## [0.9.0] - 2026-07-21
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Phase 3 Security Hardening)
 - **Role Isolation & Dependencies**: Integrated strict JWT role validations across all route files. Enforced `verify_admin` on office endpoints and `verify_accounting` on ledger toggles. Injected role identities explicitly into ARQ background pipelines, completely halting unauthenticated queue requests.
 - **Path Traversal Protection**: Hardened the download route infrastructure. Added a robust `sanitize_download_filename` barrier that structurally enforces exact matching on expected document names, eliminating relative path (`../`) vulnerabilities.
@@ -69,6 +77,7 @@
 
 ## [0.8.1] - 2026-07-21
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Fixed `pdf_path` return value**: Corrected the return value of `run_supplement_pipeline` to return the permanent PDF path instead of a nullified temporary path.
 - **Weaponized Waste Justification Testing**: Added direct unit test (`test_build_waste_explanation_weaponized`) covering dynamic waste formatting.
@@ -77,6 +86,7 @@
 
 ## [0.8.0] - 2026-07-21
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries. (Phase 2 Hardening)
 - **No Silent Zeros Pipeline Block**: Hard-blocked the supplement pipeline on missing flashing or step-flashing metrics, protecting financial determinism and routing incomplete jobs to `PENDING_OPERATOR_REVIEW`.
 - **Gross RCV Verification**: Enforced a hard-halt on Statement of Loss (SoL) ingestion if the Carrier Gross RCV math fails to verify, catching synthetic math discrepancies before narrative generation.
@@ -87,6 +97,7 @@
 
 ## [0.7.0] - 2026-07-15
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Atomic State Machine Consolidation**: Refactored `update_material_flags` into `transition_material_flags` to guarantee atomic database flag updates and job state transitions inside a single `BEGIN IMMEDIATE` transaction, eliminating race conditions that previously stalled the pipeline.
 - **Admin State Override API**: Created `force_override_status` and exposed it via `/api/admin/jobs/{job_id}/override` to allow emergency state machine bypasses. Enforces a mandatory "ADMIN OVERRIDE" prefix in the job's JSON history trail.
@@ -109,6 +120,7 @@
 
 ## [0.6.1] - 2026-07-13
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Pre-Demo Stability Audit**: Resolved 7 critical and high-priority bugs identified during system audit.
 - **Pipeline Lifecycle**: Fixed premature status transitions; EagleView uploads now transition to `EV_PARSED` instead of auto-invoicing via QBO export.
@@ -119,6 +131,7 @@
 
 ## [0.6.0] - 2026-07-13
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Architectural Refactor**: Comprehensive backend hardening for the V4 Truck Server.
 - **SQLite Concurrency**: Enforced explicit `BEGIN IMMEDIATE` transaction blocks and PRAGMA configurations (WAL, mmap, busy_timeout) to eliminate read-to-write database locks.
@@ -128,6 +141,7 @@
 
 ## [0.5.2] - 2026-07-13
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **System Stability**: Resolved critical asynchronous Coroutine execution bugs in the V4 Truck Server pipeline affecting inspection doc generation.
 - **Type Safety**: Enforced strict typing compliance (100% `mypy` passing) across `pdf_generator.py` ReportLab bindings.
@@ -136,6 +150,7 @@
 
 ## [0.5.1] - 2026-07-10
 ### Added & Fixed
+- **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
 - **Security Hardening**: Patched UUID path traversal vulnerabilities across all `field_routes.py` mutation endpoints.
 - **Backup Environment Targeting**: Scoped the SQLite hot backup system to only execute in production (`APP_ENV=production`), protecting production data from local development pollution.

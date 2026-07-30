@@ -65,15 +65,6 @@ def detect_pdf_format(pdf_path: str | Path) -> str:
             else:
                 return "UNKNOWN"
     except Exception:
-        import os
-        if os.environ.get("APP_ENV") == "test":
-            try:
-                content = Path(pdf_path).read_text(errors="ignore")
-                if "No /Root object!" in content or "dummy non-hover non-eagleview content" in content:
-                    return "UNKNOWN"
-            except Exception:
-                pass
-            return "EAGLEVIEW"
         return "UNKNOWN"
 
 async def extract_hover_data(pdf_path: str | Path) -> tuple[EagleViewData, str]:

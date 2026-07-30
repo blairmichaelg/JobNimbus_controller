@@ -2,6 +2,14 @@ import pytest
 from pathlib import Path
 from fastapi.testclient import TestClient
 
+from unittest.mock import patch
+
+@pytest.fixture(autouse=True)
+def mock_pdf_detector():
+    with patch("app.api.office_routes.detect_pdf_format", return_value="EAGLEVIEW"), \
+         patch("app.core.pipeline.detect_pdf_format", return_value="EAGLEVIEW"):
+        yield
+
 from app.main import app
 from app.core.database import get_connection
 

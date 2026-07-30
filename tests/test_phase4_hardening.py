@@ -15,6 +15,12 @@ response = client.post("/auth/login", data={"pin": "9999", "redirect_url": "/"},
 auth_cookie = response.cookies.get("auth_token")
 client.cookies.set("auth_token", auth_cookie)
 
+@pytest.fixture(autouse=True)
+def mock_pdf_detector():
+    with patch("app.api.office_routes.detect_pdf_format", return_value="EAGLEVIEW"), \
+         patch("app.core.pipeline.detect_pdf_format", return_value="EAGLEVIEW"):
+        yield
+
 @pytest.fixture
 def db_conn():
     conn = get_connection()
