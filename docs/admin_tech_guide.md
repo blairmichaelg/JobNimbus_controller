@@ -13,7 +13,8 @@ system. As Admin, you hold the highest level of access in the system.
 
 After logging in, you land on **"Wickham Roofing - Pipeline Orchestrator"**
 — your main command center showing every job as a card, organized by
-status column.
+status column. The Wickham Roofing logo appears in the header alongside
+the title.
 
 ### Navigation
 - **👥 Field Reps** — manage canvasser/rep records.
@@ -32,14 +33,21 @@ status column.
 - **Red "SLA EXCEEDED: X Days" badges** — a carrier has gone silent too
   long and the job needs an escalation letter (see Section 4).
 
+### Clicking into a job
+Click any job card to open the **unified job detail view**. This is the
+same full-access view shared by Admin, Operations, and Accounting —
+all three roles see all financials, margins, documents, and actions.
+There is no restriction between these three office roles on job data.
+
 ---
 
 ## 2. Resolving Stuck Jobs (Operator Triage)
 
-When EagleView or Statement of Loss parsing can't confidently extract a
-required number, the system **refuses to guess** — it hard-blocks the
-job into `PENDING_OPERATOR_REVIEW` instead of silently defaulting to
-zero. This is intentional and protects you from bad math downstream.
+When a measurement report or Statement of Loss parsing can't confidently
+extract a required number, the system **refuses to guess** — it
+hard-blocks the job into `PENDING_OPERATOR_REVIEW` instead of silently
+defaulting to zero. This is intentional and protects you from bad math
+downstream.
 
 ### How to resolve a stuck job
 1. Click **⚠ Triage** from the dashboard.
@@ -68,14 +76,22 @@ verify against the real report.
 
 ---
 
-## 3. Uploading EagleView & Statement of Loss
+## 3. Uploading Measurement Reports & Statement of Loss
 
 From a job's detail page, you'll find the **Control Panel** section
 with **"Upload Documents."**
 
+### Supported measurement report formats
+The system automatically detects whether a measurement PDF is an
+**EagleView** or **Hover** report and routes it to the correct parser.
+You do not need to specify the format — just upload the PDF and the
+system handles detection transparently.
+
 ### How to upload
-1. Drag and drop the **EagleView PDF** and the **Statement of Loss PDF**
-   into their respective drop zones.
+1. Drag and drop the **Measurement Report PDF** (EagleView or Hover)
+   and the **Statement of Loss PDF** into their respective drop zones.
+   The measurement zone is labeled **"📐 Measurement Report (EagleView
+   or Hover)"** and the other **"📋 Statement of Loss."**
 2. Click **"Upload & Trigger Pipeline."**
    - The button changes to **"Enqueuing Documents..."**
    - A progress bar appears and updates through stages like
@@ -88,18 +104,19 @@ with **"Upload Documents."**
 ### Important current limitation
 **Both files are required together every time.** As of this writing,
 you cannot re-upload just a corrected Statement of Loss on its own —
-the system requires both the EagleView and SoL PDFs to be submitted
-as a pair, even if only one document was actually wrong. If you need
-to correct a single document, re-upload both files together (using the
-original EagleView PDF again if it was already correct). This is a
-known workflow limitation the team is aware of and may improve in a
-future update.
+the system requires both the Measurement Report and SoL PDFs to be
+submitted as a pair, even if only one document was actually wrong. If
+you need to correct a single document, re-upload both files together
+(using the original measurement report again if it was already correct).
+This is a known workflow limitation the team is aware of and may improve
+in a future update.
 
 ### Common upload errors
 - **"Only PDF files are allowed."** — you attached something other than
   a PDF.
-- **"Please upload exactly two PDF files (EagleView and Statement of
-  Loss)."** — you're missing one of the two required documents.
+- **"Please upload exactly two PDF files (Measurement Report and
+  Statement of Loss)."** — you're missing one of the two required
+  documents.
 
 ---
 
@@ -177,7 +194,7 @@ the specific error message instead.
 ## 7. Document Vault
 
 Every job has a **Document Vault** for storing artifacts beyond the
-core EagleView/SoL pipeline documents.
+core measurement report/SoL pipeline documents.
 
 ### How to upload
 1. Drag a file into the vault drop zone.
@@ -191,6 +208,17 @@ core EagleView/SoL pipeline documents.
 - **⬇ Download Supplement PDF**
 - **⬇ Download Generated Demand Letter** (once escalated)
 - **⬇ Download Rebuttal Letter** (once a denial has been processed)
+
+### Document visibility
+Documents in the system have a visibility level:
+- **`field_safe`** — visible to field reps (e.g., measurement reports,
+  contingency agreements, photos).
+- **`office_only`** — visible only to Admin, Operations, and Accounting
+  (e.g., QBO exports, financial documents).
+
+Field reps can only see and download `field_safe` documents. Office
+roles (Admin, Operations, Accounting) can see and download all documents
+regardless of visibility.
 
 ---
 
@@ -232,7 +260,7 @@ Avoid vague notes like "fixing" or "testing."
 
 ### When to use Override vs. Triage
 - **Use Triage** when a job is stuck specifically because of missing
-  measurement data from EagleView/SoL parsing.
+  measurement data from report parsing.
 - **Use Override** only for everything else — genuinely stuck jobs, data
   entry mistakes, duplicate records, or unusual situations the normal
   workflow buttons can't handle.
@@ -252,9 +280,14 @@ Go to **⚠ Triage**, find the job, enter the missing measurement values
 by hand from the real report, and click **Resolve & Resume Pipeline.**
 
 **Q: Can I re-upload just a corrected Statement of Loss?**
-Not currently — you need to re-upload both the EagleView and Statement
-of Loss PDFs together, even if only one was wrong. Use the same
-EagleView file again if it was already correct.
+Not currently — you need to re-upload both the Measurement Report and
+Statement of Loss PDFs together, even if only one was wrong. Use the
+same measurement report file again if it was already correct.
+
+**Q: Does the system support Hover measurement reports?**
+Yes — the system automatically detects whether a PDF is EagleView or
+Hover and routes it to the correct parser. You do not need to specify
+the format.
 
 **Q: I clicked Deny by mistake. Can I undo it?**
 No — denial triggers real AI rebuttal generation immediately after you
@@ -281,8 +314,15 @@ Take the extra moment before confirming — escalation generates a real
 demand letter tied to the carrier relationship, so it's worth being
 certain first.
 
+**Q: Can Scott (Operations) and Debi (Accounting) see the same job
+data I see?**
+Yes — all three office roles (Admin, Operations, Accounting) share the
+same unified job detail view with full access to financials, margins,
+and all documents. The only role with restricted document visibility
+is field reps/canvassers, who can only see `field_safe` documents.
+
 ---
 
-*This guide reflects the Admin workflow as of commit `3349568`. If new
+*This guide reflects the Admin workflow as of commit `da9b80b`. If new
 statuses, buttons, or workflows are added in future updates, this guide
 should be reviewed and updated to match.*

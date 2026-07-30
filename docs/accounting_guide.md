@@ -4,20 +4,22 @@
 
 This guide covers the Accounting Ledger: tracking ACV and Supplement
 checks with real dollar amounts, managing canvasser commissions
-(including manual adjustments), and exporting invoices to QuickBooks
-Online.
+(including manual adjustments), exporting invoices to QuickBooks
+Online, and reviewing full job details.
 
 ---
 
 ## 1. Logging In
 
 1. Open the app and enter your assigned 4-digit PIN.
-2. On success, you're taken to the **"Accounting Ledger."**
+2. On success, you're taken to the **"Accounting Ledger."** The Wickham
+   Roofing logo appears in the header alongside the title.
 
-**Note:** Your access is scoped to financial data across all jobs and
-all reps — unlike Field reps, who can only see their own commissions,
-you can see everyone's. You will not be able to access the Admin
-control panel, Triage, or the Emergency Override tool.
+To log out, click **Logout** in the top-right corner of the dashboard.
+
+**Note:** Your access covers financial data across all jobs and all
+reps. You can see every rep's commission data — this is intentional,
+since aggregating and paying commissions is your core responsibility.
 
 ---
 
@@ -37,6 +39,14 @@ If a table has nothing to show — no pending checks, or no commissions
 ready to pay — you'll see a clear message like **"No pending checks to
 record"** or **"No commissions currently ready to pay"** instead of a
 blank, confusing table.
+
+### Viewing full job details
+Every job row in the ledger includes a **"View Details →"** link that
+opens the full job detail page. This gives you complete access to all
+job information — including financials, margins, measurement data, all
+documents, and supplements. Admin, Operations, and Accounting all share
+this same unified detail view with no restrictions between these three
+office roles.
 
 ---
 
@@ -159,12 +169,16 @@ persists.
   Override tools.
 - You cannot access Field rep intake screens or Operations' material/
   crew scheduling tools.
-- You can, however, see every rep's commission data — this is
-  intentional, since aggregating and paying commissions is your core
-  responsibility.
+- You cannot create or manage field rep accounts.
 
-If you try to access a restricted page directly, you'll be blocked with
-an access error.
+**What you CAN do:** Via the "View Details →" links on your ledger
+rows, you have full access to any job's detail page, including
+financials, margins, measurement data, and all documents. This is the
+same unified view that Admin and Operations see — there is no
+restriction between these three office roles on job data.
+
+You can also see every rep's commission data — this is intentional,
+since aggregating and paying commissions is your core responsibility.
 
 ---
 
@@ -206,8 +220,13 @@ export batches.
 You can see all reps' commissions — this is intentional for your role,
 unlike Field reps, who can only see their own.
 
+**Q: Can I see a job's full financials and documents?**
+Yes — click the **"View Details →"** link on any job row. You'll see
+the full job detail page with all financials, margins, documents, and
+supplements.
+
 ---
 
-*This guide reflects the Accounting workflow as of commit `290ee15`.
+*This guide reflects the Accounting workflow as of commit `da9b80b`.
 If new fields, buttons, or workflows are added in future updates, this
 guide should be reviewed and updated to match.*

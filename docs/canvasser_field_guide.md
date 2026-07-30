@@ -4,15 +4,15 @@
 
 This guide covers everything a canvasser or field sales rep needs to know
 to use the Wickham Roofing field app: logging in, creating leads, taking
-photos, capturing signatures, and understanding how offline mode and
-error recovery work.
+photos, capturing signatures, reviewing your past jobs and documents,
+and understanding how offline mode and error recovery work.
 
 ---
 
 ## 1. Logging In
 
 1. Open the app on your phone or tablet. You'll see the **Wickham Roofing**
-   login screen with the label **"Truck Server v4."**
+   login screen with the company logo and the label **"Truck Server v4."**
 2. Tap **"Enter Your PIN"** and use the on-screen keypad (0–9, ⌫) to type
    your assigned 4-digit PIN.
 3. If your PIN is wrong, you'll see **"✕ Incorrect PIN. Try again."**
@@ -76,7 +76,37 @@ When you're with a homeowner and ready to start a job, you'll fill out the
 
 ---
 
-## 4. Capturing the Signature (Insurance Jobs)
+## 4. Reviewing the Contingency Agreement (Insurance Jobs)
+
+If the job type is **Insurance Restoration**, the homeowner must review
+and acknowledge the contingency agreement before signing.
+
+### What the homeowner sees
+Before the signature canvas, the app displays the **full legal text** of
+the Insurance Contingency Agreement in a scrollable box. This includes:
+
+- **Scope of Work & Payment** — explaining that the final scope and price
+  are determined by the insurance carrier's approved estimate.
+- **Georgia Deductible Law Warning** (O.C.G.A. § 33-24-59.27) — a
+  prominent red warning that it is illegal for a contractor to waive or
+  rebate the deductible.
+- **Public Adjuster Restriction** — clarifying that the contractor does
+  not represent the homeowner in insurance negotiations.
+- **Statutory Cancellation Rights** — a red notice that the homeowner
+  may cancel within five business days if their insurer denies coverage.
+
+### Required acknowledgment
+Below the agreement text, there is a **required checkbox**:
+
+> *"I have presented this agreement to the homeowner and they accept
+> the terms."*
+
+This checkbox **must** be checked before the form can be submitted. The
+app will not allow submission without it.
+
+---
+
+## 5. Capturing the Signature (Insurance Jobs)
 
 If the job type is **Insurance Restoration**, a signature is **required**
 before you can submit — the app will block submission with **"Please lock
@@ -102,7 +132,7 @@ the signature before submitting"** if you skip it.
 
 ---
 
-## 5. Submitting the Lead
+## 6. Submitting the Lead
 
 When you tap **Submit Lead**, you'll see a progress modal with messages like:
 - "Creating Lead..."
@@ -114,11 +144,44 @@ If everything succeeds, you'll see **"Lead Captured"** and
 
 ---
 
-## 6. If Something Goes Wrong Mid-Submission (Server Errors)
+## 7. My Recent Jobs & Documents
+
+Below the New Lead form, you'll find a **"My Recent Jobs"** section
+that automatically loads your most recent jobs (up to 20).
+
+### What you see
+Each job card shows:
+- **Homeowner name**
+- **Address**
+- **Current status** (e.g., LEAD_CAPTURED, CONTINGENCY_SIGNED)
+- A **"Load Documents ↓"** button
+
+### Viewing your documents
+1. Tap **"Load Documents ↓"** on any job card.
+2. The card expands to show all **field-safe** documents for that job —
+   this includes your uploaded photos, measurement reports (EagleView or
+   Hover), and the signed contingency agreement PDF.
+3. Tap **"View"** next to any document to open or download it.
+4. Tap **"Hide Documents ↑"** to collapse the list.
+
+### What you will NOT see
+You will **never** see office-only documents such as:
+- Financial calculations or QBO exports
+- Commission statements
+- Internal supplement narratives
+- Carrier correspondence or demand letters
+
+This is enforced at the server level — even if you know a document's
+ID, the system will block access with a **403 Forbidden** response.
+This is by design to protect sensitive business and financial data.
+
+---
+
+## 8. If Something Goes Wrong Mid-Submission (Server Errors)
 
 Sometimes the server itself rejects a step — for example, a photo file is
 too large, or there's a temporary server issue. This is different from
-having no signal (covered in Section 7).
+having no signal (covered in Section 9).
 
 ### What you'll see
 If a photo or the signature upload fails due to a server-side error, the
@@ -149,7 +212,7 @@ example, a corrupted photo) that needs a fresh photo taken instead.
 
 ---
 
-## 7. Working Offline (No Signal / Weak Signal)
+## 9. Working Offline (No Signal / Weak Signal)
 
 The app is built to handle bad service in the field, whether you have zero
 signal or a connection that drops partway through a submission.
@@ -186,7 +249,7 @@ still waiting to reach the office.
 
 ---
 
-## 8. Common Situations & What They Mean
+## 10. Common Situations & What They Mean
 
 | What you see | What it means | What to do |
 |---|---|---|
@@ -202,12 +265,20 @@ still waiting to reach the office.
 
 ---
 
-## 9. What You Cannot Do (By Design)
+## 11. What You Cannot Do (By Design)
 
 For security, the field app strictly limits what canvassers can access:
-- You cannot see or open jobs that aren't yours.
+- You cannot see or open jobs that aren't yours. The system checks your
+  identity (via your PIN login) against the job's assigned canvasser on
+  every request. Attempting to access another rep's job will result in a
+  **403 Forbidden** error.
 - You cannot access office, admin, or accounting screens.
 - You cannot view other reps' commissions or job lists.
+- You cannot see office-only documents (financials, commissions, QBO
+  exports, carrier correspondence) — even if you know the document ID.
+- You **can** see and download your own field-safe documents (photos,
+  measurement reports, signed contingency agreements) via the "My Recent
+  Jobs" section.
 
 This is intentional — it protects homeowner data and keeps each rep's
 work isolated and auditable.
@@ -252,6 +323,16 @@ signature before you can submit.
 Just overwrite the address fields manually — GPS is a shortcut, not a
 guarantee, especially in rural areas.
 
+**Q: Can I see my old jobs and their documents?**
+Yes — scroll down past the New Lead form to the **"My Recent Jobs"**
+section. You'll see your most recent jobs with the ability to load and
+download your field-safe documents (photos, measurement reports, signed
+contingency agreements).
+
+**Q: Can I see the office's financial documents or supplements?**
+No — those are classified as "office_only" and are strictly hidden from
+field reps. You can only see documents marked as "field_safe."
+
 **Q: I retried a failed submission a few times and it's still failing. What now?**
 Stop retrying after 2–3 attempts. Note the job and the exact error
 message, then contact the office — there may be a bad file or a larger
@@ -267,6 +348,6 @@ Contact the office/Tech Admin if:
 
 ---
 
-*This guide reflects the field app as of commit `c1d7bb6`. If the app's
+*This guide reflects the field app as of commit `da9b80b`. If the app's
 screens, buttons, or error messages change in a future update, this
 guide should be reviewed and updated to match.*

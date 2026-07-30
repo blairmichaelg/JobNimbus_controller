@@ -3,24 +3,19 @@
 **Truck Server v4 · Operations Role (Scott)**
 
 This guide covers the Operations Command board: tracking material
-orders, confirming deliveries, and scheduling install crews. Your role
-is focused on keeping jobs moving through the production pipeline once
-a supplement has been approved.
+orders, confirming deliveries, scheduling install crews, and reviewing
+full job details. Your role is focused on keeping jobs moving through
+the production pipeline once a supplement has been approved.
 
 ---
 
 ## 1. Logging In
 
 1. Open the app and enter your assigned 4-digit PIN.
-2. On success, you're taken to **"Scott's Operations Board"** — your
-   main working screen.
+2. On success, you're taken to **"Operations Command"** — your main
+   working screen. The Wickham Roofing logo appears in the header.
 
-**Note:** Your access is scoped specifically to production logistics.
-You will not be able to view financials, commissions, or the Admin
-control panel — those are restricted to the Tech Admin and Accounting
-roles by design. If you ever try to open a restricted page directly,
-the system will block you with a security error rather than showing
-any data.
+To log out, click **Logout** in the top-right corner of the dashboard.
 
 ---
 
@@ -57,6 +52,14 @@ Jobs appear here once materials have arrived. This is where you assign
 a crew and set an install date.
 
 - If no jobs are ready, you'll see: **"No jobs ready to build."**
+
+### Viewing full job details
+Every job card on the board includes a **"View Details →"** link that
+opens the full job detail page. This gives you complete access to all
+job information — including financials, margins, measurement data, all
+documents, and supplements. Admin, Operations, and Accounting all share
+this same unified detail view with no restrictions between these three
+office roles.
 
 ---
 
@@ -115,15 +118,19 @@ crew."** Double-check the crew name and date, then try again.
 
 For security and role isolation, your access is intentionally limited:
 
-- You cannot view job financials, commissions, or accounting data.
 - You cannot access the Admin control panel, Triage, or the Emergency
   Override tool.
-- You cannot view or edit EagleView/Statement of Loss documents,
-  supplements, or carrier correspondence.
+- You cannot access Field rep intake screens.
+- You cannot create or manage field rep accounts.
 
-If you ever try to access a restricted page directly, you'll be blocked
-with a security error — this is expected and protects sensitive
-homeowner and financial data.
+**What you CAN do:** Via the "View Details →" links on your board, you
+have full read access to any job's detail page, including financials,
+margins, measurement data, and all documents. This is the same unified
+view that Admin and Accounting see — there is no restriction between
+these three office roles on job data.
+
+If you try to access a restricted admin-only page directly (e.g.,
+Triage), you'll be blocked with a security error — this is expected.
 
 ---
 
@@ -146,15 +153,15 @@ location and crew scheduling can begin. Don't mark something on site
 until it's actually there — this drives the real-world production
 schedule and downstream crew assignment.
 
-**Q: Can I see how much a job is worth or what the crew is being paid?**
-No — financials and commissions are handled by Accounting and Admin.
-Your board is focused purely on logistics: ordering, delivery, and
-scheduling.
+**Q: Can I see a job's financials or documents?**
+Yes — click the **"View Details →"** link on any job card. You'll see
+the full job detail page with all financials, margins, documents, and
+supplements. This is the same view that Admin and Accounting see.
 
 **Q: What happens if I try to access an admin page directly?**
-You'll be blocked with an access error. This is intentional — Operations
-access is scoped to production logistics only, and this protection
-applies even if you know the exact web address of a restricted page.
+You'll be blocked with an access error. This is intentional — while
+you have full access to job details, admin-specific tools like Triage
+and Emergency Override are restricted to the Admin role.
 
 **Q: I typed the wrong crew name or date. What happens?**
 Before anything is saved, you'll see a confirmation popup showing
@@ -164,6 +171,6 @@ already confirmed with a mistake, contact the Tech Admin to correct it.
 
 ---
 
-*This guide reflects the Operations workflow as of commit `350d753`.
+*This guide reflects the Operations workflow as of commit `da9b80b`.
 If new panels, buttons, or workflows are added in future updates, this
 guide should be reviewed and updated to match.*
