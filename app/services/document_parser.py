@@ -18,7 +18,8 @@ from pathlib import Path
 from decimal import Decimal
 
 import pdfplumber
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 
 from app.core.ingestion_models import (
     UniversalClaimAST, ClaimLineItem, RoofGeometry,
@@ -92,8 +93,7 @@ async def _gemini_extract(
     EvidenceRef for every field.
     """
     settings = get_settings()
-    genai.configure(api_key=settings.gemini_api_key)
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    client = genai.Client(api_key=settings.gemini_api_key)
 
     prompt = _SOL_EXTRACTION_PROMPT.format(
         raw_text=full_text[:40000],  # Token guard: first 40k chars
@@ -101,9 +101,10 @@ async def _gemini_extract(
     )
 
     def _call_gemini():
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.0,  # Zero temperature: no creativity
             )

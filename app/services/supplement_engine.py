@@ -11,6 +11,7 @@ ROLL_SQFT_YIELD = 66.7
 TRADES = {"RFG", "SFG", "PNT", "SDG", "HVC"}
 
 class SupplementEngine:
+    """SupplementEngine definition."""
     @staticmethod
     def parse_esx(file_path: str) -> List[Dict[str, Union[str, float]]]:
         """

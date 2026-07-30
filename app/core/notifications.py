@@ -7,6 +7,7 @@ import time
 logger = structlog.get_logger("app.core.notifications")
 
 class RobustConnectionManager:
+    """RobustConnectionManager definition."""
     def __init__(self):
         # Maps websocket -> dict with 'client_id', 'role', 'last_pong'
         self.active_connections: Dict[WebSocket, Dict[str, Any]] = {}
@@ -14,6 +15,17 @@ class RobustConnectionManager:
         self._heartbeat_task = None
 
     async def connect(self, websocket: WebSocket, client_id: str = "unknown", role: str = "unknown"):
+        """
+        Connect functionality.
+        
+        Args:
+                websocket (WebSocket): websocket parameter.
+                client_id (str): client_id parameter.
+                role (str): role parameter.
+        
+        Returns:
+            Any: The resulting output.
+        """
         await websocket.accept()
         self.active_connections[websocket] = {
             "client_id": client_id,
@@ -26,11 +38,29 @@ class RobustConnectionManager:
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
     def disconnect(self, websocket: WebSocket):
+        """
+        Disconnect functionality.
+        
+        Args:
+                websocket (WebSocket): websocket parameter.
+        
+        Returns:
+            Any: The resulting output.
+        """
         if websocket in self.active_connections:
             meta = self.active_connections.pop(websocket)
             logger.info("websocket_client_disconnected", client_id=meta["client_id"], active_count=len(self.active_connections))
 
     async def broadcast(self, message: dict):
+        """
+        Broadcast functionality.
+        
+        Args:
+                message (dict): message parameter.
+        
+        Returns:
+            Any: The resulting output.
+        """
         dead_connections = set()
         for connection in self.active_connections:
             try:

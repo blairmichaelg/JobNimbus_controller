@@ -61,6 +61,7 @@ def _fetch_homeowner_name_sync(job_id: str) -> str:
 
 
 class FinancialsPayload(BaseModel):
+    """FinancialsPayload definition."""
     revenue: float
     carrier_rcv: float
     materials: float
@@ -73,16 +74,19 @@ class FinancialsPayload(BaseModel):
     permits_fee: float = 0.0
 
 class ProductionPayload(BaseModel):
+    """ProductionPayload definition."""
     supplier_name: str
     delivery_date: str
     crew_name: str
     install_date: str
 
 class ManualFlashingPayload(BaseModel):
+    """ManualFlashingPayload definition."""
     flashing_lf: float
     step_flashing_lf: float
 
 class MaterialOrderPayload(BaseModel):
+    """MaterialOrderPayload definition."""
     supplier_name: str
     delivery_date: str
 
@@ -482,6 +486,15 @@ async def upload_job_document(job_id: str, file_type: str = Form(...), file: Upl
 
 @router.get("/jobs/{job_id}/docs/inspection_letter", dependencies=[Depends(verify_admin)])
 async def get_inspection_letter(job_id: str):
+    """
+    Get Inspection Letter functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     try:
         job_id = str(uuid.UUID(job_id))
     except ValueError:
@@ -731,6 +744,7 @@ async def download_contingency(job_id: str):
     return FileResponse(path=pdf_path, filename=f"Contingency_Agreement_{job_id[:8]}.pdf", media_type="application/pdf")
 
 class MaterialRow(BaseModel):
+    """MaterialRow definition."""
     job_id: str
     homeowner_name: str
     supplier_name: str
@@ -740,6 +754,7 @@ class MaterialRow(BaseModel):
     status: str
 
 class OperationsBrief(BaseModel):
+    """OperationsBrief definition."""
     deliveries_today: int
     crews_today: int
     material_rows: List[MaterialRow]
@@ -789,6 +804,7 @@ def get_operations_brief():
         conn.close()
 
 class AccountingBrief(BaseModel):
+    """AccountingBrief definition."""
     supplemented_rcv_added: str
     qbo_ready_count: int
     rows: List[Dict[str, Any]]
@@ -914,6 +930,15 @@ async def export_qbo_csv(token=Depends(verify_accounting)):
 
 @router.get("/admin/triage", response_class=HTMLResponse, dependencies=[Depends(verify_admin)])
 async def admin_triage_view(request: Request):
+    """
+    Admin Triage View functionality.
+    
+    Args:
+            request (Request): request parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     conn = get_connection()
     try:
         cursor = conn.execute("""
@@ -987,6 +1012,15 @@ async def admin_triage_resolve(request: Request, job_id: str, payload: dict = Bo
     response_class=JSONResponse
 , dependencies=[Depends(verify_admin)])
 async def mark_supplement_sent_route(job_id: str):
+    """
+    Mark Supplement Sent Route functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     from app.core.database import mark_supplement_sent
     mark_supplement_sent(job_id)
     return {"status": "ok", "job_id": job_id}
@@ -996,6 +1030,17 @@ async def mark_supplement_sent_route(job_id: str):
     response_class=JSONResponse
 , dependencies=[Depends(verify_accounting), Depends(check_rate_limit)])
 async def toggle_payment(request: Request, job_id: str, payload: dict = Body(...)):
+    """
+    Toggle Payment functionality.
+    
+    Args:
+            request (Request): request parameter.
+            job_id (str): job_id parameter.
+            payload (dict): payload parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     flag = str(payload.get("flag", ""))
     amount = payload.get("amount")
     date_received = payload.get("date_received")
@@ -1011,6 +1056,16 @@ async def toggle_payment(request: Request, job_id: str, payload: dict = Body(...
 
 @router.post("/accounting/jobs/{job_id}/commission-override", dependencies=[Depends(verify_accounting)])
 async def set_commission_override(job_id: str, body: dict = Body(...)):
+    """
+    Set Commission Override functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            body (dict): body parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     commission_pct = body.get("commission_pct")
 
     if commission_pct is not None:
@@ -1107,6 +1162,15 @@ async def deny_supplement(request: Request, job_id: str,
     response_class=FileResponse
 , dependencies=[Depends(verify_admin)])
 async def download_rebuttal(job_id: str):
+    """
+    Download Rebuttal functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     try:
         job_id = str(uuid.UUID(job_id))
     except ValueError:
@@ -1128,6 +1192,12 @@ async def download_rebuttal(job_id: str):
 
 @router.get("/accounting/commissions-ready", response_class=JSONResponse, dependencies=[Depends(verify_accounting)])
 def get_commissions_ready():
+    """
+    Get Commissions Ready functionality.
+    
+    Returns:
+        Any: The resulting output.
+    """
     conn = get_connection()
     try:
         cursor = conn.execute("""
@@ -1153,6 +1223,15 @@ def get_commissions_ready():
 
 @router.get("/jobs/{job_id}/docs/commission", response_class=FileResponse, dependencies=[Depends(verify_accounting)])
 def download_commission(job_id: str):
+    """
+    Download Commission functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     try:
         job_id = str(uuid.UUID(job_id))
     except ValueError:
@@ -1172,6 +1251,16 @@ def download_commission(job_id: str):
 
 @router.post("/jobs/{job_id}/escalate", dependencies=[Depends(verify_admin), Depends(check_rate_limit)])
 async def queue_escalation(request: Request, job_id: str):
+    """
+    Queue Escalation functionality.
+    
+    Args:
+            request (Request): request parameter.
+            job_id (str): job_id parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     await request.app.state.redis_pool.enqueue_job(
         "process_escalation",
         job_id=job_id
@@ -1180,6 +1269,15 @@ async def queue_escalation(request: Request, job_id: str):
 
 @router.get("/jobs/{job_id}/docs/escalation", response_class=FileResponse, dependencies=[Depends(verify_admin)])
 def download_escalation(job_id: str):
+    """
+    Download Escalation functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     try:
         job_id = str(uuid.UUID(job_id))
     except ValueError:

@@ -128,6 +128,16 @@ class InspectionPhoto(BaseModel):
     @field_validator("filepath")
     @classmethod
     def validate_image_extension(cls, v: Path) -> Path:
+        """
+        Validate Image Extension functionality.
+        
+        Args:
+                cls (Any): cls parameter.
+                v (Path): v parameter.
+        
+        Returns:
+            Path: The resulting output.
+        """
         if v.suffix.lower() not in ALLOWED_IMAGE_EXTENSIONS:
             raise ValueError(
                 f"Unsupported image format '{v.suffix}'. "

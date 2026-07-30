@@ -21,7 +21,16 @@ from app.core.supplement_models import EagleViewData
 logger = structlog.get_logger("app.core.pipeline")
 
 
-async def parse_measurement_pdf(pdf_path: str | Path):
+async def parse_measurement_pdf(pdf_path: str | Path) -> tuple[EagleViewData, str]:
+    """
+    Parse Measurement Pdf functionality.
+    
+    Args:
+            pdf_path (str | Path): pdf_path parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     fmt = detect_pdf_format(pdf_path)
     if fmt == "HOVER":
         return await extract_hover_data(pdf_path)
@@ -98,6 +107,17 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
         raise
 
 async def generate_material_order_pipeline(job_id: str, supplier_name: str, delivery_date: str) -> dict[str, Any]:
+    """
+    Generate Material Order Pipeline functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            supplier_name (str): supplier_name parameter.
+            delivery_date (str): delivery_date parameter.
+    
+    Returns:
+        dict[str, Any]: The resulting output.
+    """
     from app.services.ai_service import AIService
     from app.services.pdf_generator import PDFGenerator
     from app.core.database import _fetch_job_sync, insert_material_order
@@ -155,6 +175,15 @@ logger = structlog.get_logger("app.core.pipeline")
 
 
 async def run_retail_quote_pipeline(job_id: str) -> dict:
+    """
+    Run Retail Quote Pipeline functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+    
+    Returns:
+        dict: The resulting output.
+    """
     log = logger.bind(job_id=job_id)
     log.info("retail_quote_started")
 
@@ -302,6 +331,17 @@ async def run_rebuttal_pipeline(
     denial_text: str | None = None,
     denial_pdf_doc_id: str | None = None
 ) -> dict:
+    """
+    Run Rebuttal Pipeline functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            denial_text (str | None): denial_text parameter.
+            denial_pdf_doc_id (str | None): denial_pdf_doc_id parameter.
+    
+    Returns:
+        dict: The resulting output.
+    """
     log = logger.bind(job_id=job_id)
     log.info("rebuttal_processing_started")
 

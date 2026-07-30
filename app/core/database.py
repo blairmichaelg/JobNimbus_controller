@@ -21,10 +21,17 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 logger = structlog.get_logger("app.core.database")
 
 def get_db_path() -> Path:
+    """
+    Get Db Path functionality.
+    
+    Returns:
+        Path: The resulting output.
+    """
     return Path(get_settings().get_db_path)
 
 class JobStatus(str, Enum):
     # PROCESSING STATES (ARQ workers may write these autonomously)
+    """JobStatus definition."""
     LEAD_CAPTURED = "LEAD_CAPTURED"
     CONTINGENCY_SIGNED = "CONTINGENCY_SIGNED"
     CLAIM_FILED = "CLAIM_FILED"
@@ -63,6 +70,16 @@ class JobStatus(str, Enum):
 
     @classmethod
     def is_operator_gate(cls, status: "JobStatus") -> bool:
+        """
+        Is Operator Gate functionality.
+        
+        Args:
+                cls (Any): cls parameter.
+                status ('JobStatus'): status parameter.
+        
+        Returns:
+            bool: The resulting output.
+        """
         _OPERATOR_GATES = {
             cls.SUPPLEMENT_GENERATED, cls.SUPPLEMENT_SUBMITTED,
             cls.SUPPLEMENT_DENIED, cls.SUPPLEMENT_APPROVED,

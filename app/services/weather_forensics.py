@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Dict, Union
 
 class NOAAForensicsEngine:
+    """NOAAForensicsEngine definition."""
     @staticmethod
     def verify_storm(lat: float, lon: float, loss_date: datetime) -> Dict[str, Union[str, float]]:
         """

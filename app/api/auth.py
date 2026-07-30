@@ -10,6 +10,17 @@ def create_access_token(
     rep_name: str | None = None,
     rep_id: str | None = None,
 ) -> str:
+    """
+    Create Access Token functionality.
+    
+    Args:
+            role (str): role parameter.
+            rep_name (str | None): rep_name parameter.
+            rep_id (str | None): rep_id parameter.
+    
+    Returns:
+        str: The resulting output.
+    """
     settings = get_settings()
     expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=12)
     to_encode: dict = {"sub": role, "role": role, "exp": expire}
@@ -65,28 +76,73 @@ async def get_current_claims(
     return decode_token(token)
 
 async def verify_admin(role: str = Depends(get_current_role)):
+    """
+    Verify Admin functionality.
+    
+    Args:
+            role (str): role parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     if role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized for admin access")
     return role
 
 async def verify_accounting(role: str = Depends(get_current_role)):
     # Admin can access accounting
+    """
+    Verify Accounting functionality.
+    
+    Args:
+            role (str): role parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     if role not in ["admin", "accounting"]:
         raise HTTPException(status_code=403, detail="Not authorized for accounting access")
     return role
 
 async def verify_operations(role: str = Depends(get_current_role)):
     # Admin can access ops
+    """
+    Verify Operations functionality.
+    
+    Args:
+            role (str): role parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     if role not in ["admin", "operations"]:
         raise HTTPException(status_code=403, detail="Not authorized for operations access")
     return role
 
 async def verify_field(role: str = Depends(get_current_role)):
+    """
+    Verify Field functionality.
+    
+    Args:
+            role (str): role parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     if role not in ["admin", "field"]:
         raise HTTPException(status_code=403, detail="Not authorized for field access")
     return role
 
 async def verify_office_role(role: str = Depends(get_current_role)):
+    """
+    Verify Office Role functionality.
+    
+    Args:
+            role (str): role parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     if role not in ["admin", "operations", "accounting"]:
         raise HTTPException(status_code=403, detail="Not authorized for office access")
     return role

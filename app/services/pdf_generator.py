@@ -217,6 +217,12 @@ class PDFGenerator:
         filepath = str(job_dir / "estimate.pdf")  # Close so ReportLab can write to it
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, job_id=job_id, doc_type="ESTIMATE")
             story = []
             
@@ -328,6 +334,12 @@ class PDFGenerator:
         filepath = str(job_dir / "Supplement_Request.pdf")
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, job_id=job_id, doc_type="SUPPLEMENT")
             story = []
             
@@ -453,6 +465,12 @@ class PDFGenerator:
         filepath = str(job_dir / "evidence_grid.pdf")
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, job_id=job.job_id, doc_type="EVIDENCE_GRID")
             story = []
             
@@ -579,6 +597,12 @@ class PDFGenerator:
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, job_id=job["id"], doc_type="MATERIAL_PO")
             story = []
             
@@ -666,6 +690,12 @@ class PDFGenerator:
         filepath = str(job_dir / "contingency_agreement.pdf")
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, job_id=job["id"], doc_type="CONTINGENCY")
             story = []
             
@@ -713,6 +743,12 @@ class PDFGenerator:
         filepath = str(job_dir / "contingency_agreement_signed.pdf")
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, job_id=job_id, doc_type="CONTINGENCY_SIGNED")
             story = []
             
@@ -763,6 +799,12 @@ class PDFGenerator:
         filepath = str(job_dir / "notice_of_cancellation.pdf")
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, job_id=job["id"], doc_type="NOTICE_OF_CANCELLATION")
             story = []
             
@@ -813,6 +855,12 @@ class PDFGenerator:
         filepath = str(job_dir / "certificate_of_completion.pdf")
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, job_id=job["id"], doc_type="CERTIFICATE_OF_COMPLETION")
             story = []
             
@@ -880,6 +928,12 @@ class PDFGenerator:
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
         
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, top_margin=120, job_id="MONTHLY", doc_type="MONTHLY_SUMMARY")
             story = []
             
@@ -986,6 +1040,12 @@ class PDFGenerator:
         filepath = str(job_dir / "inspection_letter.pdf")
         
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, top_margin=120, job_id=job_id, doc_type="INSPECTION_LETTER")
             story = []
             
@@ -1102,6 +1162,12 @@ class PDFGenerator:
         filepath = str(job_dir / "Rebuttal_Letter.pdf")
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             import html as _html
             doc = self._get_doc_template(filepath,
                                          job_id=job_id)
@@ -1193,6 +1259,12 @@ class PDFGenerator:
         filepath = str(job_dir / "Retail_Quote.pdf")
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             import datetime as _dt
             doc = self._get_doc_template(filepath,
                                          job_id=job_id)
@@ -1308,6 +1380,16 @@ class PDFGenerator:
         job: dict,
         commission_data: dict
     ) -> str:
+        """
+        Generate Commission Statement functionality.
+        
+        Args:
+                job (dict): job parameter.
+                commission_data (dict): commission_data parameter.
+        
+        Returns:
+            str: The resulting output.
+        """
         job_id   = job.get("id", "UNKNOWN")
         job_dir  = FIELD_DOCS_DIR / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
@@ -1316,6 +1398,12 @@ class PDFGenerator:
         )
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc   = self._get_doc_template(
                 filepath, job_id=job_id, doc_type="COMMISSION_STATEMENT"
             )
@@ -1428,6 +1516,12 @@ class PDFGenerator:
         filepath = str(job_dir / "Escalation_Demand_Letter.pdf")
 
         def build_pdf():
+            """
+            Build Pdf functionality.
+            
+            Returns:
+                Any: The resulting output.
+            """
             doc = self._get_doc_template(filepath, job_id=job_id, doc_type="ESCALATION_LETTER")
             story = []
 

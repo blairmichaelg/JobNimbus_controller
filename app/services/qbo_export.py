@@ -126,6 +126,18 @@ def generate_qbo_invoice(job_id: str, bom: MaterialBOM, customer_name: str = "Un
     pricing = get_pricing_ledger()
     
     def create_line(item_type: str, qty: float, desc: str, pricing_key: str) -> InvoiceLine:
+        """
+        Create Line functionality.
+        
+        Args:
+                item_type (str): item_type parameter.
+                qty (float): qty parameter.
+                desc (str): desc parameter.
+                pricing_key (str): pricing_key parameter.
+        
+        Returns:
+            InvoiceLine: The resulting output.
+        """
         rate = pricing.get(pricing_key, 0.0)
         return InvoiceLine(
             item=item_type,

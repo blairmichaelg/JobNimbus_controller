@@ -34,11 +34,13 @@ logger = structlog.get_logger("app.services.ai_service")
 
 
 class DocumentData(BaseModel):
+    """DocumentData definition."""
     materials: list[str] = []
     total_cost: float = 0.0
 
 
 class Decision(BaseModel):
+    """Decision definition."""
     action: Literal["generate_document", "update_status", "ignore", "error"]
     reasoning: str
     document_data: DocumentData

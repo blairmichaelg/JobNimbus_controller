@@ -28,6 +28,7 @@ logger = structlog.get_logger("app.api.operations_routes")
 router = APIRouter(prefix="/api/operations", tags=["operations"])
 
 class MaterialFlagUpdate(BaseModel):
+    """MaterialFlagUpdate definition."""
     materials_ordered: Optional[bool] = None
     materials_on_site: Optional[bool] = None
 
@@ -79,6 +80,15 @@ async def patch_material_flags(job_id: str, body: MaterialFlagUpdate):
     dependencies=[Depends(verify_operations)]
 )
 async def operations_board(request: Request):
+    """
+    Operations Board functionality.
+    
+    Args:
+            request (Request): request parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     conn = get_connection()
     try:
         # List 1: Jobs needing materials ordered
@@ -143,6 +153,16 @@ async def operations_board(request: Request):
 async def assign_crew(
     job_id: str, payload: dict = Body(...)
 ):
+    """
+    Assign Crew functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            payload (dict): payload parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     crew_name = payload.get("crew_name", "").strip()
     install_date = payload.get("install_date", "").strip()
     if not crew_name or not install_date:

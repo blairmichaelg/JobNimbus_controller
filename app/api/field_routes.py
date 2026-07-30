@@ -41,6 +41,7 @@ FIELD_PHOTOS_DIR = Path("field_photos")
 SIGNED_AGREEMENTS_DIR = Path("signed_agreements")
 
 class LeadIntakePayload(BaseModel):
+    """LeadIntakePayload definition."""
     homeowner_name: str
     address_line1: str
     city: str
@@ -55,6 +56,7 @@ class LeadIntakePayload(BaseModel):
     canvasser_name: str | None = None
 
 class SignaturePayload(BaseModel):
+    """SignaturePayload definition."""
     job_id: str = Field(..., description="JobNimbus entity ID")
     signature_base64: str = Field(..., description="Data URI from HTML5 Canvas (data:image/png;base64,...)")
     ip_address: str | None = Field(None, description="IP address of the device capturing the signature")
@@ -62,12 +64,14 @@ class SignaturePayload(BaseModel):
     user_agent: str | None = Field(None, description="User Agent of the device capturing the signature")
 
 class ContingencySignaturePayload(BaseModel):
+    """ContingencySignaturePayload definition."""
     signature_base64: str = Field(..., description="Data URI from HTML5 Canvas")
     signer_name: str = Field(..., description="Name of the person signing")
     ip_address: str | None = Field(None, description="IP address of the device capturing the signature")
     user_agent: str | None = Field(None, description="User Agent of the device capturing the signature")
 
 class FlagResolutionPayload(BaseModel):
+    """FlagResolutionPayload definition."""
     quantity_delta: float = Field(..., description="The corrected, manually determined quantity")
     resolution_note: str = Field(..., description="Audit note explaining the manual override")
 
@@ -171,6 +175,17 @@ async def create_new_job(
 
 @router.post("/jobs/{job_id}/photos")
 async def upload_field_photo(job_id: str, file: UploadFile = File(...), claims: dict = Depends(get_current_claims)):
+    """
+    Upload Field Photo functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            file (UploadFile): file parameter.
+            claims (dict): claims parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     assert_field_rep_owns_job(claims, job_id)
     """
     Accept direct photo uploads from the iPad over LAN.
@@ -220,6 +235,16 @@ async def list_my_jobs(claims: dict = Depends(get_current_claims)):
 
 @router.get("/jobs/{job_id}/documents")
 async def list_field_documents(job_id: str, claims: dict = Depends(get_current_claims)):
+    """
+    List Field Documents functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            claims (dict): claims parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     assert_field_rep_owns_job(claims, job_id)
     """
     Retrieve all field-safe documents for a job.
@@ -233,6 +258,17 @@ async def list_field_documents(job_id: str, claims: dict = Depends(get_current_c
 
 @router.get("/jobs/{job_id}/documents/{doc_id}/download")
 async def download_field_document(job_id: str, doc_id: str, claims: dict = Depends(get_current_claims)):
+    """
+    Download Field Document functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            doc_id (str): doc_id parameter.
+            claims (dict): claims parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     assert_field_rep_owns_job(claims, job_id)
     """
     Download a field-safe document. Strictly blocks office-only documents.
@@ -259,6 +295,16 @@ async def download_field_document(job_id: str, doc_id: str, claims: dict = Depen
 
 @router.get("/jobs/{job_id}/inspection", response_model=InspectionJob)
 async def get_inspection_summary(job_id: str, claims: dict = Depends(get_current_claims)):
+    """
+    Get Inspection Summary functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            claims (dict): claims parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     assert_field_rep_owns_job(claims, job_id)
     """
     Retrieve the full InspectionJob summary.
@@ -313,6 +359,19 @@ async def get_inspection_summary(job_id: str, claims: dict = Depends(get_current
 
 @router.post("/jobs/{job_id}/resume-supplement", status_code=202, dependencies=[Depends(check_rate_limit)])
 async def resume_supplement(job_id: str, request: Request, background_tasks: BackgroundTasks, role: str = Depends(get_current_role), claims: dict = Depends(get_current_claims)):
+    """
+    Resume Supplement functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            request (Request): request parameter.
+            background_tasks (BackgroundTasks): background_tasks parameter.
+            role (str): role parameter.
+            claims (dict): claims parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     assert_field_rep_owns_job(claims, job_id)
     """
     Resumes a halted supplement pipeline (e.g. from PENDING_MANUAL_REVIEW).
@@ -353,6 +412,18 @@ def _sync_resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload
 
 @router.patch("/jobs/{job_id}/flags/{flag_id}", status_code=200)
 async def resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload, claims: dict = Depends(get_current_claims)):
+    """
+    Resolve Flag functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            flag_id (str): flag_id parameter.
+            payload (FlagResolutionPayload): payload parameter.
+            claims (dict): claims parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     assert_field_rep_owns_job(claims, job_id)
     """
     Resolves a flag that was marked for manual review.
@@ -413,6 +484,17 @@ def _sync_insert_agreement(agreement_id: str, job_id: str, pdf_path: str, sig_fi
 
 @router.post("/jobs/{job_id}/contingency-sign")
 async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, claims: dict = Depends(get_current_claims)):
+    """
+    Contingency Sign functionality.
+    
+    Args:
+            job_id (str): job_id parameter.
+            payload (ContingencySignaturePayload): payload parameter.
+            claims (dict): claims parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     assert_field_rep_owns_job(claims, job_id)
     """
     Handle E-Signature for Contingency Agreements.

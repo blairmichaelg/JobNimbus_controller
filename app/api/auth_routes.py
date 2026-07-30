@@ -15,6 +15,18 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login")
 async def login(request: Request, response: Response, pin: str = Form(...), redirect_url: str = Form("/")) :
+    """
+    Login functionality.
+    
+    Args:
+            request (Request): request parameter.
+            response (Response): response parameter.
+            pin (str): pin parameter.
+            redirect_url (str): redirect_url parameter.
+    
+    Returns:
+        Any: The resulting output.
+    """
     settings = get_settings()
 
     # Map PINs to roles — .env is the ONLY source of truth.
@@ -90,6 +102,12 @@ async def login(request: Request, response: Response, pin: str = Form(...), redi
 
 @router.get("/logout")
 async def logout():
+    """
+    Logout functionality.
+    
+    Returns:
+        Any: The resulting output.
+    """
     res = RedirectResponse(url="/login", status_code=303)
     res.delete_cookie("auth_token")
     return res

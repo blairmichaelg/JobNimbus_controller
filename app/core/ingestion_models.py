@@ -5,6 +5,7 @@ from decimal import Decimal, ROUND_HALF_UP
 T = TypeVar('T')
 
 class EvidenceRef(BaseModel):
+    """EvidenceRef definition."""
     doc_id: str
     page: int
     bounding_box: Optional[str] = None
@@ -12,11 +13,13 @@ class EvidenceRef(BaseModel):
     extraction_method: str
 
 class SourcedValue(BaseModel, Generic[T]):
+    """SourcedValue definition."""
     value: T
     evidence: List[EvidenceRef] = Field(default_factory=list)
     verified: bool = False
 
 class ClaimLineItem(BaseModel):
+    """ClaimLineItem definition."""
     category_code: str
     activity_code: str
     description: str
@@ -32,6 +35,12 @@ class ClaimLineItem(BaseModel):
     @model_validator(mode='after')
     def validate_math(self) -> 'ClaimLineItem':
         # (quantity * unit_price) + tax == claimed_rcv (tolerance 0.02)
+        """
+        Validate Math functionality.
+        
+        Returns:
+            'ClaimLineItem': The resulting output.
+        """
         q = self.quantity.value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         up = self.unit_price.value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         t = self.tax.value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -48,6 +57,7 @@ class ClaimLineItem(BaseModel):
         return self
 
 class RoofGeometry(BaseModel):
+    """RoofGeometry definition."""
     pitch: SourcedValue[str]
     total_squares: SourcedValue[Decimal]
     eaves_lf: SourcedValue[Decimal]
@@ -55,12 +65,14 @@ class RoofGeometry(BaseModel):
     rakes_lf: SourcedValue[Decimal]
 
 class ClaimFinancials(BaseModel):
+    """ClaimFinancials definition."""
     gross_rcv: SourcedValue[Decimal]
     total_depreciation: SourcedValue[Decimal]
     deductible: SourcedValue[Decimal]
     net_claim: SourcedValue[Decimal]
 
 class UniversalClaimAST(BaseModel):
+    """UniversalClaimAST definition."""
     line_items: List[ClaimLineItem]
     roof_geometry: RoofGeometry
     financials: ClaimFinancials
@@ -81,6 +93,12 @@ class UniversalClaimAST(BaseModel):
 
     @model_validator(mode='after')
     def validate_total(self) -> 'UniversalClaimAST':
+        """
+        Validate Total functionality.
+        
+        Returns:
+            'UniversalClaimAST': The resulting output.
+        """
         total_rcv = sum((item.claimed_rcv.value for item in self.line_items), Decimal("0.00"))
         
         # Simple cross-check. If they mismatch significantly, we could flag it.
