@@ -19,9 +19,12 @@ from app.core.database import run_migrations as _init_crm
 from unittest.mock import patch
 
 @pytest.fixture(autouse=True)
-def mock_assert_field_rep_owns_job():
-    with patch("app.api.field_routes.assert_field_rep_owns_job") as mock:
-        yield mock
+def mock_assert_field_rep_owns_job(request):
+    if "no_mock_ownership" in request.keywords:
+        yield None
+    else:
+        with patch("app.api.field_routes.assert_field_rep_owns_job") as mock:
+            yield mock
 
 _init_cache()
 _init_crm()
@@ -367,4 +370,81 @@ def test_field_document_visibility_restriction():
     response = client.get(f"/api/field/jobs/{job_id}/documents/{safe_id}/download")
     assert response.status_code == 404
     assert "File is missing from disk" in response.json()["detail"]
+
+
+@pytest.mark.no_mock_ownership
+def test_field_access_enforcement():
+    from app.core.database import get_connection, insert_job_document, create_field_rep, get_field_rep_by_pin
+    from app.main import app
+    from fastapi.testclient import TestClient
+    import uuid
+    
+    # Create fresh rep
+    pin = "4444"
+    rep_name = "Auth Test Rep"
+    if not get_field_rep_by_pin(pin):
+        create_field_rep(rep_name, pin)
+    
+    rep_a = get_field_rep_by_pin(pin)
+    rep_id_a = rep_a["id"]
+    
+    # Setup test client for Rep A
+    rep_client = TestClient(app)
+    resp = rep_client.post("/auth/login", data={"pin": pin, "redirect_url": "/"}, follow_redirects=False)
+    rep_client.cookies.set("auth_token", resp.cookies.get("auth_token"))
+    
+    rep_id_b = str(uuid.uuid4())
+    job_id_a = str(uuid.uuid4())
+    job_id_b = str(uuid.uuid4())
+    
+    # 1. Create two jobs with different canvasser_rep_ids
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, canvasser_rep_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (job_id_a, "Job A", "123 A St", "City", "State", "00000", "555-5555", rep_id_a)
+    )
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, canvasser_rep_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (job_id_b, "Job B", "123 B St", "City", "State", "00000", "555-5555", rep_id_b)
+    )
+    conn.commit()
+    conn.close()
+    
+    # Insert field_safe documents for both jobs
+    insert_job_document(job_id_a, "safe_a.pdf", "EAGLEVIEW_PDF", "/fake/path/a.pdf", "hash_a", "field_safe", "test")
+    insert_job_document(job_id_b, "safe_b.pdf", "EAGLEVIEW_PDF", "/fake/path/b.pdf", "hash_b", "field_safe", "test")
+    
+    conn = get_connection()
+    doc_a_id = conn.execute("SELECT id FROM job_documents WHERE job_id = ?", (job_id_a,)).fetchone()["id"]
+    doc_b_id = conn.execute("SELECT id FROM job_documents WHERE job_id = ?", (job_id_b,)).fetchone()["id"]
+    conn.close()
+    
+    # 2 & 3. Authenticated as rep A, access Job A documents
+    response = rep_client.get(f"/api/field/jobs/{job_id_a}/documents")
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    
+    response = rep_client.get(f"/api/field/jobs/{job_id_a}/documents/{doc_a_id}/download")
+    assert response.status_code == 404  # 404 because file is missing from disk, but NOT 403 Forbidden
+    
+    # 4. Same rep gets 403 when trying to access Job B (not owned)
+    response = rep_client.get(f"/api/field/jobs/{job_id_b}/documents")
+    assert response.status_code == 403
+    
+    response = rep_client.get(f"/api/field/jobs/{job_id_b}/documents/{doc_b_id}/download")
+    assert response.status_code == 403
+    
+    # 5. Admin can access documents on both jobs regardless of ownership
+    admin_client = TestClient(app)
+    
+    resp = admin_client.post("/auth/login", data={"pin": "9999", "redirect_url": "/"}, follow_redirects=False)
+    admin_client.cookies.set("auth_token", resp.cookies.get("auth_token"))
+    
+    # Admin accesses Job A
+    response = admin_client.get(f"/api/field/jobs/{job_id_a}/documents")
+    assert response.status_code == 200
+    
+    # Admin accesses Job B
+    response = admin_client.get(f"/api/field/jobs/{job_id_b}/documents")
+    assert response.status_code == 200
 
