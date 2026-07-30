@@ -320,3 +320,51 @@ def test_resolve_flag_idor():
     )
     assert response.status_code == 404
     assert "Flag not found or does not belong to this job" in response.json()["detail"]
+
+
+def test_field_document_visibility_restriction():
+    from app.core.database import get_connection, insert_job_document
+    from pathlib import Path
+    import uuid
+    
+    conn = get_connection()
+    job_id = str(uuid.uuid4())
+    
+    # Setup job
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, canvasser_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (job_id, "Doc Test", "123 Doc St", "City", "State", "00000", "555-5555", "Test Rep")
+    )
+    conn.commit()
+    conn.close()
+    
+    # Insert two documents
+    insert_job_document(job_id, "field_safe.pdf", "EAGLEVIEW_PDF", "/fake/path/safe.pdf", "hash1", "field_safe", "test")
+    insert_job_document(job_id, "office_only.pdf", "QBO_EXPORT", "/fake/path/office.csv", "hash2", "office_only", "test")
+    
+    # Get documents in DB manually to find IDs
+    conn = get_connection()
+    cursor = conn.execute("SELECT id, visibility FROM job_documents WHERE job_id = ?", (job_id,))
+    docs = cursor.fetchall()
+    conn.close()
+    
+    safe_id = next(d['id'] for d in docs if d['visibility'] == 'field_safe')
+    office_id = next(d['id'] for d in docs if d['visibility'] == 'office_only')
+    
+    # Test 1: List documents
+    response = client.get(f"/api/field/jobs/{job_id}/documents")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]['id'] == safe_id
+    
+    # Test 2: Try to download office_only document
+    response = client.get(f"/api/field/jobs/{job_id}/documents/{office_id}/download")
+    assert response.status_code == 403
+    assert "Not authorized to view this document" in response.json()["detail"]
+    
+    # Test 3: Try to download field_safe document (should return 404 because file is missing from disk, but NOT 403)
+    response = client.get(f"/api/field/jobs/{job_id}/documents/{safe_id}/download")
+    assert response.status_code == 404
+    assert "File is missing from disk" in response.json()["detail"]
+

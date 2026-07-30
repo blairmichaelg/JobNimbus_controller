@@ -205,6 +205,58 @@ async def upload_field_photo(job_id: str, file: UploadFile = File(...), claims: 
         raise HTTPException(status_code=500, detail="Failed to save photo")
 
 
+@router.get("/jobs")
+async def list_my_jobs(claims: dict = Depends(get_current_claims)):
+    """List jobs belonging to the current field rep."""
+    rep_name = claims.get("rep_name")
+    if not rep_name:
+        return []
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT id, homeowner_name, address_line1, created_at, status FROM jobs WHERE canvasser_name = ? ORDER BY created_at DESC LIMIT 20", (rep_name,))
+        return [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+@router.get("/jobs/{job_id}/documents")
+async def list_field_documents(job_id: str, claims: dict = Depends(get_current_claims)):
+    assert_field_rep_owns_job(claims, job_id)
+    """
+    Retrieve all field-safe documents for a job.
+    Office-only documents (financials, commissions) are strictly excluded.
+    """
+    from app.core.database import get_job_documents
+    docs = await asyncio.to_thread(get_job_documents, job_id)
+    # Strictly filter visibility
+    safe_docs = [doc for doc in docs if doc.get("visibility") == "field_safe"]
+    return safe_docs
+
+@router.get("/jobs/{job_id}/documents/{doc_id}/download")
+async def download_field_document(job_id: str, doc_id: str, claims: dict = Depends(get_current_claims)):
+    assert_field_rep_owns_job(claims, job_id)
+    """
+    Download a field-safe document. Strictly blocks office-only documents.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT storage_path, filename, file_type, visibility FROM job_documents WHERE id = ? AND job_id = ?", (doc_id, job_id))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Document not found.")
+            
+        if row["visibility"] != "field_safe":
+            raise HTTPException(status_code=403, detail="Not authorized to view this document.")
+        
+        path = Path(row["storage_path"])
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="File is missing from disk.")
+            
+        from fastapi.responses import FileResponse
+        return FileResponse(path, media_type=row["file_type"], filename=row["filename"])
+    finally:
+        conn.close()
+
+
 @router.get("/jobs/{job_id}/inspection", response_model=InspectionJob)
 async def get_inspection_summary(job_id: str, claims: dict = Depends(get_current_claims)):
     assert_field_rep_owns_job(claims, job_id)
