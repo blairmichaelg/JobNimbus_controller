@@ -181,6 +181,13 @@ def run_migrations() -> None:
             m6.up(conn)
             
             conn.execute("UPDATE schema_version SET version = 6, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+            
+        if current_version < 7:
+            import importlib
+            m7 = importlib.import_module("app.core.migrations.0007_integer_cents")
+            m7.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 7, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
 
         conn.execute("COMMIT")
         logger.info("migrations_applied", current_version=current_version, target_version=5)
@@ -224,9 +231,9 @@ def seed_default_pricing() -> None:
             ("retail_premium_per_sq", 580.0),
         ]
         conn.executemany('''
-            INSERT OR IGNORE INTO pricing (item_key, default_rate)
-            VALUES (?, ?)
-        ''', baseline_pricing)
+            INSERT OR IGNORE INTO pricing (item_key, default_rate, default_rate_cents)
+            VALUES (?, ?, ?)
+        ''', [(row[0], row[1], int(round(row[1] * 100))) for row in baseline_pricing])
         conn.execute("COMMIT")
     except Exception as e:
         logger.error("pricing_seed_failed", error=str(e))
@@ -264,7 +271,7 @@ def get_pricing_ledger() -> dict[str, float]:
     """
     conn = get_connection()
     try:
-        cursor = conn.execute("SELECT item_key, default_rate FROM pricing")
+        cursor = conn.execute("SELECT item_key, default_rate_cents / 100.0 as default_rate FROM pricing")
         return {row["item_key"]: row["default_rate"] for row in cursor}
     except Exception as e:
         logger.error("failed_to_fetch_pricing", error=str(e))
@@ -421,25 +428,25 @@ def update_job_status(job_id: str, new_status: str, note: str = "") -> None:
 
 def upsert_financials(
     job_id: str, 
-    revenue: float, 
-    carrier_rcv: float, 
-    material_cost: float, 
-    labor_cost: float, 
+    revenue_cents: int, 
+    carrier_rcv_cents: int, 
+    material_cost_cents: int, 
+    labor_cost_cents: int, 
     overhead_pct: float, 
     canvasser_commission_pct: float,
-    permits_fee: float = 0.0
+    permits_fee_cents: int = 0
 ) -> None:
     """Upsert financial pre-build parameters into the financials table.
 
     Args:
         job_id (str): The unique identifier for the job.
-        revenue (float): Total contract price or revenue.
-        carrier_rcv (float): The carrier's Replacement Cost Value.
-        material_cost (float): Total material cost.
-        labor_cost (float): Total labor cost.
+        revenue_cents (int): Total contract price or revenue in cents.
+        carrier_rcv_cents (int): The carrier's Replacement Cost Value in cents.
+        material_cost_cents (int): Total material cost in cents.
+        labor_cost_cents (int): Total labor cost in cents.
         overhead_pct (float): Overhead percentage.
         canvasser_commission_pct (float): Commission percentage.
-        permits_fee (float): Cost of permits.
+        permits_fee_cents (int): Cost of permits in cents.
         
     Raises:
         Exception: If the upsert operation fails.
@@ -447,19 +454,40 @@ def upsert_financials(
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        
+        # Write to both the old REAL columns (for NOT NULL compatibility) and the new INTEGER cents columns
+        revenue_real = revenue_cents / 100.0
+        carrier_rcv_real = carrier_rcv_cents / 100.0
+        material_cost_real = material_cost_cents / 100.0
+        labor_cost_real = labor_cost_cents / 100.0
+        permits_fee_real = permits_fee_cents / 100.0
+        
         conn.execute('''
             INSERT INTO financials 
-            (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct, permits_fee)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (job_id, 
+             revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, permits_fee_cents,
+             revenue, carrier_rcv, material_cost, labor_cost, permits_fee,
+             overhead_pct, canvasser_commission_pct)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
+                revenue_cents = excluded.revenue_cents,
+                carrier_rcv_cents = excluded.carrier_rcv_cents,
+                material_cost_cents = excluded.material_cost_cents,
+                labor_cost_cents = excluded.labor_cost_cents,
+                permits_fee_cents = excluded.permits_fee_cents,
                 revenue = excluded.revenue,
                 carrier_rcv = excluded.carrier_rcv,
                 material_cost = excluded.material_cost,
                 labor_cost = excluded.labor_cost,
+                permits_fee = excluded.permits_fee,
                 overhead_pct = excluded.overhead_pct,
-                canvasser_commission_pct = excluded.canvasser_commission_pct,
-                permits_fee = excluded.permits_fee
-        ''', (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct, permits_fee))
+                canvasser_commission_pct = excluded.canvasser_commission_pct
+        ''', (
+            job_id, 
+            revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, permits_fee_cents,
+            revenue_real, carrier_rcv_real, material_cost_real, labor_cost_real, permits_fee_real,
+            overhead_pct, canvasser_commission_pct
+        ))
         conn.execute("COMMIT")
         logger.info("financials_upserted", job_id=job_id)
     except Exception as e:
@@ -590,7 +618,25 @@ def get_financials(job_id: str) -> Optional[dict]:
     """Fetch the raw financial parameters for a given job."""
     conn = get_connection()
     try:
-        cursor = conn.execute("SELECT * FROM financials WHERE job_id = ?", (job_id,))
+        cursor = conn.execute("""
+            SELECT job_id, 
+                   revenue_cents / 100.0 as revenue,
+                   carrier_rcv_cents / 100.0 as carrier_rcv,
+                   material_cost_cents / 100.0 as material_cost,
+                   labor_cost_cents / 100.0 as labor_cost,
+                   overhead_pct,
+                   canvasser_commission_pct,
+                   permits_fee_cents / 100.0 as permits_fee,
+                   deductible_cents / 100.0 as deductible,
+                   acv_payment_cents / 100.0 as acv_payment,
+                   recoverable_depreciation_cents / 100.0 as recoverable_depreciation,
+                   carrier_initial_rcv_cents / 100.0 as carrier_initial_rcv,
+                   carrier_supplemented_rcv_cents / 100.0 as carrier_supplemented_rcv,
+                   qbo_exported,
+                   qbo_exported_at
+            FROM financials 
+            WHERE job_id = ?
+        """, (job_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
     except Exception as e:
@@ -604,8 +650,13 @@ def get_monthly_financials(month: int, year: int) -> list[dict]:
     conn = get_connection()
     try:
         cursor = conn.execute("""
-            SELECT j.id, j.homeowner_name, j.status, f.revenue, f.material_cost, 
-                   f.labor_cost, f.overhead_pct, f.canvasser_commission_pct, f.permits_fee
+            SELECT j.id, j.homeowner_name, j.status, 
+                   f.revenue_cents / 100.0 as revenue, 
+                   f.material_cost_cents / 100.0 as material_cost, 
+                   f.labor_cost_cents / 100.0 as labor_cost, 
+                   f.overhead_pct, 
+                   f.canvasser_commission_pct, 
+                   f.permits_fee_cents / 100.0 as permits_fee
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
             WHERE j.status IN ('INVOICED', 'CLOSED')
@@ -699,9 +750,13 @@ def get_qbo_export_batch() -> list[dict]:
         cursor = conn.execute(
             """
             SELECT j.id as job_id, j.homeowner_name, j.status,
-                   f.revenue, f.carrier_rcv, f.material_cost,
-                   f.labor_cost, f.overhead_pct,
-                   f.canvasser_commission_pct, f.permits_fee
+                   f.revenue_cents / 100.0 as revenue, 
+                   f.carrier_rcv_cents / 100.0 as carrier_rcv, 
+                   f.material_cost_cents / 100.0 as material_cost,
+                   f.labor_cost_cents / 100.0 as labor_cost, 
+                   f.overhead_pct,
+                   f.canvasser_commission_pct, 
+                   f.permits_fee_cents / 100.0 as permits_fee
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
             WHERE j.status IN ('SUPPLEMENT_APPROVED', 'INVOICED')
@@ -793,9 +848,13 @@ def atomic_qbo_export() -> list[dict]:
         cursor = conn.execute("""
             SELECT j.id as job_id, j.invoice_id, j.homeowner_name, j.status,
                    j.claim_number,
-                   f.revenue, f.carrier_rcv, f.material_cost,
-                   f.labor_cost, f.overhead_pct,
-                   f.canvasser_commission_pct, f.permits_fee
+                   f.revenue_cents / 100.0 as revenue, 
+                   f.carrier_rcv_cents / 100.0 as carrier_rcv, 
+                   f.material_cost_cents / 100.0 as material_cost,
+                   f.labor_cost_cents / 100.0 as labor_cost, 
+                   f.overhead_pct,
+                   f.canvasser_commission_pct, 
+                   f.permits_fee_cents / 100.0 as permits_fee
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
             WHERE j.status IN ('SUPPLEMENT_APPROVED', 'INVOICED')
@@ -868,15 +927,16 @@ def toggle_payment_flag(job_id: str, flag: str, amount: float | None = None, dat
         # If amount is provided, we are capturing a check. This forces it to ON.
         if amount is not None and date_received is not None:
             new_val = 1
+            amount_cents = int(round(amount * 100))
             if flag == "acv_received":
                 conn.execute(
-                    "UPDATE jobs SET acv_received=1, acv_received_at=CURRENT_TIMESTAMP, acv_check_amount=?, acv_check_date=? WHERE id=?",
-                    (amount, date_received, job_id)
+                    "UPDATE jobs SET acv_received=1, acv_received_at=CURRENT_TIMESTAMP, acv_check_amount_cents=?, acv_check_date=? WHERE id=?",
+                    (amount_cents, date_received, job_id)
                 )
             else:
                 conn.execute(
-                    "UPDATE jobs SET supplement_received=1, supplement_received_at=CURRENT_TIMESTAMP, supplement_check_amount=?, supplement_check_date=? WHERE id=?",
-                    (amount, date_received, job_id)
+                    "UPDATE jobs SET supplement_received=1, supplement_received_at=CURRENT_TIMESTAMP, supplement_check_amount_cents=?, supplement_check_date=? WHERE id=?",
+                    (amount_cents, date_received, job_id)
                 )
         else:
             new_val = 0 if row[flag] else 1

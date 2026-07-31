@@ -99,7 +99,15 @@ class TestOfficeFinancialsRoute:
     @patch("app.api.office_routes.backup_database")
     def test_update_financials_background_backup(self, mock_backup, mock_upsert, mock_compute):
         """Verifies that backup_database is delegated to BackgroundTasks and executed."""
-        mock_compute.return_value = {"gross_margin": 0.40, "direct_costs": 5000}
+        mock_compute.return_value = {
+            "gross_margin": 0.40, 
+            "direct_costs_cents": 500000,
+            "gross_profit_cents": 500000,
+            "overhead_cost_cents": 250000,
+            "net_profit_cents": 250000,
+            "canvasser_commission_cents": 100000,
+            "effective_commission_pct": 0.10
+        }
         
         payload = {
             "revenue": 10000,

@@ -22,7 +22,7 @@ from app.services.hover_extractor import detect_pdf_format
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
-from app.core.database import insert_material_order, insert_schedule, JobStatus, upsert_financials, insert_job_document, get_job_document_by_hash, _fetch_job_sync
+from app.core.database import insert_material_order, insert_schedule, JobStatus, upsert_financials, get_financials, insert_job_document, get_job_document_by_hash, _fetch_job_sync
 from app.core.backup import backup_database
 from app.core.pipeline import run_full_office_pipeline
 from app.api.auth import verify_admin, verify_accounting
@@ -142,8 +142,7 @@ def get_job_details(job_id: str) -> Dict[str, Union[Dict[str, Union[str, float, 
         job_dict["status_history"] = json.loads(job_dict["status_history"]) if job_dict["status_history"] else []
         
         # Get Financials
-        cursor = conn.execute("SELECT * FROM financials WHERE job_id = ?", (job_id,))
-        fin_row = cursor.fetchone()
+        fin_dict = get_financials(job_id)
         
         # Get Schedule
         cursor = conn.execute("SELECT * FROM schedule WHERE job_id = ?", (job_id,))
@@ -153,18 +152,28 @@ def get_job_details(job_id: str) -> Dict[str, Union[Dict[str, Union[str, float, 
         cursor = conn.execute("SELECT * FROM material_orders WHERE job_id = ? ORDER BY delivery_date DESC LIMIT 1", (job_id,))
         mat_row = cursor.fetchone()
         
-        fin_dict = dict(fin_row) if fin_row else None
         if fin_dict:
             # Dynamically compute exact margins
             margins = compute_job_profitability(
-                revenue=fin_dict["revenue"],
-                materials=fin_dict["material_cost"],
-                labor=fin_dict["labor_cost"],
+                revenue_cents=int(round(fin_dict["revenue"] * 100)),
+                materials_cents=int(round(fin_dict["material_cost"] * 100)),
+                labor_cents=int(round(fin_dict["labor_cost"] * 100)),
                 overhead_pct=fin_dict["overhead_pct"],
                 commission_pct=fin_dict["canvasser_commission_pct"],
                 commission_pct_override=job_dict.get("commission_pct_override")
             )
-            fin_dict["computed_margins"] = margins
+            
+            # Convert back to dollars for the UI payload
+            margins_dollars = {
+                "direct_costs": margins["direct_costs_cents"] / 100.0,
+                "gross_profit": margins["gross_profit_cents"] / 100.0,
+                "gross_margin": margins["gross_margin"],
+                "overhead_cost": margins["overhead_cost_cents"] / 100.0,
+                "net_profit": margins["net_profit_cents"] / 100.0,
+                "canvasser_commission": margins["canvasser_commission_cents"] / 100.0,
+                "effective_commission_pct": margins["effective_commission_pct"]
+            }
+            fin_dict["computed_margins"] = margins_dollars
 
         # Get Documents
         cursor = conn.execute("SELECT * FROM job_documents WHERE job_id = ? ORDER BY created_at DESC", (job_id,))
@@ -548,9 +557,9 @@ def _sync_update_job_financials(job_id: str, payload: FinancialsPayload):
 
     # Calculate precise financials
     results = compute_job_profitability(
-        revenue=payload.revenue,
-        materials=payload.materials,
-        labor=payload.labor,
+        revenue_cents=int(round(payload.revenue * 100)),
+        materials_cents=int(round(payload.materials * 100)),
+        labor_cents=int(round(payload.labor * 100)),
         overhead_pct=payload.overhead_pct,
         commission_pct=payload.commission_pct,
         commission_pct_override=override
@@ -563,21 +572,31 @@ def _sync_update_job_financials(job_id: str, payload: FinancialsPayload):
             job_id=job_id, 
             gross_margin=results["gross_margin"],
             revenue=payload.revenue,
-            direct_costs=results["direct_costs"]
+            direct_costs=results["direct_costs_cents"] / 100.0
         )
         
     # Store raw parameters in DB
     upsert_financials(
         job_id=job_id,
-        revenue=payload.revenue,
-        carrier_rcv=payload.carrier_rcv,
-        material_cost=payload.materials,
-        labor_cost=payload.labor,
+        revenue_cents=int(round(payload.revenue * 100)),
+        carrier_rcv_cents=int(round(payload.carrier_rcv * 100)),
+        material_cost_cents=int(round(payload.materials * 100)),
+        labor_cost_cents=int(round(payload.labor * 100)),
         overhead_pct=payload.overhead_pct,
         canvasser_commission_pct=payload.commission_pct,
-        permits_fee=payload.permits_fee
+        permits_fee_cents=int(round(payload.permits_fee * 100))
     )
-    return results
+    
+    # Convert returned integer cents back to dollars for API response
+    return {
+        "direct_costs": results["direct_costs_cents"] / 100.0,
+        "gross_profit": results["gross_profit_cents"] / 100.0,
+        "gross_margin": results["gross_margin"],
+        "overhead_cost": results["overhead_cost_cents"] / 100.0,
+        "net_profit": results["net_profit_cents"] / 100.0,
+        "canvasser_commission": results["canvasser_commission_cents"] / 100.0,
+        "effective_commission_pct": results["effective_commission_pct"]
+    }
 
 @router.post("/jobs/{job_id}/financials", dependencies=[Depends(verify_accounting)])
 async def update_job_financials(job_id: str, payload: FinancialsPayload, bg_tasks: BackgroundTasks):
