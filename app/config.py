@@ -84,10 +84,7 @@ class Settings(BaseSettings):
         default="API TEST LAB",
         description="CRM status name used to filter test jobs. Only webhooks with this status are processed.",
     )
-    dry_run: bool = Field(
-        default=True,
-        description="When true, outbound CRM mutations are logged but NOT executed.",
-    )
+
     
     @property
     def get_db_path(self) -> str:

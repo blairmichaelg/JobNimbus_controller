@@ -47,7 +47,7 @@ Open `.env` in a secure editor and configure your production parameter tokens:
 | `GEMINI_API_KEY` | `AIzaSy...` | Valid Google AI Studio Gemini API Key for vision and narrative processing. |
 | `WEBHOOK_SECRET` | `32-char hex string` | Cryptographic secret for signing external notification endpoints. |
 | `REDIS_URL` | `redis://127.0.0.1:6379/0` | Connection locator for local or networked Redis task queue broker. |
-| `DRY_RUN` | `false` | When `false`, authorizes real SQL database persistence and file storage generation. |
+
 
 > [!CAUTION]
 > Never commit `.env` or local `.db` files to Git version control. Ensure `.gitignore` guidelines remain intact when executing remote code synchronization.
@@ -88,7 +88,7 @@ The included `render.yaml` configuration file automatically defines and launches
 3. Render reads `render.yaml` automatically, provisioning:
    - **Web Service (`wickham-ai-controller`)**: Using the root `Dockerfile` and `entrypoint.sh` script to run both Uvicorn and ARQ worker processes within a unified high-efficiency container.
    - **Key-Value Service (`wickham-redis`)**: An isolated internal Redis cache cluster accessible strictly over private container networks.
-4. In the service dashboard environment tab, inject your required secrets (`GEMINI_API_KEY`, `WEBHOOK_SECRET`, `APP_ENV=production`, `DRY_RUN=false`) and deploy!
+4. In the service dashboard environment tab, inject your required secrets (`GEMINI_API_KEY`, `WEBHOOK_SECRET`, `APP_ENV=production`) and deploy!
 
 ---
 

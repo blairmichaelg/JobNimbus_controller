@@ -92,7 +92,6 @@ async def lifespan(app: FastAPI):
     logger.info(
         "application_starting",
         env=settings.app_env,
-        dry_run=settings.dry_run,
         quarantine_status=settings.quarantine_status,
     )
     
@@ -256,7 +255,6 @@ async def health_check():
     return {
         "status": "ok",
         "env": settings.app_env,
-        "dry_run": settings.dry_run,
     }
 
 

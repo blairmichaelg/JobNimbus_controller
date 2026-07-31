@@ -23,7 +23,7 @@ def _make_test_app():
     mock_settings.gemini_api_key = "test_gemini_key"
     mock_settings.app_env = "development"
     mock_settings.log_level = "DEBUG"
-    mock_settings.dry_run = True
+
 
     from app.api.webhooks import router
     from app.config import get_settings

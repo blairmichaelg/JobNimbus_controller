@@ -25,8 +25,7 @@ services:
         value: INFO
       - key: QUARANTINE_STATUS
         value: API TEST LAB
-      - key: DRY_RUN
-        value: "true"
+
 
   # === Internal Redis (Key-Value Store) ===
   - type: kvs
