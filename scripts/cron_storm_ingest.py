@@ -37,18 +37,9 @@ def fetch_storm_data():
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     
-    try:
-        # Get unique zipcodes from leads
-        cursor = conn.execute("SELECT DISTINCT postal_code FROM jobs WHERE postal_code IS NOT NULL AND postal_code != ''")
-        active_zips = [row["postal_code"] for row in cursor.fetchall()]
-        if not active_zips:
-            # If no active jobs, fallback to checking some zipcodes or just abort
-            logger.info("no_active_jobs_for_storm_ingestion")
-            return
-    except Exception as e:
-        logger.error("db_query_failed", error=str(e))
-        conn.close()
-        return
+    # Static list of zip codes representing the Thomasville + ~2hr drive time service area
+    SERVICE_AREA_ZIPS = ["31001", "31015", "31072", "31077", "31079", "31084", "31092", "31512", "31519", "31533", "31535", "31550", "31552", "31601", "31602", "31605", "31606", "31620", "31622", "31623", "31624", "31625", "31626", "31627", "31629", "31630", "31631", "31632", "31634", "31635", "31636", "31637", "31638", "31639", "31641", "31642", "31643", "31645", "31647", "31648", "31649", "31650", "31698", "31699", "31701", "31705", "31707", "31709", "31712", "31714", "31716", "31719", "31720", "31721", "31722", "31730", "31733", "31735", "31738", "31743", "31744", "31747", "31749", "31750", "31756", "31757", "31763", "31764", "31765", "31768", "31771", "31772", "31773", "31774", "31775", "31778", "31779", "31780", "31781", "31783", "31784", "31787", "31788", "31789", "31790", "31791", "31792", "31793", "31794", "31795", "31796", "31798", "31824", "31832", "32008", "32024", "32052", "32053", "32055", "32059", "32060", "32062", "32064", "32066", "32071", "32094", "32096", "32301", "32303", "32304", "32305", "32308", "32309", "32310", "32311", "32312", "32317", "32321", "32322", "32323", "32324", "32327", "32328", "32330", "32331", "32332", "32333", "32334", "32336", "32340", "32343", "32344", "32346", "32347", "32348", "32350", "32351", "32352", "32355", "32356", "32358", "32359", "32361", "32399", "32420", "32421", "32423", "32424", "32426", "32428", "32430", "32431", "32432", "32438", "32440", "32442", "32443", "32445", "32446", "32447", "32448", "32449", "32460", "32463", "32465", "32466", "32628", "39813", "39815", "39817", "39819", "39823", "39824", "39825", "39826", "39827", "39828", "39834", "39836", "39837", "39840", "39841", "39842", "39845", "39846", "39851", "39859", "39861", "39862", "39866", "39867", "39870", "39877", "39885", "39886", "39897"]
+    active_zips = SERVICE_AREA_ZIPS
 
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=365)
@@ -57,7 +48,9 @@ def fetch_storm_data():
     ets = end_date.strftime("%Y-%m-%dT%H:%M:%SZ")
     
     # Georgia WFOs + bordering
-    wfos = "FFC,JAX,TAE,CHS,JGX"
+    wfos = "TAE,JAX"
+    # TAE (Tallahassee, FL) - Thomasville, Valdosta, Tifton, Albany, Moultrie, Cairo, Bainbridge
+    # JAX (Jacksonville, FL) - Waycross, Douglas
     url = f"https://mesonet.agron.iastate.edu/geojson/lsr.php?wfos={wfos}&sts={sts}&ets={ets}"
     
     logger.info("fetching_iem_data", url=url)

@@ -28,18 +28,17 @@ def test_storm_ingest(mock_connect, mock_get):
     mock_conn = mock_connect.return_value
     mock_conn.row_factory = None
     mock_cursor = mock_conn.execute.return_value
-    # First call: SELECT DISTINCT postal_code
-    # Second call: SELECT 1 FROM storm_events
-    mock_cursor.fetchall.return_value = [{"postal_code": "31602"}]
+    # First call: SELECT 1 FROM storm_events
     mock_cursor.fetchone.return_value = None  # Not exists
     
     with patch('scripts.cron_storm_ingest.Path.exists', return_value=True):
-        with patch('builtins.open', create=True) as mock_open:
-            import json, io
-            mock_open.return_value = io.StringIO(json.dumps({
-                "31602": {"lat": 30.8327, "lon": -83.2785}
-            }))
-            fetch_storm_data()
+        with patch('scripts.cron_storm_ingest.get_db_path', return_value='dummy.db'):
+            with patch('builtins.open', create=True) as mock_open:
+                import json, io
+                mock_open.return_value = io.StringIO(json.dumps({
+                    "31602": {"lat": 30.8327, "lon": -83.2785}
+                }))
+                fetch_storm_data()
             
     # Verify execute was called for INSERT
     insert_calls = [

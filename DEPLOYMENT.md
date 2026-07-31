@@ -105,6 +105,9 @@ Whenever deploying a new build or performing maintenance on an active server, ex
 
 # Perform static analysis inspection
 .\venv\Scripts\python.exe -m ruff check app/
+
+# Verify Gemini AI integration end-to-end
+.\venv\Scripts\python.exe scripts/manual_verify_photo_analysis.py
 ```
 
 If all tests and linter checks pass cleanly, your local or cloud CRM deployment is completely hardened, mathematically proven, and operational for real-world production.

@@ -84,3 +84,9 @@ sweep.ps1
 tools/cloudflared.exe
 
 venv_fresh/
+
+# Throwaway root scripts and images
+/fix_*.py
+/check_*.py
+/*.jpg
+/*.png
