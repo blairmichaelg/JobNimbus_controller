@@ -245,7 +245,7 @@ class TestInspectionProcessor:
         mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
 
         # Mock analysis
-        from unittest.mock import AsyncMock
+        
         mock_ai.analyze_roof_photo = AsyncMock(return_value=sample_analysis)
 
         job = InspectionJob(
@@ -287,7 +287,7 @@ class TestInspectionProcessor:
 
         mock_uploaded = MagicMock()
         mock_uploaded.name = "files/bad"
-        mock_ai.upload_media_file = AsyncMock(return_value='files/test123')
+        mock_ai.upload_media_file = AsyncMock(return_value='files/bad')
         mock_ai.delete_file = AsyncMock()
         mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
 
@@ -340,7 +340,7 @@ class TestInspectionProcessor:
         mock_file_info.state.name = "ACTIVE"
         mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
 
-        from unittest.mock import AsyncMock
+        
         mock_ai.analyze_roof_photo = AsyncMock(return_value=sample_analysis)
 
         job = InspectionJob(

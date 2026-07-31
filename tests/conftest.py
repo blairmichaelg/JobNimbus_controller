@@ -40,3 +40,12 @@ def setup_test_db(tmp_path_factory):
         conn.close()
     
     yield
+
+@pytest.fixture(autouse=True)
+def clear_rate_limits():
+    """Clear rate limits before every test."""
+    try:
+        from app.services.rate_limit import _request_history
+        _request_history.clear()
+    except ImportError:
+        pass

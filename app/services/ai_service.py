@@ -339,7 +339,7 @@ Rules:
                 self._call_with_backoff,
                 self.client.models.generate_content,
                 model=self.model_name,
-                contents=[await asyncio.to_thread(self._call_with_backoff, self.client.files.get, name=uploaded_file.name), prompt],
+                contents=[file_info, prompt],
                 config=genai_types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=StatementOfLoss,
@@ -449,7 +449,7 @@ Rules:
             self._call_with_backoff,
             self.client.models.generate_content,
             model=self.model_name,
-            contents=[await asyncio.to_thread(self._call_with_backoff, self.client.files.get, name=uploaded_file.name), prompt],
+            contents=[file_info, prompt],
             config=genai_types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=PhotoAnalysis,
