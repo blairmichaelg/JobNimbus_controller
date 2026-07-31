@@ -151,26 +151,25 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
             ai_file_path = await asyncio.to_thread(resize_for_ai, photo.filepath, max_width=1600)
 
             # 1. Upload to Gemini File API
-            uploaded_file = await asyncio.to_thread(ai.client.files.upload, file=ai_file_path)
-            uploaded_name = uploaded_file.name
+            uploaded_name = await ai.upload_media_file(ai_file_path)
             assert uploaded_name is not None
             photo_log.debug("photo_uploaded", remote_name=uploaded_name)
 
             # 2. Poll until processing completes
-            file_info = await asyncio.to_thread(ai.client.files.get, name=uploaded_name)
-            assert file_info.state is not None
-            while file_info.state.name == "PROCESSING":
+            file_status = await ai.get_file_status(uploaded_name)
+            assert file_status is not None
+            while file_status == "PROCESSING":
                 await asyncio.sleep(2)  # CRITICAL: Yields to event loop, respects ARQ CancelledError
-                file_info = await asyncio.to_thread(ai.client.files.get, name=uploaded_name)
-                assert file_info.state is not None
+                file_status = await ai.get_file_status(uploaded_name)
+                assert file_status is not None
 
-            assert file_info.state is not None
-            if file_info.state.name == "FAILED":
+            assert file_status is not None
+            if file_status == "FAILED":
                 photo_log.error("photo_processing_failed_on_server")
                 continue
 
             # 3. Analyze with backoff protection
-            analysis = await ai.analyze_roof_photo(file_info, photo.filepath.name, job.job_id)
+            analysis = await ai.analyze_roof_photo(uploaded_name, photo.filepath.name, job.job_id)
             analysis.filename = photo.filepath.name
             job.analyses.append(analysis)
 
@@ -195,7 +194,7 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
             # 4. Cleanup: immediately delete from Google's servers
             if uploaded_name:
                 try:
-                    await asyncio.to_thread(ai.client.files.delete, name=uploaded_name)
+                    await ai.delete_file(uploaded_name)
                     photo_log.debug("remote_file_deleted", remote_name=uploaded_name)
                 except Exception as e:
                     photo_log.warning("remote_file_cleanup_failed", remote_name=uploaded_name, error=str(e))

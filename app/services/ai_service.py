@@ -53,7 +53,7 @@ class AiClient(ABC):
     async def analyze_job_data(self, payload: dict) -> dict: ...
     
     @abstractmethod
-    async def classify_carrier(self, file_info, job_id: str | None = None) -> str: ...
+    async def classify_carrier(self, file_name: str, job_id: str | None = None) -> str: ...
 
     @abstractmethod
     async def extract_sol_from_pdf(self, pdf_path: str, job_id: str | None = None) -> StatementOfLoss: ...
@@ -62,7 +62,7 @@ class AiClient(ABC):
     async def generate_supplement_narrative(self, report: DiscrepancyReport, codes: str) -> str: ...
     
     @abstractmethod
-    async def analyze_roof_photo(self, file_info, original_filename: str, job_id: str | None = None) -> PhotoAnalysis: ...
+    async def analyze_roof_photo(self, file_name: str, original_filename: str, job_id: str | None = None) -> PhotoAnalysis: ...
     
     @abstractmethod
     async def generate_text(self, system_prompt: str, user_prompt: str, job_id: str | None = None, operation_type: str = "generate_text") -> str: ...
@@ -70,7 +70,24 @@ class AiClient(ABC):
     @abstractmethod
     async def extract_sol_structured_data(self, prompt: str) -> str: ...
 
+    @abstractmethod
+    async def upload_media_file(self, file_path: str) -> str: ...
+    
+    @abstractmethod
+    async def get_file_status(self, file_name: str) -> str: ...
+    
+    @abstractmethod
+    async def delete_file(self, file_name: str) -> None: ...
+
 class GeminiClient(AiClient):
+    """
+    Gemini AI integration for cognitive processing of CRM data.
+
+    Uses the google-genai unified SDK with:
+    - Strict JSON output via response_mime_type
+    - Low temperature for deterministic responses
+    - Pydantic schema enforcement on AI output
+    """
     async def extract_sol_structured_data(self, prompt: str) -> str:
         response = await asyncio.to_thread(
             self._call_with_backoff,
@@ -84,20 +101,28 @@ class GeminiClient(AiClient):
         )
         return response.text
 
-    """
-    Gemini AI integration for cognitive processing of CRM data.
 
-    Uses the google-genai unified SDK with:
-    - Strict JSON output via response_mime_type
-    - Low temperature for deterministic responses
-    - Pydantic schema enforcement on AI output
-    """
 
     def __init__(self) -> None:
         self.settings = get_settings()
         self.client = genai.Client(api_key=self.settings.gemini_api_key)
         self.model_name = "gemini-2.5-flash"
         logger.info("ai_service_initialized", model=self.model_name)
+
+    async def upload_media_file(self, file_path: str) -> str:
+        uploaded_file = await asyncio.to_thread(self._call_with_backoff, self.client.files.upload, file=file_path)
+        return uploaded_file.name
+
+    async def get_file_status(self, file_name: str) -> str:
+        file_info = await asyncio.to_thread(self._call_with_backoff, self.client.files.get, name=file_name)
+        return file_info.state.name
+
+    async def delete_file(self, file_name: str) -> None:
+        try:
+            await asyncio.to_thread(self._call_with_backoff, self.client.files.delete, name=file_name)
+        except Exception as e:
+            logger.warning("gemini_file_cleanup_failed", file_name=file_name, error=str(e))
+
 
     def _call_with_backoff(self, func, *args, max_retries: int = 5, **kwargs):
         """
@@ -223,7 +248,7 @@ Rules:
                 "document_data": {},
             }
 
-    def classify_carrier(self, file_info, job_id: str | None = None) -> str:
+    async def classify_carrier(self, file_name: str, job_id: str | None = None) -> str:
         """
         Classify the carrier estimating software from the PDF.
         """
@@ -231,7 +256,11 @@ Rules:
             "Analyze the first page or headers of this PDF and identify the estimating software used. "
             "Return ONLY a single string: 'xactimate', 'symbility', or 'unknown'."
         )
-        response = self._call_with_backoff(
+        
+        file_info = await asyncio.to_thread(self._call_with_backoff, self.client.files.get, name=file_name)
+        
+        response = await asyncio.to_thread(
+            self._call_with_backoff,
             self.client.models.generate_content,
             model=self.model_name,
             contents=[file_info, prompt],
@@ -275,7 +304,7 @@ Rules:
                 raise RuntimeError("File processing failed on Gemini servers.")
 
             # 3. Classify the Carrier
-            source_system = await asyncio.to_thread(self.classify_carrier, file_info, job_id)
+            source_system = await self.classify_carrier(uploaded_file.name, job_id)
             
             # 4. Set targeted prompt
             if source_system == "xactimate":
@@ -310,7 +339,7 @@ Rules:
                 self._call_with_backoff,
                 self.client.models.generate_content,
                 model=self.model_name,
-                contents=[file_info, prompt],
+                contents=[await asyncio.to_thread(self._call_with_backoff, self.client.files.get, name=uploaded_file.name), prompt],
                 config=genai_types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=StatementOfLoss,
@@ -387,7 +416,8 @@ Rules:
             log.error("supplement_narrative_failed", error=str(exc))
             raise
 
-    async def analyze_roof_photo(self, file_info, original_filename: str, job_id: str | None = None) -> PhotoAnalysis:
+    async def analyze_roof_photo(self, file_name: str, original_filename: str, job_id: str | None = None) -> PhotoAnalysis:
+        file_info = await asyncio.to_thread(self._call_with_backoff, self.client.files.get, name=file_name)
         """
         Multimodal damage analysis of a single roof photo using Gemini 2.5 Flash.
 
@@ -419,7 +449,7 @@ Rules:
             self._call_with_backoff,
             self.client.models.generate_content,
             model=self.model_name,
-            contents=[file_info, prompt],
+            contents=[await asyncio.to_thread(self._call_with_backoff, self.client.files.get, name=uploaded_file.name), prompt],
             config=genai_types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=PhotoAnalysis,

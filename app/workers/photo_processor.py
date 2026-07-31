@@ -57,21 +57,20 @@ async def process_photo_damage(ctx: dict, job_id: str, filename: str) -> None:
     
     try:
         # Upload to Gemini directly
-        uploaded_file = await asyncio.to_thread(ai.client.files.upload, file=str(file_path))
-        uploaded_name = uploaded_file.name
+        uploaded_name = await ai.upload_media_file(str(file_path))
         
         # Poll processing
-        file_info = await asyncio.to_thread(ai.client.files.get, name=uploaded_name)
-        while file_info.state.name == "PROCESSING":
+        file_status = await ai.get_file_status(uploaded_name)
+        while file_status == "PROCESSING":
             await asyncio.sleep(2)
-            file_info = await asyncio.to_thread(ai.client.files.get, name=uploaded_name)
+            file_status = await ai.get_file_status(uploaded_name)
             
-        if file_info.state.name == "FAILED":
+        if file_status == "FAILED":
             log.error("gemini_processing_failed")
             return
             
         # Analyze
-        analysis = await ai.analyze_roof_photo(file_info, filename, job_id)
+        analysis = await ai.analyze_roof_photo(uploaded_name, filename, job_id)
         
         # Build damage signal
         confidence = analysis.confidence
@@ -99,6 +98,6 @@ async def process_photo_damage(ctx: dict, job_id: str, filename: str) -> None:
     finally:
         if uploaded_name:
             try:
-                await asyncio.to_thread(ai.client.files.delete, name=uploaded_name)
+                await ai.delete_file(uploaded_name)
             except Exception:
                 pass
