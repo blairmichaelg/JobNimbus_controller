@@ -57,7 +57,7 @@ class LeadIntakePayload(BaseModel):
 
 class SignaturePayload(BaseModel):
     """SignaturePayload definition."""
-    job_id: str = Field(..., description="JobNimbus entity ID")
+    job_id: str = Field(..., description="Internal job identifier")
     signature_base64: str = Field(..., description="Data URI from HTML5 Canvas (data:image/png;base64,...)")
     ip_address: str | None = Field(None, description="IP address of the device capturing the signature")
     timestamp: str | None = Field(None, description="ISO8601 timestamp of signature capture")
@@ -118,7 +118,7 @@ async def create_new_job(
     claims: dict = Depends(get_current_claims),
 ):
     """
-    Intake hook for new leads. Replaces JobNimbus lead creation.
+    Intake hook for new leads. Replaces external CRM lead creation.
     Generates UUID, creates directories, and initializes local SQLite record.
     """
     job_id = str(uuid.uuid4())

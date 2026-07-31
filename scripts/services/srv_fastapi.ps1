@@ -1,4 +1,4 @@
-$repo = "C:\Users\Michael\projects\JobNimbus_controller"
+$repo = (Get-Item $PSScriptRoot).Parent.Parent.FullName
 Set-Location -Path $repo
 $env:VIRTUAL_ENV = "$repo\venv"
 $env:PYTHONPATH = $repo

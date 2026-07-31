@@ -92,8 +92,8 @@ class Settings(BaseSettings):
     @property
     def get_db_path(self) -> str:
         if self.app_env.lower() == "prod":
-            return "data/jobnimbus.db"
-        return "data/jobnimbus_dev.db"
+            return "data/wickham.db"
+        return "data/wickham_dev.db"
 
     BACKUP_RETENTION_LIMIT: int = Field(
         default=10,

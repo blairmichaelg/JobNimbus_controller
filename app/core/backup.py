@@ -17,7 +17,7 @@ def backup_database(retention_days: int = 14) -> None:
     backup_dir.mkdir(parents=True, exist_ok=True)
     
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file = backup_dir / f"jobnimbus_{timestamp}.db"
+    backup_file = backup_dir / f"wickham_{timestamp}.db"
     
     logger.info("backup_started", target=str(backup_file))
     
@@ -42,7 +42,7 @@ def backup_database(retention_days: int = 14) -> None:
         
     # Enforce rolling window
     try:
-        all_backups = glob.glob(str(backup_dir / "jobnimbus_*.db"))
+        all_backups = glob.glob(str(backup_dir / "wickham_*.db"))
         # Sort oldest to newest
         all_backups.sort(key=os.path.getmtime)
         

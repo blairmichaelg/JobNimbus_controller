@@ -106,7 +106,7 @@ Running multi-role web servers over standard SQLite files historically risked da
 ## 6. Authoritative Repository Directory Tree
 
 ```
-JobNimbus_controller/
+wickham_crm/
 ├── app/                        # Application Source Code Kernel
 │   ├── api/                    # FastAPI Routers (office_routes, field_routes, auth)
 │   ├── core/                   # SQLite WAL Database, Schema Migrations & Ingestion Models

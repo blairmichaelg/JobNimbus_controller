@@ -1,6 +1,6 @@
 # Security Authorization Boundaries
 
-This document summarizes the authorization boundaries and security enforcements implemented across the `JobNimbus_controller` API infrastructure as of Phase 3 Security Hardening.
+This document summarizes the authorization boundaries and security enforcements implemented across the `wickham_crm` API infrastructure as of Phase 3 Security Hardening.
 
 ## Office Routes (`/api/office`)
 **Dependency:** `verify_admin` (unless otherwise noted)

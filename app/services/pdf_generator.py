@@ -2,8 +2,7 @@
 PDF document generator using ReportLab.
 
 Renders AI-generated structured data (e.g., itemized material breakdowns)
-into clean, branded PDF documents. These PDFs bypass JobNimbus's built-in
-templates for full layout control.
+into clean, branded PDF documents. These PDFs allow for full layout control.
 
 Implementation: Phase 5
 """

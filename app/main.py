@@ -98,9 +98,9 @@ async def lifespan(app: FastAPI):
     
     # Stark visibility for Dev/Prod split
     if settings.app_env.lower() == "prod":
-        logger.info("[PROD MODE] Using data/jobnimbus.db on port 8000")
+        logger.info("[PROD MODE] Using data/wickham.db on port 8000")
     else:
-        logger.info("[DEV MODE] Using data/jobnimbus_dev.db on port 8001")
+        logger.info("[DEV MODE] Using data/wickham_dev.db on port 8001")
 
     # Initialize V3 Cache and Directories (Epic 1 & 2)
     init_cache_db()
@@ -125,9 +125,6 @@ async def lifespan(app: FastAPI):
     # --- Shutdown ---
     logger.info("application_shutting_down")
 
-    # Close the JobNimbus API client (Phase 2)
-    if hasattr(app.state, "jn_client"):
-        await app.state.jn_client.close()
 
     # Close the ARQ Redis pool (Phase 3)
     if hasattr(app.state, "redis_pool"):
@@ -138,7 +135,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Wickham Roofing AI Orchestrator",
-    description="Async middleware bridging JobNimbus CRM and Google Gemini AI.",
+    description="Standalone CRM orchestrator and Google Gemini AI middleware.",
     version="0.1.0",
     lifespan=lifespan,
 )

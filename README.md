@@ -8,7 +8,7 @@
 
 The **Wickham Roofing AI Controller (V4 "Truck Server")** is a proprietary, local-first operational platform designed to automate insurance roofing production from field lead intake to financial ledger reconciliation. 
 
-Engineered to operate entirely offline or via zero-cloud tunneling directly from field office hardware, V4 completely eliminates third-party SaaS dependency (e.g., JobNimbus) by orchestrating deterministic insurance math, forensic AI roof analysis, automated paperwork matrices, and QuickBooks Online (QBO) invoice exporting over a self-healing SQLite state machine.
+Engineered to operate entirely offline or via zero-cloud tunneling directly from field office hardware, V4 completely eliminates third-party SaaS dependency by orchestrating deterministic insurance math, forensic AI roof analysis, automated paperwork matrices, and QuickBooks Online (QBO) invoice exporting over a self-healing SQLite state machine.
 
 ---
 
@@ -93,8 +93,8 @@ To ensure real-world financial accuracy, the pipeline strictly separates mathema
 ### 1. Repository Setup & Virtual Environment
 ```powershell
 # Clone repository
-git clone https://github.com/blairmichaelg/JobNimbus_controller.git
-cd JobNimbus_controller
+git clone https://github.com/blairmichaelg/wickham_crm.git
+cd wickham_crm
 
 # Provision virtual environment
 python -m venv venv

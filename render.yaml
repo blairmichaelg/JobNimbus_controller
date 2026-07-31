@@ -9,12 +9,7 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     envVars:
-      - key: JOBNIMBUS_API_KEY
-        sync: false
-      - key: JOBNIMBUS_BASE_URL
-        value: https://app.jobnimbus.com/api1
-      - key: JOBNIMBUS_ACTOR_EMAIL
-        sync: false
+
       - key: WEBHOOK_SECRET
         sync: false
       - key: GEMINI_API_KEY

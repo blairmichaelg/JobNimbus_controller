@@ -1,7 +1,6 @@
 """
 Generic Event Trigger Endpoint.
 
-Replaces legacy JobNimbus webhooks.
 Receives POST requests, validates the shared API key via constant-time comparison,
 and enqueues valid events into the ARQ Redis queue for async processing.
 """

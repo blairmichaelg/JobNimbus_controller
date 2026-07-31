@@ -1,7 +1,7 @@
 {
   "name": "Truck Server Field App",
   "short_name": "Field App",
-  "description": "JobNimbus Offline-Ready Field Application",
+  "description": "Wickham Roofing Offline-Ready Field Application",
   "start_url": "/field",
   "display": "standalone",
   "background_color": "#111827",

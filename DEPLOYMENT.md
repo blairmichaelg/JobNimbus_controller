@@ -19,8 +19,8 @@ The "Truck Server" architecture natively converts an office Windows PC or laptop
 ### 2. Workspace Initialization
 1. Open PowerShell and clone the official project repository:
    ```powershell
-   git clone https://github.com/blairmichaelg/JobNimbus_controller.git
-   cd JobNimbus_controller
+   git clone https://github.com/blairmichaelg/wickham_crm.git
+   cd wickham_crm
    ```
 2. Provision a dedicated isolated Python virtual environment:
    ```powershell
@@ -71,7 +71,7 @@ These wrapper scripts handle automated restart loops, port conflict resolution, 
 To ensure enterprise data continuity without writing custom third-party cloud SDK wrappers (e.g., AWS S3 `boto3` calls), V4 integrates a "Zero-Code" background backup architecture utilizing Google Drive for Desktop:
 
 1. **Install Google Drive for Desktop** on the Windows machine operating as the local Truck Server.
-2. **Configure Folder Sync**: In Google Drive settings, map the local folder path `JobNimbus_controller\data\backups` for continuous automatic synchronization to your secure business cloud drive.
+2. **Configure Folder Sync**: In Google Drive settings, map the local folder path `wickham_crm\data\backups` for continuous automatic synchronization to your secure business cloud drive.
 3. **Automated Snapshot Engine**: The application's internal cron jobs continuously execute non-blocking SQLite `VACUUM INTO` operations, writing consistency-verified database snapshots directly into `data\backups\`.
 4. **Automatic Cloud Preservation**: Google Drive silently monitors the target folder and automatically syncs all new snapshots to the cloud in real time. The internal cleanup engine automatically unlinks historical backups beyond a 10-file ceiling, maintaining optimal local disk footprint while preserving cloud disaster recovery capability.
 
@@ -84,7 +84,7 @@ For hybrid deployments requiring hosting on remote cloud infrastructure, the rep
 ### 1. Render Infrastructure Blueprint
 The included `render.yaml` configuration file automatically defines and launches a fully orchestrated cloud cluster:
 1. Log into your [Render Cloud Dashboard](https://render.com) and navigate to **New + $\rightarrow$ Blueprint**.
-2. Connect your private GitHub repository (`JobNimbus_controller`).
+2. Connect your private GitHub repository (`wickham_crm`).
 3. Render reads `render.yaml` automatically, provisioning:
    - **Web Service (`wickham-ai-controller`)**: Using the root `Dockerfile` and `entrypoint.sh` script to run both Uvicorn and ARQ worker processes within a unified high-efficiency container.
    - **Key-Value Service (`wickham-redis`)**: An isolated internal Redis cache cluster accessible strictly over private container networks.

@@ -22,8 +22,8 @@ To configure a non-destructive local software engineering workspace:
 
 ```powershell
 # 1. Clone repository & transition to working folder
-git clone https://github.com/blairmichaelg/JobNimbus_controller.git
-cd JobNimbus_controller
+git clone https://github.com/blairmichaelg/wickham_crm.git
+cd wickham_crm
 
 # 2. Initialize an isolated python environment
 python -m venv venv
@@ -38,7 +38,7 @@ cp .env.example .env
 ```
 
 > [!IMPORTANT]
-> You must ensure that `APP_ENV` inside your local `.env` file is set strictly to `development` or `dev`. This configures the application to utilize ephemeral developer SQLite tables (`data/jobnimbus_dev.db`), completely protecting production ledgers from modification or backup pollution.
+> You must ensure that `APP_ENV` inside your local `.env` file is set strictly to `development` or `dev`. This configures the application to utilize ephemeral developer SQLite tables (`data/wickham_dev.db`), completely protecting production ledgers from modification or backup pollution.
 
 ---
 
