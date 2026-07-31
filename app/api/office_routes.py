@@ -18,7 +18,6 @@ from pydantic import BaseModel
 
 from app.core.database import get_connection, update_job_status
 from app.core.pipeline import parse_measurement_pdf
-from app.services.pdf_extractor import extract_eagleview_data
 from app.services.hover_extractor import detect_pdf_format
 from app.services.pdf_generator import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR

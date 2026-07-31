@@ -358,7 +358,7 @@ async def get_inspection_summary(job_id: str, claims: dict = Depends(get_current
 
 
 @router.post("/jobs/{job_id}/resume-supplement", status_code=202, dependencies=[Depends(check_rate_limit)])
-async def resume_supplement(job_id: str, request: Request, background_tasks: BackgroundTasks, role: str = Depends(get_current_role), claims: dict = Depends(get_current_claims)):
+async def resume_supplement(job_id: str, request: Request, role: str = Depends(get_current_role), claims: dict = Depends(get_current_claims)):
     """
     Resume Supplement functionality.
     
