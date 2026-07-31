@@ -11,17 +11,30 @@ def hash_db_contents(db_path):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    # Hash all rows in jobs and financials to simulate data checksum
-    cursor.execute("SELECT id, homeowner_name FROM jobs ORDER BY id")
-    jobs = cursor.fetchall()
+    # Get all tables
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
+    tables = [row[0] for row in cursor.fetchall() if row[0] != 'sqlite_sequence']
     
-    cursor.execute("SELECT job_id, revenue_cents, carrier_rcv_cents FROM financials ORDER BY job_id")
-    financials = cursor.fetchall()
+    all_data_str = ""
+    total_rows = 0
     
+    print(f"Hashing {len(tables)} tables: {', '.join(tables)}")
+    
+    for table in tables:
+        # Find primary key for deterministic ordering
+        cursor.execute(f"PRAGMA table_info({table})")
+        columns = cursor.fetchall()
+        pk_cols = [col[1] for col in columns if col[5] > 0]
+        order_clause = f"ORDER BY {', '.join(pk_cols)}" if pk_cols else "ORDER BY rowid"
+        
+        cursor.execute(f"SELECT * FROM {table} {order_clause}")
+        rows = cursor.fetchall()
+        total_rows += len(rows)
+        all_data_str += str(rows)
+        
     conn.close()
     
-    data_str = str(jobs) + str(financials)
-    return hashlib.sha256(data_str.encode('utf-8')).hexdigest(), len(jobs), len(financials)
+    return hashlib.sha256(all_data_str.encode('utf-8')).hexdigest(), total_rows, len(tables)
 
 def run_test():
     original_db = "data/wickham.db"
@@ -32,8 +45,8 @@ def run_test():
     print("1. Staging DB cloned from wickham.db")
     
     # Checksum before
-    pre_hash, pre_jobs_count, pre_fin_count = hash_db_contents(staging_db)
-    print(f"Pre-backup hash: {pre_hash} (Jobs: {pre_jobs_count}, Financials: {pre_fin_count})")
+    pre_hash, pre_total_rows, pre_num_tables = hash_db_contents(staging_db)
+    print(f"Pre-backup hash: {pre_hash} (Rows: {pre_total_rows}, Tables: {pre_num_tables})")
     
     # Temporarily override get_db_path to use staging_db
     import app.core.backup
@@ -45,9 +58,6 @@ def run_test():
     # Find the backup file
     backup_dir = Path("data/backups")
     backups = glob.glob(str(backup_dir / "wickham_staging_*.db"))
-    if not backups:
-        # It names it wickham_TIMESTAMP.db because of how backup_database hardcodes the name
-        backups = glob.glob(str(backup_dir / "wickham_*.db"))
         
     # Get the latest backup
     backups.sort(key=os.path.getmtime)
@@ -63,8 +73,8 @@ def run_test():
     print(f"4. Restored DB to: {staging_db}")
     
     # Checksum after
-    post_hash, post_jobs_count, post_fin_count = hash_db_contents(staging_db)
-    print(f"Post-restore hash: {post_hash} (Jobs: {post_jobs_count}, Financials: {post_fin_count})")
+    post_hash, post_total_rows, post_num_tables = hash_db_contents(staging_db)
+    print(f"Post-restore hash: {post_hash} (Rows: {post_total_rows}, Tables: {post_num_tables})")
     
     if pre_hash == post_hash:
         print("\nSUCCESS: 100% Data Integrity Verified!")
