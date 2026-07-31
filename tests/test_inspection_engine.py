@@ -79,8 +79,8 @@ class TestCallWithBackoff:
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = MagicMock()
 
-        from app.services.ai_service import AIService
-        service = AIService()
+        from app.services.ai_service import GeminiClient
+        service = GeminiClient()
 
         mock_func = MagicMock(return_value="success")
         result = service._call_with_backoff(mock_func)
@@ -96,8 +96,8 @@ class TestCallWithBackoff:
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = MagicMock()
 
-        from app.services.ai_service import AIService
-        service = AIService()
+        from app.services.ai_service import GeminiClient
+        service = GeminiClient()
 
         mock_func = MagicMock(
             side_effect=[
@@ -120,8 +120,8 @@ class TestCallWithBackoff:
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = MagicMock()
 
-        from app.services.ai_service import AIService
-        service = AIService()
+        from app.services.ai_service import GeminiClient
+        service = GeminiClient()
 
         mock_func = MagicMock(side_effect=Exception("429 RESOURCE_EXHAUSTED"))
 
@@ -137,8 +137,8 @@ class TestCallWithBackoff:
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = MagicMock()
 
-        from app.services.ai_service import AIService
-        service = AIService()
+        from app.services.ai_service import GeminiClient
+        service = GeminiClient()
 
         mock_func = MagicMock(side_effect=ValueError("Something else broke"))
 
@@ -155,8 +155,8 @@ class TestCallWithBackoff:
         mock_get_settings.return_value = mock_settings
         mock_client_class.return_value = MagicMock()
 
-        from app.services.ai_service import AIService
-        service = AIService()
+        from app.services.ai_service import GeminiClient
+        service = GeminiClient()
 
         mock_func = MagicMock(side_effect=Exception("429 RESOURCE_EXHAUSTED"))
 
@@ -192,8 +192,8 @@ class TestAnalyzeRoofPhoto:
         mock_client_instance.models.generate_content.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
 
-        from app.services.ai_service import AIService
-        service = AIService()
+        from app.services.ai_service import GeminiClient
+        service = GeminiClient()
 
         mock_file_info = MagicMock()
         result = asyncio.run(service.analyze_roof_photo(mock_file_info, "test.jpg"))
@@ -219,7 +219,7 @@ class TestInspectionProcessor:
     @patch("app.workers.inspection_processor.set_cached_analysis")
     @patch("app.workers.inspection_processor.get_cached_analysis")
     @patch("app.workers.inspection_processor.asyncio.sleep")
-    @patch("app.workers.inspection_processor.AIService")
+    @patch("app.workers.inspection_processor.get_ai_client")
     def test_full_lifecycle(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path, sample_analysis):
         """Verify upload → poll → analyze → delete lifecycle for each photo."""
         mock_get_cache.return_value = None
@@ -272,7 +272,7 @@ class TestInspectionProcessor:
     @patch("app.workers.inspection_processor.set_cached_analysis")
     @patch("app.workers.inspection_processor.get_cached_analysis")
     @patch("app.workers.inspection_processor.asyncio.sleep")
-    @patch("app.workers.inspection_processor.AIService")
+    @patch("app.workers.inspection_processor.get_ai_client")
     def test_failed_processing_skips_photo(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path):
         """Photos that fail server-side processing should be skipped, not crash."""
         mock_get_cache.return_value = None
@@ -312,7 +312,7 @@ class TestInspectionProcessor:
     @patch("app.workers.inspection_processor.set_cached_analysis")
     @patch("app.workers.inspection_processor.get_cached_analysis")
     @patch("app.workers.inspection_processor.asyncio.sleep")
-    @patch("app.workers.inspection_processor.AIService")
+    @patch("app.workers.inspection_processor.get_ai_client")
     def test_multiple_photos_sequential(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path, sample_analysis):
         """Multiple photos should be processed sequentially, not in parallel."""
         mock_get_cache.return_value = None
@@ -357,7 +357,7 @@ class TestInspectionProcessor:
     @patch("app.workers.inspection_processor.set_cached_analysis")
     @patch("app.workers.inspection_processor.get_cached_analysis")
     @patch("app.workers.inspection_processor.asyncio.sleep")
-    @patch("app.workers.inspection_processor.AIService")
+    @patch("app.workers.inspection_processor.get_ai_client")
     def test_cleanup_runs_on_analysis_error(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path):
         """Remote file should be deleted even if analysis throws an exception."""
         mock_get_cache.return_value = None
@@ -396,7 +396,7 @@ class TestInspectionProcessor:
         mock_set_cache.assert_not_called()
 
     @patch("app.workers.inspection_processor.get_cached_analysis")
-    @patch("app.workers.inspection_processor.AIService")
+    @patch("app.workers.inspection_processor.get_ai_client")
     def test_cache_hit_bypasses_ai(self, mock_ai_class, mock_get_cache, tmp_path, sample_analysis):
         """A cache hit should instantly append the analysis and skip Gemini completely."""
         mock_get_cache.return_value = sample_analysis

@@ -233,7 +233,7 @@ async def test_escalation_sla_timer_reset():
         escalation_sent_at=None,  # First escalation
     )
 
-    # Mock AIService.generate_text and PDFGenerator.generate_escalation_letter
+    # Mock GeminiClient.generate_text and PDFGenerator.generate_escalation_letter
     async def _fake_generate_text(**kwargs):
         return "Mocked escalation letter body for testing."
 
@@ -247,7 +247,7 @@ async def test_escalation_sla_timer_reset():
         return fp
 
     with (
-        patch("app.workers.escalation_processor.AIService") as MockAI,
+        patch("app.workers.escalation_processor.get_ai_client") as MockAI,
         patch("app.workers.escalation_processor.PDFGenerator") as MockPDF,
     ):
         mock_ai_instance = MockAI.return_value

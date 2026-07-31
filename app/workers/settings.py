@@ -23,6 +23,7 @@ from app.workers.rebuttal_processor import process_rebuttal
 from app.workers.retail_quote_processor import process_retail_quote
 from app.workers.commission_processor import process_commission
 from app.workers.escalation_processor import process_escalation
+from app.workers.photo_processor import process_photo_damage
 
 logger = structlog.get_logger("app.workers.settings")
 
@@ -117,6 +118,7 @@ class WorkerSettings:
         process_retail_quote,
         process_commission,
         process_escalation,
+        process_photo_damage,
     ]
 
     redis_settings = get_redis_settings()

@@ -376,6 +376,36 @@ async def serve_accounting_dashboard(request: Request, role: str = Depends(verif
     })
 
 
+@app.get("/office/canvassing", tags=["frontend"])
+async def serve_canvassing(request: Request, role: str = Depends(verify_office_role)):
+    """Serve the Canvassing Targets dashboard."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute('''
+            SELECT 
+                s.zipcode,
+                COUNT(s.id) as event_count,
+                MAX(s.event_date) as last_event_date,
+                MAX(s.hail_size_inches) as max_hail,
+                COUNT(DISTINCT j.id) as total_leads,
+                SUM(CASE WHEN j.status = 'LEAD_CAPTURED' THEN 1 ELSE 0 END) as active_leads
+            FROM storm_events s
+            LEFT JOIN jobs j ON j.postal_code = s.zipcode
+            GROUP BY s.zipcode
+            ORDER BY last_event_date DESC
+            LIMIT 50
+        ''')
+        targets = [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+    return templates.TemplateResponse(request, "admin_canvassing.html", {
+        "request": request,
+        "role": role,
+        "targets": targets,
+        "auth_token": request.cookies.get("auth_token", "")
+    })
+
 @app.get("/office/jobs/{job_id}", tags=["frontend"])
 async def serve_job_detail(request: Request, job_id: str, role: str = Depends(verify_office_role)):
     """Serve the unified Job Overview dashboard (for Admin, Operations, Accounting)."""
@@ -387,9 +417,46 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
     documents = await asyncio.to_thread(get_job_documents, job_id)
     job["documents"] = documents
 
+    if job.get("damage_signals"):
+        import json
+        try:
+            job["damage_signals"] = json.loads(job["damage_signals"])
+        except Exception:
+            job["damage_signals"] = []
+    else:
+        job["damage_signals"] = []
+
+    # Calculate Condition Index
+    from app.api.field_routes import get_inspection_summary
+    try:
+        inspection_job = await get_inspection_summary(job_id, claims={"rep_name": "System", "role": "admin"})
+    except Exception:
+        # Fallback to empty inspection job if not available
+        from app.core.inspection_models import InspectionJob
+        import datetime
+        inspection_job = InspectionJob(job_id=job_id, property_address="", inspection_date=datetime.datetime.now())
+        
+    from app.core.inspection_models import calculate_condition_index
+    condition_index = calculate_condition_index(inspection_job, job["damage_signals"])
+
+    # Fetch Suggested Dates of Loss
+    storm_events = []
+    if job.get("postal_code"):
+        conn = get_connection()
+        try:
+            cursor = conn.execute(
+                "SELECT * FROM storm_events WHERE zipcode = ? ORDER BY event_date DESC LIMIT 5",
+                (job["postal_code"],)
+            )
+            storm_events = [dict(r) for r in cursor.fetchall()]
+        finally:
+            conn.close()
+
     return templates.TemplateResponse(request, "job_detail.html", {
         "request": request, 
         "job": job,
+        "condition_index": condition_index,
+        "storm_events": storm_events,
         "role": role,
         "auth_token": request.cookies.get("auth_token", "")
     })

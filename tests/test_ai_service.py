@@ -10,7 +10,7 @@ import asyncio
 from unittest.mock import patch, MagicMock
 
 import pytest
-from app.services.ai_service import AIService
+from app.services.ai_service import get_ai_client
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def test_analyze_job_data_success(
     mock_client_instance.models.generate_content.return_value = mock_response
     mock_client_class.return_value = mock_client_instance
 
-    service = AIService()
+    service = get_ai_client()
     payload = {"id": "123", "notes": "Need roof replacement"}
 
     result = asyncio.run(service.analyze_job_data(payload))
@@ -80,7 +80,7 @@ def test_analyze_job_data_schema_validation_error(
     mock_client_instance.models.generate_content.return_value = mock_response
     mock_client_class.return_value = mock_client_instance
 
-    service = AIService()
+    service = get_ai_client()
     payload = {"id": "123"}
 
     result = asyncio.run(service.analyze_job_data(payload))
@@ -130,7 +130,7 @@ def test_extract_sol_from_pdf_success(
     mock_client_instance.models.generate_content.return_value = mock_response
     mock_client_class.return_value = mock_client_instance
 
-    service = AIService()
+    service = get_ai_client()
     with patch.object(service, "classify_carrier", return_value="xactimate"):
         result = asyncio.run(service.extract_sol_from_pdf("fake.pdf"))
 
@@ -165,7 +165,7 @@ def test_extract_sol_from_pdf_processing_failure(
     
     mock_client_class.return_value = mock_client_instance
 
-    service = AIService()
+    service = get_ai_client()
     with pytest.raises(RuntimeError, match="File processing failed"):
         asyncio.run(service.extract_sol_from_pdf("fake.pdf"))
 
@@ -204,7 +204,7 @@ def test_extract_sol_symbility_routing(
     mock_client_instance.models.generate_content.return_value = mock_response
     mock_client_class.return_value = mock_client_instance
 
-    service = AIService()
+    service = get_ai_client()
     with patch.object(service, "classify_carrier", return_value="symbility"):
         result = asyncio.run(service.extract_sol_from_pdf("fake.pdf"))
 
@@ -242,7 +242,7 @@ def test_extract_sol_from_pdf_finally_block_on_error(
     mock_client_instance.models.generate_content.side_effect = Exception("Google API 500 Error")
     mock_client_class.return_value = mock_client_instance
 
-    service = AIService()
+    service = get_ai_client()
     with patch.object(service, "classify_carrier", return_value="xactimate"):
         with pytest.raises(Exception, match="Google API 500 Error"):
             asyncio.run(service.extract_sol_from_pdf("fake.pdf"))

@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image as PILImage
 
-from app.services.ai_service import AIService
+from app.services.ai_service import get_ai_client
 from app.core.inspection_models import InspectionJob
 from app.core.cache import get_cached_analysis, set_cached_analysis
 from app.core.temp_manager import create_temp_file
@@ -123,7 +123,7 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
     log = logger.bind(job_id=job.job_id, total_photos=len(job.photos))
     log.info("inspection_processing_started")
 
-    ai = AIService()
+    ai = get_ai_client()
 
     # Iterate in the natively cancellable async loop
     for idx, photo in enumerate(job.photos):

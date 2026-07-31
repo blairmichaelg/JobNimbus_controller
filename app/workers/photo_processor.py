@@ -1,0 +1,104 @@
+import asyncio
+import json
+import structlog
+from pathlib import Path
+
+from app.core.database import get_connection
+from app.services.ai_service import get_ai_client
+from app.api.field_routes import FIELD_PHOTOS_DIR
+
+logger = structlog.get_logger("app.workers.photo_processor")
+
+def _sync_update_damage_signals(job_id: str, new_signal: dict):
+    """
+    Append a new damage signal to the job's damage_signals JSON column.
+    """
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.execute("SELECT damage_signals FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        if not row:
+            return
+            
+        try:
+            signals = json.loads(row["damage_signals"]) if row["damage_signals"] else []
+        except Exception:
+            signals = []
+            
+        signals.append(new_signal)
+        
+        conn.execute(
+            "UPDATE jobs SET damage_signals = ? WHERE id = ?",
+            (json.dumps(signals), job_id)
+        )
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.close()
+
+async def process_photo_damage(ctx: dict, job_id: str, filename: str) -> None:
+    """
+    ARQ task triggered when a field rep uploads a photo.
+    Analyzes the photo for damage using Gemini Vision.
+    """
+    log = logger.bind(job_id=job_id, photo=filename)
+    log.info("photo_damage_analysis_started")
+    
+    file_path = FIELD_PHOTOS_DIR / job_id / filename
+    if not file_path.exists():
+        log.error("photo_file_missing")
+        return
+        
+    ai = get_ai_client()
+    uploaded_name = None
+    
+    try:
+        # Upload to Gemini directly
+        uploaded_file = await asyncio.to_thread(ai.client.files.upload, file=str(file_path))
+        uploaded_name = uploaded_file.name
+        
+        # Poll processing
+        file_info = await asyncio.to_thread(ai.client.files.get, name=uploaded_name)
+        while file_info.state.name == "PROCESSING":
+            await asyncio.sleep(2)
+            file_info = await asyncio.to_thread(ai.client.files.get, name=uploaded_name)
+            
+        if file_info.state.name == "FAILED":
+            log.error("gemini_processing_failed")
+            return
+            
+        # Analyze
+        analysis = await ai.analyze_roof_photo(file_info, filename, job_id)
+        
+        # Build damage signal
+        confidence = analysis.confidence
+        damage_type = analysis.damage_type.value
+        
+        needs_review = False
+        if confidence < 0.70:
+            damage_type = "unknown"
+            needs_review = True
+            
+        signal = {
+            "damage_type": damage_type,
+            "confidence": confidence,
+            "source": "gemini_v2_vision",
+            "needs_review": needs_review,
+            "filename": filename,
+            "created_at": __import__("datetime").datetime.utcnow().isoformat() + "Z"
+        }
+        
+        await asyncio.to_thread(_sync_update_damage_signals, job_id, signal)
+        log.info("photo_damage_analysis_complete", signal=signal)
+        
+    except Exception as e:
+        log.error("photo_damage_analysis_error", error=str(e))
+    finally:
+        if uploaded_name:
+            try:
+                await asyncio.to_thread(ai.client.files.delete, name=uploaded_name)
+            except Exception:
+                pass

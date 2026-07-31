@@ -24,10 +24,10 @@ while ($true) {
     if ($LASTEXITCODE -eq 0) {
         docker start -a v4-redis-server 2>>$logFile | Out-Null
         if ($LASTEXITCODE -ne 0) {
-            docker run --rm -p 6379:6379 --name v4-redis-server redis 2>>$logFile | Out-Null
+            docker run --rm -p 6379:6379 --name v4-redis-server redis redis-server --appendonly yes 2>>$logFile | Out-Null
         }
     } else {
-        wsl -u root -- /usr/bin/redis-server --bind 0.0.0.0 --daemonize no 2>>$logFile | Out-Null
+        wsl -u root -- /usr/bin/redis-server --bind 0.0.0.0 --daemonize no --appendonly yes 2>>$logFile | Out-Null
     }
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content -Path $logFile -Value "[$timestamp] Redis process terminated. Self-healing in 3 seconds..."

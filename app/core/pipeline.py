@@ -12,7 +12,7 @@ from app.services.qbo_export import generate_qbo_invoice
 from app.core.database import update_job_status, JobStatus, get_connection, insert_job_document, get_pricing_ledger
 import asyncio
 import json as _json
-from app.services.ai_service import AIService
+from app.services.ai_service import get_ai_client
 from app.core.code_router import parse_code_files, get_relevant_codes
 from app.services.pdf_generator import PDFGenerator
 from app.services.supplement_engine import SupplementEngine
@@ -118,7 +118,7 @@ async def generate_material_order_pipeline(job_id: str, supplier_name: str, deli
     Returns:
         dict[str, Any]: The resulting output.
     """
-    from app.services.ai_service import AIService
+    from app.services.ai_service import get_ai_client
     from app.services.pdf_generator import PDFGenerator
     from app.core.database import _fetch_job_sync, insert_material_order
     from app.config import FIELD_DOCS_DIR
@@ -132,7 +132,7 @@ async def generate_material_order_pipeline(job_id: str, supplier_name: str, deli
     ev_data, _ = await parse_measurement_pdf(pdf_path)
     sol_pdf_path = job_dir / "statement_of_loss.pdf"
     if sol_pdf_path.exists():
-        ai_svc = AIService()
+        ai_svc = get_ai_client()
         sol = await ai_svc.extract_sol_from_pdf(str(sol_pdf_path), job_id=job_id)
     else:
         sol = StatementOfLoss(line_items=[], overhead_and_profit_included=True)
@@ -456,7 +456,7 @@ as a formal letter addressed to the carrier's claims department.
 """
 
     # 6. Call Gemini
-    ai = AIService()
+    ai = get_ai_client()
     try:
         rebuttal_narrative = await ai.generate_text(
             system_prompt=REBUTTAL_SYSTEM_PROMPT,
@@ -821,7 +821,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
                 return {"status": "halted_for_review"}
 
         # 5. Generate Narrative
-        ai_service = AIService()
+        ai_service = get_ai_client()
         narrative = await ai_service.generate_supplement_narrative(report, codes)
 
         # 5.5 Build db_context

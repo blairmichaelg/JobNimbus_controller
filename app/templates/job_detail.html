@@ -5,6 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Job - {{ job.invoice_id or job.id[:8] }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Mobile Responsiveness Reflow */
+        @media (max-width: 768px) {
+            body.flex { flex-direction: column !important; overflow-y: auto !important; height: auto !important; display: block !important; }
+            .w-64 { width: 100% !important; height: auto !important; border-right: none !important; border-bottom: 1px solid #374151 !important; }
+            .flex-1 { flex: none !important; overflow: visible !important; }
+            .grid { display: flex !important; flex-direction: column !important; gap: 1rem !important; }
+            .grid-cols-2, .grid-cols-3, .grid-cols-4 { grid-template-columns: 1fr !important; }
+            /* Tables */
+            table { min-width: 500px !important; }
+            .overflow-hidden { overflow: visible !important; }
+            .bg-gray-800.overflow-hidden { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+            /* Button touch targets */
+            button, a, select, input { min-height: 44px; }
+            /* Fix absolute positioning on mobile if any */
+            .relative { position: static !important; }
+            .h-screen { height: auto !important; min-height: 100vh !important; }
+        }
+    </style>
 </head>
 <body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden relative">
 
@@ -58,6 +77,84 @@
                         </div>
                     </div>
                 </div>
+
+                {% if storm_events %}
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mt-6">
+                    <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Suggested Dates of Loss</h2>
+                    <div class="space-y-3">
+                        {% for event in storm_events %}
+                        <div class="flex items-center justify-between p-3 bg-gray-900 rounded border border-gray-700">
+                            <div>
+                                <p class="text-sm font-medium text-white">{{ event.event_type }}</p>
+                                <p class="text-xs text-gray-400">{{ event.event_date[:10] }}</p>
+                            </div>
+                            <div class="text-right">
+                                {% if event.event_type == 'HAIL' %}
+                                <p class="text-sm font-bold text-yellow-400">{{ event.hail_size_inches }}"</p>
+                                {% elif event.event_type == 'WIND' %}
+                                <p class="text-sm font-bold text-blue-400">{{ event.wind_speed_mph }} mph</p>
+                                {% endif %}
+                                <p class="text-xs text-gray-500">Severity</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if job.damage_signals %}
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mt-6">
+                    <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">AI Damage Signals (Field Photos)</h2>
+                    <div class="space-y-3">
+                        {% for sig in job.damage_signals %}
+                        <div class="flex items-center justify-between p-3 bg-gray-900 rounded border {% if sig.needs_review %}border-yellow-700{% else %}border-gray-700{% endif %}">
+                            <div>
+                                <p class="text-sm font-medium {% if sig.needs_review %}text-yellow-400{% else %}text-white{% endif %}">
+                                    Type: {{ sig.damage_type | upper }}
+                                    {% if sig.needs_review %}(Review Needed){% endif %}
+                                </p>
+                                <p class="text-xs text-gray-500">File: {{ sig.filename }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-bold {% if sig.confidence > 0.8 %}text-green-400{% elif sig.confidence > 0.5 %}text-yellow-400{% else %}text-red-400{% endif %}">
+                                    {{ (sig.confidence * 100)|round(1) }}%
+                                </p>
+                                <p class="text-xs text-gray-500">Confidence</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if condition_index %}
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mt-6">
+                    <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2 flex items-center justify-between">
+                        <span>Condition Index</span>
+                        <span class="text-3xl font-black {% if condition_index.grade in ['A','B'] %}text-green-400{% elif condition_index.grade == 'C' %}text-yellow-400{% else %}text-red-400{% endif %}">
+                            {{ condition_index.score }}
+                        </span>
+                    </h2>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-sm text-gray-400">Deterministic Grade</p>
+                            <p class="text-2xl font-bold {% if condition_index.grade in ['A','B'] %}text-green-400{% elif condition_index.grade == 'C' %}text-yellow-400{% else %}text-red-400{% endif %}">{{ condition_index.grade }}</p>
+                        </div>
+                        {% if condition_index.flags %}
+                        <div>
+                            <p class="text-sm text-gray-400 mb-2">Automated Flags</p>
+                            <div class="flex flex-wrap gap-2">
+                                {% for flag in condition_index.flags %}
+                                <span class="px-2 py-1 text-xs font-bold rounded bg-red-900 text-red-200 border border-red-700">
+                                    {{ flag | replace('_', ' ') | upper }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
 
                 {% if job.supplement_flags %}
                 <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mt-6">

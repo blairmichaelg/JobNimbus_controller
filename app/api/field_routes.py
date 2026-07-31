@@ -174,7 +174,7 @@ async def create_new_job(
 
 
 @router.post("/jobs/{job_id}/photos")
-async def upload_field_photo(job_id: str, file: UploadFile = File(...), claims: dict = Depends(get_current_claims)):
+async def upload_field_photo(job_id: str, request: Request, file: UploadFile = File(...), claims: dict = Depends(get_current_claims)):
     """
     Upload Field Photo functionality.
     
@@ -212,6 +212,12 @@ async def upload_field_photo(job_id: str, file: UploadFile = File(...), claims: 
             allowed_magic_bytes=[b"\xFF\xD8\xFF", b"\x89PNG\r\n\x1A\n"]
         )
         logger.info("field_photo_uploaded", job_id=job_id, filename=safe_name, size=getattr(file, "size", 0))
+        
+        # Trigger ARQ background damage analysis (Phase 1)
+        redis = getattr(request.app.state, "redis_pool", None)
+        if redis:
+            await redis.enqueue_job("process_photo_damage", job_id, safe_name)
+            
         return {"status": "success", "filename": safe_name}
     except HTTPException:
         raise

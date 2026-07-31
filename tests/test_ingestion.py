@@ -226,7 +226,7 @@ async def test_pipeline_halts_on_gross_rcv_mismatch(tmp_path):
 
     with patch("app.core.pipeline.extract_eagleview_data", return_value=(mock_ev_data, "fake_hash")), \
          patch("app.services.document_parser.parse_statement_of_loss", return_value=mock_sol_data), \
-         patch("app.services.ai_service.AIService.generate_supplement_narrative") as mock_ai:
+         patch("app.services.ai_service.GeminiClient.generate_supplement_narrative") as mock_ai:
         
         result = await run_supplement_pipeline(
             job_id=job_id,

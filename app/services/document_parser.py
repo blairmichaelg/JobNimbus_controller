@@ -18,8 +18,6 @@ from pathlib import Path
 from decimal import Decimal
 
 import pdfplumber
-from google import genai
-from google.genai import types as genai_types
 
 from app.core.ingestion_models import (
     UniversalClaimAST, ClaimLineItem, RoofGeometry,
@@ -92,26 +90,15 @@ async def _gemini_extract(
     Forces structured JSON output. Wraps result in SourcedValue with
     EvidenceRef for every field.
     """
-    settings = get_settings()
-    client = genai.Client(api_key=settings.gemini_api_key)
+    from app.services.ai_service import get_ai_client
+    client = get_ai_client()
 
     prompt = _SOL_EXTRACTION_PROMPT.format(
         raw_text=full_text[:40000],  # Token guard: first 40k chars
         raw_rows=json.dumps(raw_rows[:300])  # Row guard: max 300 rows
     )
 
-    def _call_gemini():
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=genai_types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.0,  # Zero temperature: no creativity
-            )
-        )
-        return response.text
-
-    raw_json = await asyncio.to_thread(_call_gemini)
+    raw_json = await client.extract_sol_structured_data(prompt)
 
     try:
         data = json.loads(raw_json)

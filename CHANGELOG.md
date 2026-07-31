@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.0] - 2026-07-31
+### Added & Fixed
+- **Mobile Responsiveness**: Implemented responsive UI reflows (`max-width: 768px`) across all core job, accounting, and triage templates for seamless field tablet usage.
+- **AI Damage Signals (Phase 1)**: Integrated Gemini 2.5 Flash ARQ workers (`photo_processor.py`) for automated, background damage tagging of field roof photos without blocking UI threads.
+- **Deterministic Condition Index (Phase 2)**: Developed a non-LLM, strictly mathematical `calculate_condition_index()` model that merges AI vision signals and structured field data into a deterministic 0-100 property score and A-F grade.
+- **Storm-Event Inference (Phase 3)**: Built NOAA/NWS API mock ingestion cron script and integrated it into the office view. Automatically infers "Suggested Dates of Loss" based on active zip codes and generates a prioritized Canvas Target list.
+- **Redis Queue Resilience (Phase 4)**: Enforced AOF persistence (`--appendonly yes`) in `srv_redis.ps1` and introduced a local backup health validation script (`check_backups.ps1`) for enhanced Truck Server stability.
+- **AI Abstraction Layer (Phase 5)**: Architected formal `AiClient` interfaces, migrating all Gemini integrations under a unified `get_ai_client()` dependency injector. Refactored `document_parser.py` and background workers to use this decoupled layer.
+- **Test Suite Integrity (Phase 6)**: Fixed regression testing artifacts caused by abstraction refactoring. The full test suite (240+ tests) correctly validates all system security boundaries.
 ## [1.4.2] - 2026-07-29
 ### Added & Fixed
 - **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.

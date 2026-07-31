@@ -293,3 +293,82 @@ def get_stable_photos(
     )
 
     return stable_photos
+
+
+# ── Deterministic Condition Index ─────────────────────────────────────────────
+
+class ConditionIndex(BaseModel):
+    score: int = Field(ge=0, le=100)
+    grade: str
+    flags: list[str] = []
+
+def calculate_condition_index(job: InspectionJob, damage_signals: list[dict] = None) -> ConditionIndex:
+    """
+    Deterministically calculates a 0-100 condition score based on inspection
+    analyses and field photo damage signals. AI is strictly excluded from this math.
+    """
+    if damage_signals is None:
+        damage_signals = []
+        
+    base_score = 100
+    flags = []
+    
+    # 1. Deduct based on structured photo analyses from Google Drive ingestion
+    hail_count = 0
+    wind_count = 0
+    severe_count = 0
+    granule_loss_count = 0
+    
+    for analysis in job.analyses:
+        if analysis.damage_detected:
+            if analysis.severity == Severity.MINOR:
+                base_score -= 2
+            elif analysis.severity == Severity.MODERATE:
+                base_score -= 5
+            elif analysis.severity == Severity.SEVERE:
+                base_score -= 10
+                severe_count += 1
+                
+        if analysis.damage_type == DamageType.HAIL or analysis.hail_hits_visible:
+            hail_count += 1
+        if analysis.damage_type == DamageType.WIND or analysis.crease_marks:
+            wind_count += 1
+        if analysis.granule_loss or analysis.exposed_fiberglass:
+            granule_loss_count += 1
+            base_score -= 3
+            
+    # 2. Deduct based on live Field Photo damage signals
+    for sig in damage_signals:
+        if sig.get("confidence", 0) > 0.70 and not sig.get("needs_review"):
+            dtype = sig.get("damage_type")
+            if dtype in ["hail", "wind"]:
+                base_score -= 5
+            elif dtype == "other":
+                base_score -= 2
+                
+    # Bound the score
+    score = max(0, min(100, int(base_score)))
+    
+    # Calculate Grade
+    if score >= 90:
+        grade = "A"
+    elif score >= 80:
+        grade = "B"
+    elif score >= 70:
+        grade = "C"
+    elif score >= 60:
+        grade = "D"
+    else:
+        grade = "F"
+        
+    # Generate deterministic flags
+    if score < 70 or severe_count >= 2:
+        flags.append("full_replacement_recommended")
+    if hail_count >= 3 and wind_count >= 3:
+        flags.append("complex_peril_combination")
+    if grade in ["D", "F"]:
+        flags.append("high_supplement_potential")
+    if granule_loss_count >= 5:
+        flags.append("severe_aging_detected")
+        
+    return ConditionIndex(score=score, grade=grade, flags=flags)

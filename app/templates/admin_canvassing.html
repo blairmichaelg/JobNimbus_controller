@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvassing Targets</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Mobile Responsiveness Reflow */
+        @media (max-width: 768px) {
+            body.flex { flex-direction: column !important; overflow-y: auto !important; height: auto !important; display: block !important; }
+            .w-64 { width: 100% !important; height: auto !important; border-right: none !important; border-bottom: 1px solid #374151 !important; }
+            .flex-1 { flex: none !important; overflow: visible !important; }
+            .grid { display: flex !important; flex-direction: column !important; gap: 1rem !important; }
+            .grid-cols-2, .grid-cols-3, .grid-cols-4 { grid-template-columns: 1fr !important; }
+            /* Tables */
+            table { min-width: 500px !important; }
+            .overflow-hidden { overflow: visible !important; }
+            .bg-gray-800.overflow-hidden { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+            /* Button touch targets */
+            button, a, select, input { min-height: 44px; }
+            /* Fix absolute positioning on mobile if any */
+            .relative { position: static !important; }
+            .h-screen { height: auto !important; min-height: 100vh !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden">
+    <!-- Sidebar -->
+    <div class="w-64 bg-gray-800 h-full flex flex-col border-r border-gray-700">
+        <div class="p-6 text-2xl font-bold text-white border-b border-gray-700">
+            Truck Server
+        </div>
+        <nav class="flex-1 p-4 space-y-2">
+            <a href="/office" class="block py-2 px-4 rounded hover:bg-gray-700 text-gray-400 hover:text-white">Dashboard</a>
+            <a href="/office/canvassing" class="block py-2 px-4 rounded bg-gray-700 text-white font-bold">Canvassing Targets</a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 p-8 overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold">Target Zipcodes</h1>
+        </div>
+        
+        <div class="bg-gray-800 rounded-lg shadow-md border border-gray-700 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-700 text-gray-300 text-sm uppercase">
+                        <th class="p-4 border-b border-gray-600">Zipcode</th>
+                        <th class="p-4 border-b border-gray-600">Recent Events</th>
+                        <th class="p-4 border-b border-gray-600">Max Hail</th>
+                        <th class="p-4 border-b border-gray-600">Last Event</th>
+                        <th class="p-4 border-b border-gray-600">Our Leads</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm">
+                    {% for target in targets %}
+                    <tr class="hover:bg-gray-700 transition border-b border-gray-700">
+                        <td class="p-4 font-bold text-white">{{ target.zipcode }}</td>
+                        <td class="p-4">{{ target.event_count }}</td>
+                        <td class="p-4 text-yellow-400 font-bold">{% if target.max_hail %}{{ target.max_hail }}"{% else %}-{% endif %}</td>
+                        <td class="p-4 text-gray-400">{{ target.last_event_date[:10] if target.last_event_date else 'Unknown' }}</td>
+                        <td class="p-4">{{ target.total_leads }} ({{ target.active_leads }} active)</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not targets %}
+                    <tr><td colspan="5" class="p-4 text-center text-gray-500">No storm events recorded yet. Run the ingestion script.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

@@ -46,7 +46,44 @@ class Decision(BaseModel):
     document_data: DocumentData
 
 
-class AIService:
+from abc import ABC, abstractmethod
+
+class AiClient(ABC):
+    @abstractmethod
+    async def analyze_job_data(self, payload: dict) -> dict: ...
+    
+    @abstractmethod
+    async def classify_carrier(self, file_info, job_id: str | None = None) -> str: ...
+
+    @abstractmethod
+    async def extract_sol_from_pdf(self, pdf_path: str, job_id: str | None = None) -> StatementOfLoss: ...
+
+    @abstractmethod
+    async def generate_supplement_narrative(self, report: DiscrepancyReport, codes: str) -> str: ...
+    
+    @abstractmethod
+    async def analyze_roof_photo(self, file_info, original_filename: str, job_id: str | None = None) -> PhotoAnalysis: ...
+    
+    @abstractmethod
+    async def generate_text(self, system_prompt: str, user_prompt: str, job_id: str | None = None, operation_type: str = "generate_text") -> str: ...
+
+    @abstractmethod
+    async def extract_sol_structured_data(self, prompt: str) -> str: ...
+
+class GeminiClient(AiClient):
+    async def extract_sol_structured_data(self, prompt: str) -> str:
+        response = await asyncio.to_thread(
+            self._call_with_backoff,
+            self.client.models.generate_content,
+            model=self.model_name,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.0,
+            )
+        )
+        return response.text
+
     """
     Gemini AI integration for cognitive processing of CRM data.
 
@@ -446,3 +483,7 @@ Rules:
         except Exception as exc:
             log.error("generate_text_failed", error=str(exc))
             raise
+
+
+def get_ai_client() -> AiClient:
+    return GeminiClient()

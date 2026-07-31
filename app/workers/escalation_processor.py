@@ -29,7 +29,7 @@ from app.core.database import (
     update_job_status,
     JobStatus,
 )
-from app.services.ai_service import AIService
+from app.services.ai_service import get_ai_client
 from app.services.pdf_generator import PDFGenerator
 
 logger = structlog.get_logger("app.workers.escalation_processor")
@@ -155,7 +155,7 @@ letter body. Include all specific disputed dollar amounts from the
 financial context and supplement report.
 """
 
-    ai = AIService()
+    ai = get_ai_client()
     try:
         narrative = await ai.generate_text(
             system_prompt=ESCALATION_SYSTEM_PROMPT,

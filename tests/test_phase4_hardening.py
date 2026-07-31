@@ -58,7 +58,7 @@ def setup_test_financials(conn: sqlite3.Connection, job_id: str, carrier_rcv: fl
 @patch('app.core.pipeline.reconcile')
 @patch('app.core.pipeline.parse_code_files')
 @patch('app.core.pipeline.get_relevant_codes')
-@patch('app.core.pipeline.AIService.generate_supplement_narrative')
+@patch('app.services.ai_service.GeminiClient.generate_supplement_narrative')
 @patch('app.core.pipeline.generate_and_gate_flags')
 async def test_supplement_pdf_not_deleted_after_vault(
     mock_gate, mock_narrative, mock_get_codes, mock_parse_codes, mock_reconcile, mock_parse_sol, mock_ev, mock_gen_pdf, db_conn, tmp_path
@@ -162,7 +162,7 @@ async def test_resume_fails_gracefully_without_saved_report(db_conn):
 
 
 @patch('app.core.pipeline.extract_eagleview_data')
-@patch('app.core.pipeline.AIService.generate_supplement_narrative')
+@patch('app.services.ai_service.GeminiClient.generate_supplement_narrative')
 @patch('app.core.pipeline.get_relevant_codes')
 @patch('app.core.pipeline.parse_code_files')
 @pytest.mark.asyncio
@@ -218,7 +218,7 @@ async def test_resume_succeeds_with_saved_report(
     # Verify extract_eagleview_data was NOT called
     mock_ev.assert_not_called()
     
-    # Verify AIService was called with the restored report
+    # Verify GeminiClient was called with the restored report
     mock_narrative.assert_called_once()
     called_report = mock_narrative.call_args[0][0]
     assert "A 14% waste factor is mathematically required" in called_report.waste_explanation
