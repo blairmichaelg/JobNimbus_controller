@@ -14,7 +14,7 @@ import asyncio
 import json as _json
 from app.services.ai_service import get_ai_client
 from app.core.code_router import parse_code_files, get_relevant_codes
-from app.services.pdf_generator import PDFGenerator
+from app.services.pdf import PDFGenerator
 from app.services.supplement_engine import SupplementEngine
 from app.core.supplement_models import EagleViewData
 
@@ -119,7 +119,7 @@ async def generate_material_order_pipeline(job_id: str, supplier_name: str, deli
         dict[str, Any]: The resulting output.
     """
     from app.services.ai_service import get_ai_client
-    from app.services.pdf_generator import PDFGenerator
+    from app.services.pdf import PDFGenerator
     from app.core.database import _fetch_job_sync, insert_material_order
     from app.config import FIELD_DOCS_DIR
     import asyncio

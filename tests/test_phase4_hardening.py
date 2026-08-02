@@ -205,7 +205,7 @@ async def test_resume_succeeds_with_saved_report(
     mock_parse_codes.return_value = None
     mock_narrative.return_value = "Resumed narrative"
     
-    with patch('app.services.pdf_generator.PDFGenerator.generate_supplement_pdf') as mock_gen_pdf:
+    with patch('app.services.pdf.PDFGenerator.generate_supplement_pdf') as mock_gen_pdf:
         mock_gen_pdf.return_value = str(tmp_path / "resume_mock.pdf")
         with open(str(tmp_path / "resume_mock.pdf"), "w") as f:
             f.write("mock pdf content")
@@ -237,7 +237,7 @@ async def test_resume_succeeds_with_saved_report(
 
 
 @patch('app.core.pipeline.extract_eagleview_data')
-@patch('app.services.pdf_generator.PDFGenerator.generate_material_po')
+@patch('app.services.pdf.PDFGenerator.generate_material_po')
 @patch('app.core.database.insert_material_order')
 @patch('app.config.FIELD_DOCS_DIR')
 @pytest.mark.asyncio

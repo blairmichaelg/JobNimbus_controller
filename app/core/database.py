@@ -189,8 +189,15 @@ def run_migrations() -> None:
             
             conn.execute("UPDATE schema_version SET version = 7, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
 
+        if current_version < 8:
+            import importlib
+            m8 = importlib.import_module("app.core.migrations.0008_commission_ready")
+            m8.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 8, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+
         conn.execute("COMMIT")
-        logger.info("migrations_applied", current_version=current_version, target_version=5)
+        logger.info("migrations_applied", current_version=current_version, target_version=8)
         
         # Since seed logic was removed from up(), do it here outside the transaction
         if current_version < 1:
@@ -340,13 +347,23 @@ def _update_job_status_internal(conn: sqlite3.Connection, job_id: str, new_statu
         if current_status not in valid_priors:
             raise RuntimeError(f"ILLEGAL TRANSITION: Cannot invoice from state {current_status}.")
 
+    elif new_status == JobStatus.PAYMENT_RECEIVED:
+        comm_cursor = conn.execute("SELECT commission_generated_at FROM jobs WHERE id = ?", (job_id,))
+        comm_row = comm_cursor.fetchone()
+        if not comm_row or not comm_row["commission_generated_at"]:
+            timestamp_str_comm = __import__('datetime').datetime.now(__import__('datetime').timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+            conn.execute(
+                "UPDATE jobs SET commission_ready = 1, commission_generated_at = ? WHERE id = ?",
+                (timestamp_str_comm, job_id)
+            )
+
     elif new_status == JobStatus.CLOSED:
         if current_status != JobStatus.PAYMENT_RECEIVED:
             raise RuntimeError("ILLEGAL TRANSITION: Cannot close job before PAYMENT_RECEIVED.")
     # ---------------------------------------------------------
 
     # Update DB with atomic JSON append to prevent race conditions
-    timestamp_str = datetime.utcnow().isoformat() + "Z"
+    timestamp_str = datetime.now(__import__('datetime').timezone.utc).replace(tzinfo=None).isoformat() + "Z"
     cursor = conn.execute(
         """
         UPDATE jobs 
@@ -381,7 +398,7 @@ def force_override_status(job_id: str, new_status: str, note: str = "") -> None:
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
-        timestamp_str = __import__('datetime').datetime.utcnow().isoformat() + "Z"
+        timestamp_str = __import__('datetime').datetime.now(__import__('datetime').timezone.utc).replace(tzinfo=None).isoformat() + "Z"
         cursor = conn.execute(
             """
             UPDATE jobs 
@@ -986,7 +1003,7 @@ def generate_invoice_id() -> str:
             "SELECT last_seq FROM invoice_sequence WHERE id = 1"
         ).fetchone()
         seq = row["last_seq"]
-        year_short = _dt.utcnow().strftime("%y")
+        year_short = _dt.now(__import__('datetime').timezone.utc).strftime("%y")
         invoice_id = f"WR-{year_short}-{seq:04d}"
         conn.execute("COMMIT")
         logger.info("invoice_id_generated", invoice_id=invoice_id)

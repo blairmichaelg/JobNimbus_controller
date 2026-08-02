@@ -1,6 +1,6 @@
 {
-  "name": "Truck Server Field App",
-  "short_name": "Field App",
+  "name": "Wickham Roofing",
+  "short_name": "Wickham Roofing",
   "description": "Wickham Roofing Offline-Ready Field Application",
   "start_url": "/field",
   "display": "standalone",

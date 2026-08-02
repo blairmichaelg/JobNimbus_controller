@@ -87,7 +87,7 @@ async def process_photo_damage(ctx: dict, job_id: str, filename: str) -> None:
             "source": "gemini_v2_vision",
             "needs_review": needs_review,
             "filename": filename,
-            "created_at": __import__("datetime").datetime.utcnow().isoformat() + "Z"
+            "created_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None).isoformat() + "Z"
         }
         
         await asyncio.to_thread(_sync_update_damage_signals, job_id, signal)

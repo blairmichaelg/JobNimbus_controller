@@ -19,7 +19,7 @@ from pathlib import Path
 from app.core.database import (
     get_connection, insert_job_document
 )
-from app.services.pdf_generator import PDFGenerator
+from app.services.pdf import PDFGenerator
 
 logger = structlog.get_logger(
     "app.workers.commission_processor"

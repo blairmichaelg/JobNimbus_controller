@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from app.core.database import get_connection, update_job_status
 from app.core.pipeline import parse_measurement_pdf
 from app.services.hover_extractor import detect_pdf_format
-from app.services.pdf_generator import PDFGenerator
+from app.services.pdf import PDFGenerator
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
 from app.core.job_costing import compute_job_profitability
 from app.core.database import insert_material_order, insert_schedule, JobStatus, upsert_financials, get_financials, insert_job_document, get_job_document_by_hash, _fetch_job_sync
@@ -1347,6 +1347,65 @@ def reassign_canvasser(job_id: str, payload: dict = Body(...)):
         conn.execute("ROLLBACK")
         logger.error("canvasser_reassign_failed", job_id=job_id, error=str(e))
         raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+class TogglePaymentPayload(BaseModel):
+    flag: str
+    amount: float
+    date_received: str
+
+@router.post("/accounting/jobs/{job_id}/toggle-payment", dependencies=[Depends(verify_accounting)])
+def toggle_payment_route(job_id: str, payload: TogglePaymentPayload):
+    from app.core.database import toggle_payment_flag
+    try:
+        amount_cents = int(round(payload.amount * 100))
+        toggle_payment_flag(job_id, payload.flag, amount_cents, payload.date_received)
+        return {"status": "success"}
+    except Exception as e:
+        logger.error("toggle_payment_failed", error=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+
+class CommissionOverridePayload(BaseModel):
+    commission_pct: float | None
+
+@router.post("/accounting/jobs/{job_id}/commission-override", dependencies=[Depends(verify_accounting)])
+def commission_override_route(job_id: str, payload: CommissionOverridePayload):
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.execute("UPDATE jobs SET commission_pct_override = ? WHERE id = ?", (payload.commission_pct, job_id))
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Job not found")
+        conn.execute("COMMIT")
+        return {"status": "success"}
+    except HTTPException:
+        conn.execute("ROLLBACK")
+        raise
+    except Exception as e:
+        conn.execute("ROLLBACK")
+        logger.error("commission_override_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to save commission override")
+    finally:
+        conn.close()
+
+@router.patch("/accounting/jobs/{job_id}/commission/paid", dependencies=[Depends(verify_accounting)])
+def mark_commission_paid(job_id: str):
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.execute("UPDATE jobs SET commission_ready = 0 WHERE id = ?", (job_id,))
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Job not found")
+        conn.execute("COMMIT")
+        return {"status": "success"}
+    except HTTPException:
+        conn.execute("ROLLBACK")
+        raise
+    except Exception as e:
+        conn.execute("ROLLBACK")
+        logger.error("mark_commission_paid_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to mark commission paid")
     finally:
         conn.close()
 

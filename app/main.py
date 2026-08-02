@@ -173,11 +173,21 @@ templates = Jinja2Templates(directory="app/templates")
 def days_since(date_str: str) -> int:
     if not date_str:
         return 0
-    from datetime import datetime
+    from datetime import datetime, timezone
     try:
-        # Expected format: 2026-07-15 14:00:00 (SQLite CURRENT_TIMESTAMP)
-        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-        return (datetime.utcnow() - dt).days
+        # Handle ISO8601 strings that might contain the 'Z' suffix or '+00:00'
+        if date_str.endswith('Z'):
+            date_str = date_str[:-1]
+        if '+' in date_str:
+            date_str = date_str.split('+')[0]
+            
+        # Attempt to parse as full ISO format first, then fallback to SQLite format
+        try:
+            dt = datetime.fromisoformat(date_str)
+        except ValueError:
+            dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            
+        return (datetime.now(timezone.utc).replace(tzinfo=None) - dt.replace(tzinfo=None)).days
     except Exception:
         return 0
 
@@ -244,7 +254,7 @@ async def office_ws(websocket: WebSocket):
 
 # --- Health Check ---
 @app.get("/health", tags=["system"])
-async def health_check():
+async def health_check(request: Request):
     """
     Basic health check endpoint.
 
@@ -252,9 +262,43 @@ async def health_check():
     and to prevent premature instance spin-down.
     """
     settings = get_settings()
+    
+    # 1. DB check
+    from app.core.database import get_connection
+    db_ok = True
+    try:
+        conn = get_connection()
+        conn.execute("SELECT 1")
+        conn.close()
+    except Exception as e:
+        structlog.get_logger().error("health_check_db_error", error=str(e))
+        db_ok = False
+
+    # 2. Redis check
+    redis_ok = True
+    redis_pool = getattr(request.app.state, "redis_pool", None)
+    if redis_pool:
+        try:
+            # arq Redis pool ping
+            await redis_pool.ping()
+        except Exception as e:
+            structlog.get_logger().error("health_check_redis_error", error=str(e))
+            redis_ok = False
+    else:
+        structlog.get_logger().warning("health_check_redis_missing")
+        redis_ok = False
+
+    if not db_ok or not redis_ok:
+        from fastapi import HTTPException
+        structlog.get_logger().warning("health_check_degraded", db_ok=db_ok, redis_ok=redis_ok)
+        raise HTTPException(status_code=503, detail="Service degraded")
+
+    structlog.get_logger().info("health_check_ok")
     return {
         "status": "ok",
         "env": settings.app_env,
+        "db": "ok",
+        "redis": "ok"
     }
 
 

@@ -109,5 +109,5 @@ def test_toggle_payment_supplement():
 
 def test_pdf_generator_dochash():
     # Just asserting the constants exist and the hashing logic works in principle
-    from app.services.pdf_generator import COMPANY_NAME
+    from app.services.pdf.constants import COMPANY_NAME
     assert COMPANY_NAME == "Wickham Roofing"

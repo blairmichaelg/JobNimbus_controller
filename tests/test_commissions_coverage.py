@@ -103,7 +103,7 @@ def test_download_escalation(setup_teardown_db):
 @pytest.mark.asyncio
 async def test_generate_commission_statement(setup_teardown_db, tmp_path):
     job_id = setup_teardown_db["job_id"]
-    from app.services.pdf_generator import PDFGenerator
+    from app.services.pdf import PDFGenerator
     generator = PDFGenerator()
     
     # We must mock get_connection and others, but we actually have a real DB with this job!

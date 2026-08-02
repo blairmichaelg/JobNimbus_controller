@@ -7,7 +7,7 @@ import tempfile
 from unittest.mock import patch
 from pathlib import Path
 
-from app.services.pdf_generator import PDFGenerator
+from app.services.pdf import PDFGenerator
 from app.core.supplement_models import MaterialBOM
 from app.core.inspection_models import InspectionJob, InspectionPhoto, PhotoAnalysis, DamageType, Severity
 
@@ -67,7 +67,7 @@ def test_generate_material_po_creates_file():
     )
     job = {"id": "test_123", "homeowner_name": "Test", "address_line1": "123 St", "city": "City", "state": "GA", "postal_code": "30303", "claim_number": "123"}
     
-    with patch("app.services.pdf_generator.FIELD_DOCS_DIR", Path(tempfile.gettempdir())):
+    with patch("app.services.pdf.constants.FIELD_DOCS_DIR", Path(tempfile.gettempdir())):
         filepath = asyncio.run(generator.generate_material_po(job, bom, "ABC Supply", "2026-07-01"))
         path_obj = Path(filepath)
         try:

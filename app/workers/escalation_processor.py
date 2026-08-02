@@ -30,7 +30,7 @@ from app.core.database import (
     JobStatus,
 )
 from app.services.ai_service import get_ai_client
-from app.services.pdf_generator import PDFGenerator
+from app.services.pdf import PDFGenerator
 
 logger = structlog.get_logger("app.workers.escalation_processor")
 
@@ -116,7 +116,7 @@ async def process_escalation(ctx: dict, job_id: str) -> dict:
     if sent_at_str:
         try:
             sent = _dt.fromisoformat(str(sent_at_str).replace("Z", ""))
-            days_elapsed = (_dt.utcnow() - sent).days
+            days_elapsed = (_dt.now(__import__('datetime').timezone.utc).replace(tzinfo=None) - sent).days
         except Exception:
             pass
 

@@ -24,7 +24,7 @@ from app.core.inspection_models import InspectionJob
 from app.core.cache import get_cached_analysis, set_cached_analysis
 from app.core.temp_manager import create_temp_file
 from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
-from app.services.pdf_generator import PDFGenerator
+from app.services.pdf import PDFGenerator
 from app.core.database import insert_job_document, update_job_status, JobStatus
 from app.config import get_settings
 

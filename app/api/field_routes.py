@@ -80,7 +80,7 @@ def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, i
     try:
         initial_history = [{
             "status": "LEAD_CAPTURED",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(__import__('datetime').timezone.utc).replace(tzinfo=None).isoformat() + "Z",
             "note": "Initial canvasser intake via Truck Server"
         }]
         
@@ -531,7 +531,7 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, cl
             logger.error("signature_image_verification_failed", error=str(e))
             raise HTTPException(status_code=400, detail="Invalid or corrupt image data")
 
-        from app.services.pdf_generator import PDFGenerator
+        from app.services.pdf import PDFGenerator
         pdf_gen = PDFGenerator()
         pdf_path = await pdf_gen.generate_contingency_pdf(
             job_dict, 
@@ -545,7 +545,7 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, cl
         import hashlib
         
         def _insert_doc_and_agreement():
-            ts = datetime.utcnow().isoformat() + "Z"
+            ts = datetime.now(__import__('datetime').timezone.utc).replace(tzinfo=None).isoformat() + "Z"
             _sync_insert_agreement(agreement_id, job_id, pdf_path, str(sig_file_path), ts, payload.signer_name, payload.ip_address, payload.user_agent)
             with open(pdf_path, "rb") as f:
                 file_hash = hashlib.sha256(f.read()).hexdigest()

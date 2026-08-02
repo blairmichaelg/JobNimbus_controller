@@ -120,7 +120,7 @@ def generate_qbo_invoice(job_id: str, bom: MaterialBOM, customer_name: str = "Un
     Returns:
         str: The string path to the generated QBO CSV file.
     """
-    now_date = datetime.utcnow().strftime("%Y-%m-%d")
+    now_date = datetime.now(__import__('datetime').timezone.utc).strftime("%Y-%m-%d")
     
     # Fetch actual pricing rates from the SQLite ledger
     pricing = get_pricing_ledger()
