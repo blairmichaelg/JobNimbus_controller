@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1] - 2026-08-02
+### Added & Fixed
+- **Accounting Operations**: Added a 'Mark Paid' button to the accounting dashboard commissions table, seamlessly integrated with the backend endpoint to update readiness state.
+- **PWA Assets**: Generated properly proportioned `icon-192.png` and `icon-512.png` assets padded from `logo.png` for Progressive Web App compliance.
+- **Strict Typing Expansions**: Safely expanded strict `mypy` typing coverage to core modules (`app.services.pdf.documents` and `app.services.pdf.engine`), repairing latent missing return types.
+- **Load Testing Scaffolding**: Deployed foundational `locust` load testing definitions simulating concurrent field API leads and office dashboard hits against the local server environment.
+
 ## [1.5.0] - 2026-07-31
 ### Added & Fixed
 - **Mobile Responsiveness**: Implemented responsive UI reflows (`max-width: 768px`) across all core job, accounting, and triage templates for seamless field tablet usage.
