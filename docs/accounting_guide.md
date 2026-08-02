@@ -1,232 +1,142 @@
 # Wickham Roofing — Accounting Guide
 
-**Truck Server v4 · Accounting Role (Debi)**
+**Truck Server v4 · Accounting Role**
 
-This guide covers the Accounting Ledger: tracking ACV and Supplement
-checks with real dollar amounts, managing canvasser commissions
-(including manual adjustments), exporting invoices to QuickBooks
-Online, and reviewing full job details.
+Welcome to the Wickham Roofing Accounting system! This guide explains how to use your Accounting Ledger. Your main tasks here are tracking checks (both ACV and Supplement) with real dollar amounts, managing canvasser commissions, exporting invoices to QuickBooks Online, and reviewing job details.
 
 ---
 
 ## 1. Logging In
 
 1. Open the app and enter your assigned 4-digit PIN.
-2. On success, you're taken to the **"Accounting Ledger."** The Wickham
-   Roofing logo appears in the header alongside the title.
+2. Once logged in, you will be taken directly to the **"Accounting Ledger."** You'll see the Wickham Roofing logo at the top.
 
-To log out, click **Logout** in the top-right corner of the dashboard.
+To log out, click **Logout** in the top-right corner of your dashboard.
 
-**Note:** Your access covers financial data across all jobs and all
-reps. You can see every rep's commission data — this is intentional,
-since aggregating and paying commissions is your core responsibility.
+**Note:** As the accountant, you have access to financial data across all jobs and all sales reps. You can see everyone's commission data because aggregating and paying commissions is your core responsibility. Please keep your PIN secure.
 
 ---
 
 ## 2. Understanding the Ledger
 
-At the top of your dashboard, you'll see two metric cards:
+At the top of your dashboard, you'll see two quick-glance metric cards:
 
-- **"Supplemented RCV Added"** — the total additional RCV value your
-  team has won through approved supplements.
-- **"QBO Export Queue"** — the number of jobs currently waiting to be
-  exported to QuickBooks Online.
+- **"Supplemented RCV Added"** — The total additional value your team has won through approved supplements.
+- **"QuickBooks Export Queue"** — The number of jobs that are finished and waiting to be exported to QuickBooks Online.
 
-Below that, you'll find your working tables: ACV/Supplement check
-tracking, commissions ready to pay, and the QBO export tool.
+Below the metrics, you'll find your working tables: one for tracking ACV/Supplement checks, one for commissions that are ready to pay, and the QuickBooks export tool.
 
-If a table has nothing to show — no pending checks, or no commissions
-ready to pay — you'll see a clear message like **"No pending checks to
-record"** or **"No commissions currently ready to pay"** instead of a
-blank, confusing table.
+If a table is empty (for example, if there are no pending checks today), you'll see a friendly message like **"No pending checks to record"** so you always know you're fully caught up.
 
-### Viewing full job details
-Every job row in the ledger includes a **"View Details →"** link that
-opens the full job detail page. This gives you complete access to all
-job information — including financials, margins, measurement data, all
-documents, and supplements. Admin, Operations, and Accounting all share
-this same unified detail view with no restrictions between these three
-office roles.
+### Viewing Full Job Details
+Every job row includes a **"View Details →"** link. Clicking this opens the full job profile. This gives you complete access to everything about that job — including financials, profit margins, measurement data, signed documents, and supplements. 
 
 ---
 
-## 3. Recording ACV & Supplement Checks
+## 3. Recording Checks (ACV & Supplement)
 
-Unlike a simple "received" checkbox, this system captures the **actual
-dollar amount and date** for every check, so you can catch carrier
-short-pays before they become a problem.
+To protect the company against insurance carriers short-paying us, the system requires you to enter the **actual dollar amount and date** for every check received, rather than just clicking a simple "received" checkbox.
 
 ### How to record a check
-1. Find the job under the ACV or Supplement section, currently marked
-   **"Pending."**
+1. Find the job under the ACV or Supplement section that is currently marked **"Pending."**
 2. Click it to open the check entry form.
-3. Enter:
-   - **Amount** — the actual dollar figure from the check.
-   - **Date received** (labeled above the date field).
+3. Enter two things:
+   - **Amount:** The actual dollar figure written on the check.
+   - **Date received:** The date you received it.
 4. Click **"Confirm Received."**
 
-### Understanding the short-pay warning
-This system knows the difference between an ACV check and a Supplement
-check, and compares each against the correct expected amount:
+### The Short-Pay Warning
+The system automatically calculates what the check *should* be based on the carrier's approved numbers:
+- **Expected ACV Check:** The total Carrier Replacement Cost Value (RCV) minus the Recoverable Depreciation (the portion the carrier holds back until the job is done).
+- **Expected Supplement Check:** The Recoverable Depreciation amount itself.
 
-- **Expected ACV** = Carrier RCV minus Recoverable Depreciation (the
-  portion the carrier withholds until the job is finished).
-- **Expected Supplement** = the Recoverable Depreciation amount itself.
+If the check amount you enter is lower than the expected value by about 2% or more, the system will pause and warn you:
 
-If the amount you enter is meaningfully below the correct expected
-value (roughly 2% or more short), the system will stop and ask:
+> *"This amount ($X) is less than the expected $Y. This may indicate a carrier short-pay. Continue anyway?"*
 
-> *"This amount ($X) is less than the expected $Y. This may indicate a
-> carrier short-pay. Continue anyway?"*
-
-This isn't an error — it's a flag for your judgment. If the carrier
-genuinely shorted the payment, confirm and follow up with them
-separately. If it's a data entry mistake, double-check your numbers
-before confirming.
-
-**Note:** For older jobs missing a recorded depreciation value, this
-warning is automatically skipped rather than comparing against the
-wrong number — you won't see a false warning on those jobs, but you
-also won't get short-pay protection until that job's financials are
-filled in by Admin.
-
-### If you leave a field blank
-You'll be prompted to enter both the amount and the date — both fields
-are required and the system won't accept a partial entry.
+This is not an error! It is simply a warning to double-check your typing. If the carrier genuinely shorted us on the payment, confirm the amount anyway so the system has the correct record, and follow up with the insurance carrier separately to collect the missing funds.
 
 ---
 
-## 4. Commissions
+## 4. Paying Commissions
 
-### Default commission rate
-Every job defaults to a canvasser commission of **10% of total
-revenue** (the full roof sale price) — this is not based on profit,
-and permit fees are not deducted from the commission calculation.
+### The Default Commission Rate
+Every job automatically defaults to paying the canvasser a commission of **10% of total revenue** (the full roof sale price). This is not based on profit, and permit fees are not deducted from this calculation.
 
-### Adjusting a commission manually
-Sometimes a specific job needs a different rate — a special
-arrangement with a rep, for example. You can override the default on
-a per-job basis:
+### Adjusting a Commission Manually
+If you have a special arrangement with a rep for a specific job, you can manually override their commission percentage:
 
 1. Find the job's commission amount and click **"Adjust %."**
-2. An input field appears, pre-filled with the current rate (10% by
-   default).
-3. Enter the new percentage (0–100).
+2. An input box will appear, pre-filled with the current rate (10%).
+3. Enter the new percentage (for example, `12` or `15`).
 4. Click **"Save."**
-5. You'll be asked to confirm: **"Set commission for this job to X% of
-   revenue (overriding the default 10%)?"**
-6. Once confirmed, the commission amount recalculates immediately.
+5. You will be asked to confirm the change.
+6. Once confirmed, the commission amount recalculates instantly!
 
-### Resetting a job back to the default
+### Resetting a Job Back to the Default
 1. Click **"Reset"** next to the job.
-2. Confirm when prompted: **"Reset this job's commission back to the
-   default 10%?"**
-3. The commission recalculates back to the standard 10% rate.
+2. Confirm the prompt to reset the job back to 10%.
+3. The commission immediately recalculates back to the standard rate.
 
-**Important:** Overrides apply only to the specific job you edit —
-every other job continues to use the 10% default automatically unless
-you individually adjust it.
+**Important:** Overrides apply *only* to the specific job you edit. Every other job continues to automatically use the standard 10% default unless you adjust it.
 
-### Downloading commission documents
-Click **"Download PDF"** next to a rep's commission entry to get a
-formatted document for payout records.
+### Downloading Commission Documents
+When you are ready to pay a rep, click **"Download PDF"** next to their commission entry. The system will instantly generate a beautifully formatted commission statement document for your payroll records.
 
 ---
 
 ## 5. Exporting to QuickBooks Online
 
 1. Click **"Export QBO CSV."**
-2. The button changes to **"Exporting..."** while the file is prepared.
-3. A CSV file downloads automatically, containing one row per job with:
+2. The button will change to **"Exporting..."** while the file is prepared.
+3. A spreadsheet file (CSV) will download automatically to your computer. It contains one row for every job ready to be invoiced, pre-formatted with:
    - Customer name
-   - Invoice date (today's date)
-   - Due date (Net 30 from today)
+   - Invoice date (today)
+   - Due date (Net 30)
    - Terms (Net 30)
    - Item description ("Roofing Services")
    - Amount (based on carrier RCV)
    - Memo (invoice ID and claim number)
 
-### Duplicate export protection
-Once a job is exported, it's automatically marked as exported and will
-**not** appear in future export batches — you cannot accidentally
-double-export the same job.
+You can upload this file directly into QuickBooks Online to generate your invoices in bulk!
 
-### If there's nothing to export
-If no jobs are currently pending export, you'll see a popup:
-**"No jobs pending QBO export."** No file will download — there's
-nothing to export, so nothing is generated.
-
-### If something goes wrong
-You'll see a popup: **"Export failed: [error]"** or **"Network error
-during export."** Try again, and contact the Tech Admin if it
-persists.
+### Duplicate Export Protection
+Once a job is exported, the system permanently marks it as exported. It will **never** appear in future export batches, so you don't have to worry about accidentally double-billing a customer in QuickBooks.
 
 ---
 
-## 6. What You Cannot Do (By Design)
+## 6. System Permissions & Boundaries
 
-- You cannot access the Admin control panel, Triage, or Emergency
-  Override tools.
-- You cannot access Field rep intake screens or Operations' material/
-  crew scheduling tools.
-- You cannot create or manage field rep accounts.
+To keep the system organized, certain tools are restricted based on your role.
 
-**What you CAN do:** Via the "View Details →" links on your ledger
-rows, you have full access to any job's detail page, including
-financials, margins, measurement data, and all documents. This is the
-same unified view that Admin and Operations see — there is no
-restriction between these three office roles on job data.
+**Things you cannot do in the system:**
+- You cannot access the Admin control panel or the Triage tools.
+- You cannot access Field rep intake screens or Operations' crew scheduling tools.
+- You cannot create or manage employee user accounts.
 
-You can also see every rep's commission data — this is intentional,
-since aggregating and paying commissions is your core responsibility.
+**Things you CAN do:**
+- Via the "View Details →" link on your ledger, you have full access to any job's complete file.
+- You have access to every sales rep's commission data to process payroll. 
 
 ---
 
-## FAQ
+## Frequently Asked Questions (FAQ)
 
-**Q: Why does commission use revenue instead of profit?**
-By design — Wickham Roofing pays canvassers 10% of the total roof sale
-price, not a share of profit. This is intentional and applies to every
-job unless manually adjusted.
+**Q: Why does the commission calculate from revenue instead of profit?**
+By design, Wickham Roofing pays canvassers 10% of the total roof sale price, not a share of profit. This applies to every job automatically unless you manually adjust it.
 
-**Q: I need to pay a rep a different percentage on one specific job.
-How do I do that without changing everyone else's rate?**
-Use the **"Adjust %"** button on that specific job only. It does not
-affect the default rate for any other job — every other job keeps
-using 10% automatically.
+**Q: I need to pay a rep a different percentage on one specific job. Will that change everyone else's rate?**
+No. When you use the **"Adjust %"** button on a specific job, it only affects that single job. Every other job remains at the default 10%.
 
-**Q: I made a mistake adjusting a commission percentage. Can I undo it?**
-Yes — click **"Reset"** on that job to instantly revert it back to the
-standard 10% rate.
-
-**Q: Why is my ACV check amount always supposed to be less than the
-carrier RCV?**
-That's normal, not a short-pay. Carriers typically withhold recoverable
-depreciation until the job is finished, so the ACV check is intentionally
-lower than the total RCV. The system now compares your entry against
-the *correct* expected ACV (RCV minus depreciation), not the full RCV,
-so you'll only see a warning if the amount is actually short.
-
-**Q: What if the check amount I enter is genuinely less than expected?**
-Confirm the entry anyway and follow up with the carrier separately —
-this is now visible and trackable instead of hidden behind a simple
-checkbox.
+**Q: Why is my ACV check amount supposed to be less than the total carrier RCV?**
+That is completely normal. Carriers typically withhold recoverable depreciation until the job is finished, so the ACV check is intentionally lower than the total RCV. The system calculates the *correct* expected ACV (RCV minus depreciation), so you will only see a warning if the check is actually short.
 
 **Q: Can I export the same job to QuickBooks twice by accident?**
-No — once a job is exported, it's automatically excluded from future
-export batches.
+No. Once a job is exported, it is automatically removed from future export batches.
 
-**Q: Can I see other reps' commissions, or only my own calculations?**
-You can see all reps' commissions — this is intentional for your role,
-unlike Field reps, who can only see their own.
-
-**Q: Can I see a job's full financials and documents?**
-Yes — click the **"View Details →"** link on any job row. You'll see
-the full job detail page with all financials, margins, documents, and
-supplements.
+**Q: Can I see a job's full financials and signed documents?**
+Yes! Click the **"View Details →"** link on any job row. You will see the full job profile with all financials, margins, documents, and supplements.
 
 ---
 
-*This guide reflects the Accounting workflow as of commit `da9b80b`.
-If new fields, buttons, or workflows are added in future updates, this
-guide should be reviewed and updated to match.*
+*This guide reflects the latest production features for the Wickham Roofing Truck Server.*
