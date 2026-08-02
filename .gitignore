@@ -90,3 +90,6 @@ venv_fresh/
 /check_*.py
 /*.jpg
 /*.png
+
+mypy_*_output.txt
+scratch/

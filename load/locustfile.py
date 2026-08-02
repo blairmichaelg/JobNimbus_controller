@@ -1,12 +1,19 @@
 from locust import HttpUser, task, between
 
+import os
+
 class CRMUser(HttpUser):
     wait_time = between(1, 3)
 
     def on_start(self):
-        # Authenticate simulating office dashboard load (similar to test_ui_contracts.py setup)
-        # Using pin 9999 for admin
-        response = self.client.post("/auth/login", data={"pin": "9999", "redirect_url": "/"}, allow_redirects=False)
+        pin = os.environ.get("LOAD_TEST_ADMIN_PIN")
+        if not pin:
+            raise Exception(
+                "LOAD_TEST_ADMIN_PIN environment variable is required. "
+                "Set it to the real admin PIN for the target environment "
+                "before running this load test."
+            )
+        response = self.client.post("/auth/login", data={"pin": pin, "redirect_url": "/"}, allow_redirects=False)
         self.auth_token = response.cookies.get("auth_token", "")
 
     @task(3)
