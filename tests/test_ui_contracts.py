@@ -15,7 +15,7 @@ def mock_background_tasks(monkeypatch):
 
 @pytest.fixture
 def set_auth():
-    response = client.post("/auth/login", data={"pin": "7777", "redirect_url": "/"}, follow_redirects=False)
+    response = client.post("/auth/login", data={"pin": "9999", "redirect_url": "/"}, follow_redirects=False)
     client.cookies.set("auth_token", response.cookies.get("auth_token"))
 
 @pytest.fixture
@@ -98,3 +98,21 @@ def test_qbo_mark_exported_idempotent(db_conn):
     cursor = db_conn.execute("SELECT qbo_exported FROM financials WHERE job_id = ?", (job_id,))
     row = cursor.fetchone()
     assert row["qbo_exported"] == 1
+
+def test_admin_dashboard_renders_retail_contract_signed(set_auth, db_conn):
+    job_id = setup_test_job(db_conn, "RETAIL_CONTRACT_SIGNED")
+    
+    # We also need to add a few fields for rendering to work flawlessly or homeowner_name is enough.
+    # The setup_test_job already inserts 'Test User' as homeowner_name and '123 Test St' as address_line1.
+    
+    response = client.get("/admin")
+    assert response.status_code == 200
+    html = response.text
+    
+    # We should see the job's ID (or invoice_id) or homeowner_name rendered in the HTML
+    # Because job_id is random, let's verify job_id[:8] or 'Test User' is in the HTML.
+    # We'll check for 'Test User' since it's the homeowner name and the job is the only one in the db.
+    assert "Test User" in html
+    assert "123 Test St" in html
+    # Check that the badge text appears
+    assert "AGREEMENT SIGNED" in html
