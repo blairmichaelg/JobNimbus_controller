@@ -1072,38 +1072,6 @@ async def toggle_payment(request: Request, job_id: str, payload: dict = Body(...
         )
     return result
 
-@router.post("/accounting/jobs/{job_id}/commission-override", dependencies=[Depends(verify_accounting)])
-async def set_commission_override(job_id: str, body: dict = Body(...)):
-    """
-    Set Commission Override functionality.
-    
-    Args:
-            job_id (str): job_id parameter.
-            body (dict): body parameter.
-    
-    Returns:
-        Any: The resulting output.
-    """
-    commission_pct = body.get("commission_pct")
-
-    if commission_pct is not None:
-        if not isinstance(commission_pct, (int, float)) or commission_pct < 0 or commission_pct > 1:
-            raise HTTPException(status_code=400, detail="commission_pct must be between 0 and 1, or null to reset.")
-
-    conn = get_connection()
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        conn.execute(
-            "UPDATE jobs SET commission_pct_override = ? WHERE id = ?",
-            (commission_pct, job_id)
-        )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-    return {"status": "success"}
 
 @router.post(
     "/jobs/{job_id}/approve-supplement",

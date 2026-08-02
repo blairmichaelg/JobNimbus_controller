@@ -48,8 +48,8 @@ import json
 from pathlib import Path
 from app.core.database import get_connection
 
-@router.get("/storm-canvassing-map", response_class=JSONResponse)
-def get_storm_canvassing_map():
+@router.get("/active-jobs-map", response_class=JSONResponse)
+def get_active_jobs_map():
     """Returns job locations for the storm canvassing map by joining against zipcodes.json."""
     conn = get_connection()
     try:
@@ -79,6 +79,52 @@ def get_storm_canvassing_map():
         return {"status": "success", "data": map_points}
     except Exception as e:
         logger.error("map_query_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    finally:
+        conn.close()
+
+@router.get("/storm-canvassing-map", response_class=JSONResponse)
+def get_canvassing_priority_map():
+    """Returns top 20 ZIP codes for canvassing based on storm events vs existing leads."""
+    conn = get_connection()
+    try:
+        # Get storm event counts per zip
+        cursor = conn.execute("SELECT zipcode, COUNT(id) as cnt FROM storm_events GROUP BY zipcode")
+        storm_counts = {str(row["zipcode"]).strip(): row["cnt"] for row in cursor.fetchall()}
+        
+        # Get existing lead density per zip
+        cursor = conn.execute("SELECT postal_code, COUNT(id) as cnt FROM jobs GROUP BY postal_code")
+        job_counts = {str(row["postal_code"]).strip(): row["cnt"] for row in cursor.fetchall()}
+        
+        zip_path = Path("data/zipcodes.json")
+        zip_data = {}
+        if zip_path.exists():
+            with open(zip_path, "r", encoding="utf-8") as f:
+                zip_data = json.load(f)
+                
+        results = []
+        for zc, coords in zip_data.items():
+            s_count = storm_counts.get(zc, 0)
+            j_count = job_counts.get(zc, 0)
+            score = s_count - j_count
+            
+            results.append({
+                "zip_code": zc,
+                "city": "Unknown",
+                "lat": coords["lat"],
+                "lon": coords["lon"],
+                "storm_event_count": s_count,
+                "existing_lead_count": j_count,
+                "computed_priority_score": score
+            })
+            
+        # Sort descending by priority score and take top 20
+        results.sort(key=lambda x: x["computed_priority_score"], reverse=True)
+        top_20 = results[:20]
+        
+        return {"status": "success", "data": top_20}
+    except Exception as e:
+        logger.error("canvassing_priority_failed", error=str(e))
         raise HTTPException(status_code=500, detail="Internal Server Error")
     finally:
         conn.close()
