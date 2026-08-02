@@ -35,6 +35,8 @@ module = [
     "app.core.pipeline",
     "app.core.job_costing",
     "app.core.database",
-    "app.services.qbo_export"
+    "app.services.qbo_export",
+    "app.services.pdf.documents",
+    "app.services.pdf.engine"
 ]
 disallow_untyped_defs = true

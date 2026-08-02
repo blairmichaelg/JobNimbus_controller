@@ -167,3 +167,23 @@ class TestMaterialOrderIntegration:
         
         assert response.status_code == 400
         assert "EagleView PDF not found" in response.json()["detail"]
+
+def test_mark_commission_paid(monkeypatch):
+    from app.core.database import get_connection
+    import uuid
+    job_id = str(uuid.uuid4())
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, status, commission_ready) VALUES (?, 'Test', '123 Test', 'TestCity', 'TS', '12345', '555', 'LEAD_CAPTURED', 1)",
+        (job_id,)
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.patch(f"/api/office/accounting/jobs/{job_id}/commission/paid")
+    assert response.status_code == 200
+    
+    conn = get_connection()
+    row = conn.execute("SELECT commission_ready FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    assert row["commission_ready"] == 0
+    conn.close()

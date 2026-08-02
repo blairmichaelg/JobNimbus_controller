@@ -83,6 +83,7 @@
                             <th class="py-3 px-4">Commission</th>
                             <th class="py-3 px-4">Generated At</th>
                             <th class="py-3 px-4 text-right">Statement</th>
+                            <th class="py-3 px-4 text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody id="commissions-table" class="divide-y divide-gray-800">
@@ -218,12 +219,35 @@
                                            Download PDF
                                         </a>
                                     </td>
+                                    <td class="py-4 px-4 text-center">
+                                        <button onclick="markCommissionPaid('${row.job_id}')"
+                                            class="bg-blue-700 hover:bg-blue-600 text-white text-xs px-3 py-1.5 rounded font-bold">
+                                            Mark Paid
+                                        </button>
+                                    </td>
                                 </tr>
                             `;
                         });
                     }
                 }
             } catch(e) { console.error(e); }
+        }
+
+        async function markCommissionPaid(jobId) {
+            if (!confirm("Confirm this commission has been paid out? This will remove it from the Commissions Ready to Pay list.")) return;
+            try {
+                const res = await fetch(`/api/office/accounting/jobs/${jobId}/commission/paid`, {
+                    method: 'PATCH',
+                    headers: { 'X-Internal-Token': AUTH_TOKEN }
+                });
+                if (res.ok) {
+                    fetchAccounting();
+                } else {
+                    alert("Failed to mark commission as paid. Try again.");
+                }
+            } catch (e) {
+                alert("Network error marking commission paid.");
+            }
         }
 
         async function runQboExport() {

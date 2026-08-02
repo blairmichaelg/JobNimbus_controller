@@ -9,6 +9,7 @@ from reportlab.platypus import Table, TableStyle, Image, PageBreak
 import datetime
 import html
 import hashlib
+from typing import Any
 
 from app.core.supplement_models import DiscrepancyReport, MaterialBOM
 from app.core.inspection_models import InspectionJob
@@ -53,7 +54,7 @@ class PDFEngine:
         }
 
 
-    def _universal_letterhead(self, canvas, doc) -> None:
+    def _universal_letterhead(self, canvas: Any, doc: BaseDocTemplate) -> None:
         """Universal callback for page headers and footers."""
         canvas.saveState()
 
@@ -91,7 +92,7 @@ class PDFEngine:
         canvas.restoreState()
 
 
-    def _build_signature_block(self, title1: str = "Homeowner Signature", title2: str = "Contractor Signature", include_witness: bool = False):
+    def _build_signature_block(self, title1: str = "Homeowner Signature", title2: str = "Contractor Signature", include_witness: bool = False) -> KeepTogether:
         """Returns a KeepTogether flowable for clean signature blocks."""
         story: list = []
         story.append(Spacer(1, 30))
@@ -173,7 +174,7 @@ class PDFEngine:
         return t
 
 
-    def _box_warning(self, title: str, text: str, border_color) -> Table:
+    def _box_warning(self, title: str, text: str, border_color: Any) -> Table:
         """Wraps a critical legal warning inside a styled Table box."""
         t_data = [
             [Paragraph(title, self.custom_styles["SectionHeading"])],

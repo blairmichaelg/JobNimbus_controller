@@ -33,7 +33,7 @@ class DocumentsGenerator(PDFEngine):
         job_dir.mkdir(parents=True, exist_ok=True)
         filepath = str(job_dir / "contingency_agreement_signed.pdf")
 
-        def build_pdf():
+        def build_pdf() -> None:
             """
             Build Pdf functionality.
             
@@ -90,7 +90,7 @@ class DocumentsGenerator(PDFEngine):
         job_dir.mkdir(parents=True, exist_ok=True)
         filepath = str(job_dir / "notice_of_cancellation.pdf")
 
-        def build_pdf():
+        def build_pdf() -> None:
             """
             Build Pdf functionality.
             
@@ -148,7 +148,7 @@ class DocumentsGenerator(PDFEngine):
         job_dir.mkdir(parents=True, exist_ok=True)
         filepath = str(job_dir / "retail_contract_signed.pdf")
 
-        def build_pdf():
+        def build_pdf() -> None:
             doc = self._get_doc_template(filepath, job_id=job_id, doc_type="RETAIL_CONTRACT_SIGNED")
             story = []
             
@@ -236,7 +236,7 @@ class DocumentsGenerator(PDFEngine):
         job_dir.mkdir(parents=True, exist_ok=True)
         filepath = str(job_dir / "retail_notice_of_cancellation.pdf")
 
-        def build_pdf():
+        def build_pdf() -> None:
             doc = self._get_doc_template(filepath, job_id=job["id"], doc_type="RETAIL_NOTICE_OF_CANCELLATION")
             story = []
             
@@ -291,7 +291,7 @@ class DocumentsGenerator(PDFEngine):
         job_dir.mkdir(parents=True, exist_ok=True)
         filepath = str(job_dir / "certificate_of_completion.pdf")
 
-        def build_pdf():
+        def build_pdf() -> None:
             """
             Build Pdf functionality.
             
@@ -365,7 +365,7 @@ class DocumentsGenerator(PDFEngine):
         job_dir.mkdir(parents=True, exist_ok=True)
         filepath = str(job_dir / "contingency_agreement.pdf")
 
-        def build_pdf():
+        def build_pdf() -> None:
             """
             Build Pdf functionality.
             
