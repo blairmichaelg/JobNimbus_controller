@@ -65,7 +65,21 @@
                 {% for job in jobs if job.status == status %}
                 <div class="bg-gray-800 border border-gray-700 p-4 rounded shadow hover:border-blue-500 transition-colors cursor-pointer"
                      onclick="window.location.href='/office/jobs/{{ job.id }}'">
-                    <div class="text-xs text-gray-500 mb-1 font-mono"><span class="font-mono font-bold text-yellow-400">{{ job.invoice_id or job.id[:8] }}</span></div>
+                    <div class="text-xs text-gray-500 mb-1 flex justify-between items-center">
+                        <div>
+                            <span class="font-mono font-bold text-yellow-400">{{ job.invoice_id or job.id[:8] }}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            {% if job.canvasser_name %}
+                                <span class="text-gray-400">Owner: {{ job.canvasser_name }}</span>
+                            {% endif %}
+                            {% if job.status == 'LEAD_CAPTURED' %}
+                                <span class="bg-yellow-600 text-white text-xs px-2 py-0.5 rounded">LEAD — No Agreement Signed</span>
+                            {% elif job.status in ['CONTINGENCY_SIGNED', 'RETAIL_CONTRACT_SIGNED'] %}
+                                <span class="bg-green-600 text-white text-xs px-2 py-0.5 rounded">AGREEMENT SIGNED</span>
+                            {% endif %}
+                        </div>
+                    </div>
                     <div class="font-bold text-white">{{ job.homeowner_name }}</div>
                     <div class="text-sm text-gray-400 mt-2 truncate">{{ job.address_line1 }}</div>
                     {% if job.status == 'AWAITING_CARRIER_RESPONSE' and job.supplement_sent_at %}

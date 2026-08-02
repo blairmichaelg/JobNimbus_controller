@@ -46,6 +46,12 @@
 - **Brand Consistency**: Generated and natively embedded a Wickham Roofing logo (`logo.png`) into the core PDF generator letterhead and standard login screens.
 - **Navigation Polish**: Replaced hardcoded dashboard `/login` hooks with proper `/auth/logout` handlers. Added 'View Job' deep-links across Accounting and Operations ledgers.
 
+## [1.2.1] - 2026-08-02
+### Added
+- **Retail Contracts**: Implemented standalone retail sales contract PDF generation with statutory Right to Cancel notices and 5-year workmanship warranties.
+- **Retail Contract Signing**: Added `POST /api/field/jobs/{job_id}/sign-retail-contract` endpoint for field reps to capture signatures and instantly generate retail agreements.
+- **Job Status Badges**: Enhanced the Admin Dashboard Kanban board to visually distinguish "LEAD — No Agreement Signed" and "AGREEMENT SIGNED" states with clear color-coded badges, alongside the Canvasser's name.
+
 ## [1.2.0] - 2026-07-28
 ### Added & Fixed
 - **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.

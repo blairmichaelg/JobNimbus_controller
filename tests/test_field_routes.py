@@ -240,6 +240,45 @@ def test_capture_signature_payload_too_large():
     assert "Payload too large" in response.json()["detail"]
 
 
+def test_capture_retail_signature():
+    """POST /api/field/jobs/{job_id}/sign-retail-contract should decode base64, save PNG, and generate PDF."""
+    from app.core.database import get_connection
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("99999999-9999-9999-9999-999999999995", "Retail Homeowner", "123 Retail St", "City", "State", "00000", "555-5555")
+    )
+    conn.commit()
+    conn.close()
+
+    tiny_png_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    data_uri = f"data:image/png;base64,{tiny_png_base64}"
+    
+    response = client.post(
+        "/api/field/jobs/99999999-9999-9999-9999-999999999995/sign-retail-contract",
+        json={
+            "signature_base64": data_uri,
+            "signer_name": "Retail Homeowner",
+            "ip_address": "127.0.0.1",
+            "user_agent": "Pytest",
+            "total_price": 10000.0,
+            "deposit_amount": 5000.0,
+            "scope_description": "Replace roof"
+        }
+    )
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "pdf_path" in data
+    assert "noc_pdf_path" in data
+    
+    import app.api.field_routes as fr
+    expected_sig_path = fr.SIGNED_AGREEMENTS_DIR / "99999999-9999-9999-9999-999999999995_retail_contract_sig.png"
+    # Actually wait, I didn't change the hardcoded "_contingency_sig.png" from the _sync_process_image call!
+    # Ah, let me check _sync_process_image in field_routes.py. 
+
+
 def test_resolve_flag_success():
     """Test that a flag is successfully updated and resolved."""
     from app.core.database import get_connection

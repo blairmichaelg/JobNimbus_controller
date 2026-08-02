@@ -70,6 +70,16 @@ class ContingencySignaturePayload(BaseModel):
     ip_address: str | None = Field(None, description="IP address of the device capturing the signature")
     user_agent: str | None = Field(None, description="User Agent of the device capturing the signature")
 
+class RetailContractSignaturePayload(BaseModel):
+    signature_base64: str
+    signer_name: str
+    ip_address: str | None = None
+    user_agent: str | None = None
+    total_price: float
+    deposit_amount: float
+    scope_description: str
+
+
 class FlagResolutionPayload(BaseModel):
     """FlagResolutionPayload definition."""
     quantity_delta: float = Field(..., description="The corrected, manually determined quantity")
@@ -457,7 +467,7 @@ def _sync_fetch_job_contingency(job_id: str):
     finally:
         conn.close()
 
-def _sync_process_image(encoded_b64: str, job_id: str) -> Path:
+def _sync_process_image(encoded_b64: str, job_id: str, suffix: str = "contingency") -> Path:
     image_bytes = base64.b64decode(encoded_b64)
     image = Image.open(io.BytesIO(image_bytes))
     image.verify()  # Verify it's a valid image
@@ -470,7 +480,7 @@ def _sync_process_image(encoded_b64: str, job_id: str) -> Path:
         raise ValueError("Unsupported image format")
         
     SIGNED_AGREEMENTS_DIR.mkdir(parents=True, exist_ok=True)
-    sig_file_path = SIGNED_AGREEMENTS_DIR / f"{job_id}_contingency_sig.png"
+    sig_file_path = SIGNED_AGREEMENTS_DIR / f"{job_id}_{suffix}_sig.png"
     
     # Convert to RGBA for PNG compatibility and save
     image = image.convert("RGBA")
@@ -570,3 +580,91 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, cl
     except Exception as e:
         logger.error("contingency_sign_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to process contingency signature")
+
+
+@router.post("/jobs/{job_id}/sign-retail-contract")
+async def sign_retail_contract(job_id: str, payload: RetailContractSignaturePayload, claims: dict = Depends(get_current_claims)):
+    """
+    Handle E-Signature for Retail Contracts.
+    Saves PNG, generates PDF, logs agreement, and updates status.
+    """
+    assert_field_rep_owns_job(claims, job_id)
+
+    try:
+        uuid_obj = uuid.UUID(job_id)
+        job_id = str(uuid_obj)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format. Must be a valid UUID.")
+
+    if len(payload.signature_base64) > 2_000_000:
+        raise HTTPException(status_code=413, detail="Payload too large. Maximum size is 2MB.")
+        
+    if not payload.signature_base64.startswith("data:image/png;base64,"):
+        raise HTTPException(status_code=400, detail="Invalid signature format. Must be a PNG data URI.")
+        
+    try:
+        job_dict = await asyncio.to_thread(_sync_fetch_job_contingency, job_id)
+
+        header, encoded = payload.signature_base64.split(",", 1)
+        
+        # Verify and sanitize the image using Pillow before saving to disk
+        try:
+            sig_file_path = await asyncio.to_thread(_sync_process_image, encoded, job_id, "retail_contract")
+        except Exception as e:
+            logger.error("signature_image_verification_failed", error=str(e))
+            raise HTTPException(status_code=400, detail="Invalid or corrupt image data")
+
+        from app.services.pdf.documents import DocumentsGenerator
+        pdf_gen = DocumentsGenerator()
+        
+        total_price_cents = int(payload.total_price * 100)
+        deposit_cents = int(payload.deposit_amount * 100)
+        
+        pdf_path = await pdf_gen.generate_retail_contract_pdf(
+            job=job_dict, 
+            signature_path=str(sig_file_path), 
+            signer_name=payload.signer_name, 
+            ip_address=payload.ip_address or "Unknown IP",
+            total_price_cents=total_price_cents,
+            deposit_cents=deposit_cents,
+            scope_description=payload.scope_description
+        )
+        
+        noc_pdf_path = await pdf_gen.generate_retail_notice_of_cancellation(job=job_dict)
+        
+        agreement_id = str(uuid.uuid4())
+        from app.core.database import insert_job_document
+        import hashlib
+        
+        def _insert_docs_and_agreement():
+            ts = datetime.now(__import__('datetime').timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+            _sync_insert_agreement(agreement_id, job_id, pdf_path, str(sig_file_path), ts, payload.signer_name, payload.ip_address, payload.user_agent)
+            
+            with open(pdf_path, "rb") as f:
+                file_hash = hashlib.sha256(f.read()).hexdigest()
+            insert_job_document(job_id, Path(pdf_path).name, "RETAIL_CONTRACT_SIGNED", str(pdf_path), file_hash, "field_safe", "RETAIL_CONTRACT_SIGNED")
+            
+            with open(noc_pdf_path, "rb") as f:
+                noc_file_hash = hashlib.sha256(f.read()).hexdigest()
+            insert_job_document(job_id, Path(noc_pdf_path).name, "RETAIL_NOTICE_OF_CANCELLATION", str(noc_pdf_path), noc_file_hash, "field_safe", "RETAIL_NOTICE_OF_CANCELLATION")
+            
+            update_job_status(job_id, "RETAIL_CONTRACT_SIGNED", f"Retail contract signed by {payload.signer_name}")
+
+        await asyncio.to_thread(_insert_docs_and_agreement)
+        
+        await notifier.broadcast({
+            "type": "retail_contract_signed",
+            "job": {
+                "id": job_id,
+                "signer_name": payload.signer_name,
+                "status": "RETAIL_CONTRACT_SIGNED"
+            }
+        })
+        
+        logger.info("retail_contract_signed_and_generated", job_id=job_id, agreement_id=agreement_id)
+        return {"status": "success", "pdf_path": Path(pdf_path).name, "noc_pdf_path": Path(noc_pdf_path).name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("retail_contract_sign_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to process retail contract signature")

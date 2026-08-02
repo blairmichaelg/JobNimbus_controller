@@ -165,3 +165,46 @@ def test_generate_evidence_grid_creates_file(tmp_path):
     finally:
         if path_obj.exists():
             path_obj.unlink()
+
+def test_generate_retail_contract_pdf_creates_file(tmp_path):
+    """Test that the Retail Contract generator creates a valid file."""
+    from app.services.pdf.documents import DocumentsGenerator
+    generator = DocumentsGenerator()
+    job = {"id": "test_123", "homeowner_name": "Test", "address_line1": "123 St", "city": "City", "state": "GA", "postal_code": "30303", "claim_number": "123"}
+    
+    # Create dummy signature
+    from PIL import Image as PILImage
+    sig_path = tmp_path / "sig.png"
+    sig_img = PILImage.new("RGBA", (200, 50), color="blue")
+    sig_img.save(sig_path, format="PNG")
+    
+    filepath = asyncio.run(generator.generate_retail_contract_pdf(
+        job=job,
+        signature_path=str(sig_path),
+        signer_name="John Doe",
+        ip_address="127.0.0.1",
+        total_price_cents=1000000,
+        deposit_cents=500000,
+        scope_description="Replace roof with Architectural Shingles."
+    ))
+    path_obj = Path(filepath)
+    try:
+        assert path_obj.exists()
+        assert path_obj.stat().st_size > 0
+    finally:
+        if path_obj.exists():
+            path_obj.unlink()
+
+def test_generate_retail_notice_of_cancellation_creates_file():
+    """Test that the Retail Notice of Cancellation generator creates a valid file."""
+    from app.services.pdf.documents import DocumentsGenerator
+    generator = DocumentsGenerator()
+    job = {"id": "test_123", "homeowner_name": "Test", "address_line1": "123 St", "city": "City", "state": "GA", "postal_code": "30303", "claim_number": "123"}
+    filepath = asyncio.run(generator.generate_retail_notice_of_cancellation(job))
+    path_obj = Path(filepath)
+    try:
+        assert path_obj.exists()
+        assert path_obj.stat().st_size > 0
+    finally:
+        if path_obj.exists():
+            path_obj.unlink()
