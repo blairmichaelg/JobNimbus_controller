@@ -1,11 +1,13 @@
+import sqlite3
+
 def up(conn):
     """Drop the legacy REAL columns from the financials table."""
     conn.execute("DROP VIEW IF EXISTS financial_delta_view;")
-    conn.execute("ALTER TABLE financials DROP COLUMN revenue;")
-    conn.execute("ALTER TABLE financials DROP COLUMN carrier_rcv;")
-    conn.execute("ALTER TABLE financials DROP COLUMN material_cost;")
-    conn.execute("ALTER TABLE financials DROP COLUMN labor_cost;")
-    conn.execute("ALTER TABLE financials DROP COLUMN permits_fee;")
+    for col in ["revenue", "carrier_rcv", "material_cost", "labor_cost", "permits_fee"]:
+        try:
+            conn.execute(f"ALTER TABLE financials DROP COLUMN {col};")
+        except sqlite3.OperationalError:
+            pass
     conn.execute('''
         CREATE VIEW financial_delta_view AS
             SELECT 

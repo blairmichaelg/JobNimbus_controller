@@ -118,39 +118,27 @@ def up(conn: sqlite3.Connection) -> None:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS financials (
                 job_id TEXT PRIMARY KEY,
-                revenue REAL NOT NULL DEFAULT 0.0,
-                carrier_rcv REAL NOT NULL,
-                material_cost REAL NOT NULL,
-                labor_cost REAL NOT NULL,
-                overhead_pct REAL NOT NULL,
-                canvasser_commission_pct REAL NOT NULL,
-                permits_fee REAL NOT NULL DEFAULT 0.0,
+                revenue_cents INTEGER NOT NULL DEFAULT 0,
+                carrier_rcv_cents INTEGER NOT NULL DEFAULT 0,
+                material_cost_cents INTEGER NOT NULL DEFAULT 0,
+                labor_cost_cents INTEGER NOT NULL DEFAULT 0,
+                permits_fee_cents INTEGER NOT NULL DEFAULT 0,
+                overhead_pct REAL NOT NULL DEFAULT 0.0,
+                canvasser_commission_pct REAL NOT NULL DEFAULT 0.0,
+                deductible_cents INTEGER DEFAULT 0,
+                acv_payment_cents INTEGER DEFAULT 0,
+                recoverable_depreciation_cents INTEGER DEFAULT 0,
+                carrier_initial_rcv_cents INTEGER DEFAULT NULL,
+                carrier_supplemented_rcv_cents INTEGER DEFAULT NULL,
+                qbo_invoice_id TEXT,
+                qbo_exported INTEGER NOT NULL DEFAULT 0,
+                qbo_exported_at TIMESTAMP,
                 FOREIGN KEY(job_id) REFERENCES jobs(id)
             )
         ''')
         
-        # Lightweight migration if financials existed before permits_fee and others
-        for col in ["permits_fee REAL NOT NULL DEFAULT 0.0", "deductible REAL DEFAULT 0.0",
-                    "acv_payment REAL DEFAULT 0.0", "recoverable_depreciation REAL DEFAULT 0.0",
-                    "qbo_invoice_id TEXT"]:
-            try:
-                conn.execute(f"ALTER TABLE financials ADD COLUMN {col}")
-            except sqlite3.OperationalError:
-                pass # Column already exists
-                
-        # Idempotency lock on financials for QBO batch export
-        try:
-            conn.execute(
-                "ALTER TABLE financials ADD COLUMN "
-                "qbo_exported INTEGER NOT NULL DEFAULT 0"
-            )
-            conn.execute(
-                "ALTER TABLE financials ADD COLUMN "
-                "qbo_exported_at TIMESTAMP"
-            )
-        except sqlite3.OperationalError:
-            pass
-            
+
+
         conn.execute('''
             CREATE TABLE IF NOT EXISTS qbo_credentials (
                 realm_id TEXT PRIMARY KEY,
@@ -371,22 +359,17 @@ def up(conn: sqlite3.Connection) -> None:
             JOIN material_orders m ON j.id = m.job_id
         ''')
         
-        for col in ["carrier_initial_rcv REAL", "carrier_supplemented_rcv REAL"]:
-            try:
-                conn.execute(f"ALTER TABLE financials ADD COLUMN {col}")
-            except sqlite3.OperationalError:
-                pass
-                
+
         conn.execute('''
             CREATE VIEW IF NOT EXISTS financial_delta_view AS
             SELECT 
                 j.id as job_id,
                 j.homeowner_name,
-                f.carrier_initial_rcv,
-                f.carrier_supplemented_rcv,
-                f.revenue,
-                (f.carrier_supplemented_rcv - f.carrier_initial_rcv) AS carrier_rcv_delta,
-                (f.revenue - f.carrier_supplemented_rcv) AS contractor_over_carrier
+                f.carrier_initial_rcv_cents,
+                f.carrier_supplemented_rcv_cents,
+                f.revenue_cents,
+                (f.carrier_supplemented_rcv_cents - f.carrier_initial_rcv_cents) AS carrier_rcv_delta_cents,
+                (f.revenue_cents - f.carrier_supplemented_rcv_cents) AS contractor_over_carrier_cents
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
         ''')

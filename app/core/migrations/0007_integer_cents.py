@@ -35,19 +35,22 @@ def up(conn: sqlite3.Connection) -> None:
             pass
             
     # Backfill Financials
-    conn.execute("""
-        UPDATE financials 
-        SET revenue_cents = CAST(ROUND(revenue * 100) AS INTEGER),
-            carrier_rcv_cents = CAST(ROUND(carrier_rcv * 100) AS INTEGER),
-            material_cost_cents = CAST(ROUND(material_cost * 100) AS INTEGER),
-            labor_cost_cents = CAST(ROUND(labor_cost * 100) AS INTEGER),
-            permits_fee_cents = CAST(ROUND(permits_fee * 100) AS INTEGER),
-            deductible_cents = CAST(ROUND(deductible * 100) AS INTEGER),
-            acv_payment_cents = CAST(ROUND(acv_payment * 100) AS INTEGER),
-            recoverable_depreciation_cents = CAST(ROUND(recoverable_depreciation * 100) AS INTEGER),
-            carrier_initial_rcv_cents = CAST(ROUND(carrier_initial_rcv * 100) AS INTEGER),
-            carrier_supplemented_rcv_cents = CAST(ROUND(carrier_supplemented_rcv * 100) AS INTEGER)
-    """)
+    try:
+        conn.execute("""
+            UPDATE financials 
+            SET revenue_cents = CAST(ROUND(revenue * 100) AS INTEGER),
+                carrier_rcv_cents = CAST(ROUND(carrier_rcv * 100) AS INTEGER),
+                material_cost_cents = CAST(ROUND(material_cost * 100) AS INTEGER),
+                labor_cost_cents = CAST(ROUND(labor_cost * 100) AS INTEGER),
+                permits_fee_cents = CAST(ROUND(permits_fee * 100) AS INTEGER),
+                deductible_cents = CAST(ROUND(deductible * 100) AS INTEGER),
+                acv_payment_cents = CAST(ROUND(acv_payment * 100) AS INTEGER),
+                recoverable_depreciation_cents = CAST(ROUND(recoverable_depreciation * 100) AS INTEGER),
+                carrier_initial_rcv_cents = CAST(ROUND(carrier_initial_rcv * 100) AS INTEGER),
+                carrier_supplemented_rcv_cents = CAST(ROUND(carrier_supplemented_rcv * 100) AS INTEGER)
+        """)
+    except sqlite3.OperationalError:
+        pass
 
     # 2. Jobs Table Check Amounts
     job_cols = [
@@ -61,12 +64,15 @@ def up(conn: sqlite3.Connection) -> None:
             pass
 
     # Backfill Jobs Checks
-    conn.execute("""
-        UPDATE jobs
-        SET acv_check_amount_cents = CAST(ROUND(acv_check_amount * 100) AS INTEGER),
-            supplement_check_amount_cents = CAST(ROUND(supplement_check_amount * 100) AS INTEGER)
-        WHERE acv_check_amount IS NOT NULL OR supplement_check_amount IS NOT NULL
-    """)
+    try:
+        conn.execute("""
+            UPDATE jobs
+            SET acv_check_amount_cents = CAST(ROUND(acv_check_amount * 100) AS INTEGER),
+                supplement_check_amount_cents = CAST(ROUND(supplement_check_amount * 100) AS INTEGER)
+            WHERE acv_check_amount IS NOT NULL OR supplement_check_amount IS NOT NULL
+        """)
+    except sqlite3.OperationalError:
+        pass
     
     # 3. Pricing Table
     try:
