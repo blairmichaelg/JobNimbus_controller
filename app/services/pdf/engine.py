@@ -69,7 +69,7 @@ class PDFEngine:
         logo_path = "app/static/logo.png"
         if os.path.exists(logo_path):
             try:
-                canvas.drawImage(logo_path, 450, 715, width=110, height=45, preserveAspectRatio=True, anchor='ne')
+                canvas.drawImage(logo_path, 560, 755, width=110, height=45, preserveAspectRatio=True, anchor='ne')
             except Exception as e:
                 pass
 
