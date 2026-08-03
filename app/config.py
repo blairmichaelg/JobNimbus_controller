@@ -88,6 +88,13 @@ class Settings(BaseSettings):
     
     @property
     def get_db_path(self) -> str:
+        """
+        Returns the path to the active SQLite database based on the environment.
+        - data/wickham.db: Primary Production CRM ledger and job database.
+        - data/wickham_dev.db: Local development/testing environment DB.
+        Note: data/cache.db is also actively used (managed by app/core/cache.py) 
+        for caching AI analysis results.
+        """
         if self.app_env.lower() == "prod":
             return "data/wickham.db"
         return "data/wickham_dev.db"
