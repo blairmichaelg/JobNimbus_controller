@@ -394,8 +394,7 @@ Yes! Click the <strong>"View Details →"</strong> link on any job row. You will
 <p class="mb-4">As the Accounting Lead, you have a critical role in tracking ACV/Supplement checks, managing canvasser commissions, and exporting invoices to QuickBooks Online. This guide contains everything you need to get started immediately.</p>
 <p class="mb-4">---</p>
 <h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">1. Access & Credentials</h3>
-<p class="mb-4"><strong>Your Secure Access PIN:</strong> `5392`</p>
-<p class="mb-4">You will use this PIN to log in to the Accounting Dashboard. Please do not share this PIN with field reps or operations, as it grants full financial oversight across the entire company.</p>
+<p class="mb-4"><strong>Your PIN</strong> will be given to you directly by Michael (Tech Admin). Do not share it with anyone.</p>
 <strong>App URL:</strong>
 You can access the CRM system securely from your phone, tablet, or home computer at:
 👉 <strong>[https://app.wickhamroofing.app](https://app.wickhamroofing.app)</strong>
@@ -869,7 +868,7 @@ guide should be reviewed and updated to match.*</p>
      ```
   3. Refresh the office dashboard. The job will now be unlocked.</p>
 <blockquote class="border-l-4 border-yellow-500 pl-4 py-2 my-4 bg-gray-800 italic">[!CAUTION]
-Never manually edit the `data/truck_server.db` SQLite file with external viewers (like DBeaver) while Uvicorn is running. The Write-Ahead Log (WAL) mode requires FastAPI to maintain the file lock. Use `recover_job.py` instead.</blockquote>
+Never manually edit the `data/wickham.db` SQLite file with external viewers (like DBeaver) while Uvicorn is running. The Write-Ahead Log (WAL) mode requires FastAPI to maintain the file lock. Use `recover_job.py` instead.</blockquote>
 </div>
 <div class="mt-8 text-center"><a href="/field" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors text-lg">Back to Dashboard</a></div>
 {% endif %}
