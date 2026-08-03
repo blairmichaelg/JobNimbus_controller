@@ -99,7 +99,7 @@ def test_create_new_job_lead_intake():
     assert row is not None
     assert row["homeowner_name"] == "Alice Smith"
     assert row["status"] == "LEAD_CAPTURED"
-    assert "Initial canvasser intake via Truck Server" in row["status_history"]
+    assert "Initial canvasser intake via Wickham Roofing CRM" in row["status_history"]
 
 
 def test_upload_field_photo():

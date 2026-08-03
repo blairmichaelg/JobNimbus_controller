@@ -1,5 +1,5 @@
 /**
- * Truck Server Frontend Logic
+ * Wickham Roofing CRM Frontend Logic
  * Vanilla JS implementation to avoid React/Webpack overhead on field devices.
  */
 

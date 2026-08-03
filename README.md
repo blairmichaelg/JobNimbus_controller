@@ -1,4 +1,4 @@
-# Wickham Roofing AI Pipeline — V4 "Truck Server"
+# Wickham Roofing AI Pipeline — V4 "Wickham Roofing CRM"
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-00a393.svg)](https://fastapi.tiangolo.com/)
@@ -6,7 +6,7 @@
 [![AI Engine: Gemini 2.5 Flash](https://img.shields.io/badge/AI%20Engine-Gemini%202.5%20Flash-8A2BE2.svg)](https://deepmind.google/technologies/gemini/)
 [![Tests: 243 Passing (100%)](https://img.shields.io/badge/Tests-243%20Passed%20(100%25)-brightgreen.svg)](https://pytest.org/)
 
-The **Wickham Roofing AI Controller (V4 "Truck Server")** is a proprietary, local-first operational platform designed to automate insurance roofing production from field lead intake to financial ledger reconciliation. 
+The **Wickham Roofing AI Controller (V4 "Wickham Roofing CRM")** is a proprietary, local-first operational platform designed to automate insurance roofing production from field lead intake to financial ledger reconciliation. 
 
 Engineered to operate entirely offline or via zero-cloud tunneling directly from field office hardware, V4 completely eliminates third-party SaaS dependency by orchestrating deterministic insurance math, forensic AI roof analysis, automated paperwork matrices, and QuickBooks Online (QBO) invoice exporting over a self-healing SQLite state machine.
 
@@ -16,7 +16,7 @@ Engineered to operate entirely offline or via zero-cloud tunneling directly from
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       WICKHAM ROOFING "TRUCK SERVER"                        │
+│                       WICKHAM ROOFING "WICKHAM ROOFING CRM"                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  FIELD OPERATIONS (Mobile SPA via Cloudflare/Ngrok Tunnel)                  │

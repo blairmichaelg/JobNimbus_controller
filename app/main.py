@@ -305,7 +305,7 @@ async def health_check(request: Request):
 # --- Frontend ---
 @app.get("/field", tags=["frontend"])
 async def serve_field_app(request: Request, role: str = Depends(verify_field)):
-    """Serve the Truck Server mobile web interface."""
+    """Serve the Wickham Roofing Field App."""
     return templates.TemplateResponse(request, "field_app.html", {
         "request": request,
         "field_token": request.cookies.get("auth_token", "")

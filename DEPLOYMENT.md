@@ -1,6 +1,6 @@
-# DEPLOYMENT & OPERATIONAL RUNBOOK: V4 "TRUCK SERVER"
+# DEPLOYMENT & OPERATIONAL RUNBOOK: V4 "WICKHAM ROOFING CRM"
 
-This deployment playbook provides authoritative instructions for staging, launching, and maintaining the **Wickham Roofing V4 "Truck Server"** AI application stack. 
+This deployment playbook provides authoritative instructions for staging, launching, and maintaining the **Wickham Roofing V4 "Wickham Roofing CRM"** AI application stack. 
 
 Engineered primarily for resilient local execution on Windows hardware within field branch offices, the pipeline can be spun up natively with single-click PowerShell automation or deployed to containerized cloud infrastructures (e.g., Render, Docker) for hybrid architectures.
 
@@ -8,7 +8,7 @@ Engineered primarily for resilient local execution on Windows hardware within fi
 
 ## Part 1: Local Windows Field Office Deployment (Primary Mode)
 
-The "Truck Server" architecture natively converts an office Windows PC or laptop into a high-concurrency CRM server, bridging public mobile field traffic via secure Edge Tunnels (Cloudflare) without requiring cloud virtual machine rentals.
+The "Wickham Roofing CRM" architecture natively converts an office Windows PC or laptop into a high-concurrency CRM server, bridging public mobile field traffic via secure Edge Tunnels (Cloudflare) without requiring cloud virtual machine rentals.
 
 ### 1. Hardware & Software Requirements
 - **Operating System**: Windows 10/11 Pro or Windows Server (Mac/Linux architectures supported via terminal equivalents).
@@ -70,7 +70,7 @@ These wrapper scripts handle automated restart loops, port conflict resolution, 
 
 To ensure enterprise data continuity without writing custom third-party cloud SDK wrappers (e.g., AWS S3 `boto3` calls), V4 integrates a "Zero-Code" background backup architecture utilizing Google Drive for Desktop:
 
-1. **Install Google Drive for Desktop** on the Windows machine operating as the local Truck Server.
+1. **Install Google Drive for Desktop** on the Windows machine operating as the local Wickham Roofing CRM.
 2. **Configure Folder Sync**: In Google Drive settings, map the local folder path `wickham_crm\data\backups` for continuous automatic synchronization to your secure business cloud drive.
 3. **Automated Snapshot Engine**: The application's internal cron jobs continuously execute non-blocking SQLite `VACUUM INTO` operations, writing consistency-verified database snapshots directly into `data\backups\`.
 4. **Automatic Cloud Preservation**: Google Drive silently monitors the target folder and automatically syncs all new snapshots to the cloud in real time. The internal cleanup engine automatically unlinks historical backups beyond a 10-file ceiling, maintaining optimal local disk footprint while preserving cloud disaster recovery capability.

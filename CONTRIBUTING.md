@@ -1,6 +1,6 @@
-# CONTRIBUTING TO WICKHAM ROOFING CRM (V4 "TRUCK SERVER")
+# CONTRIBUTING TO WICKHAM ROOFING CRM (V4 "WICKHAM ROOFING CRM")
 
-Welcome to the **Wickham Roofing V4 "Truck Server"** engineering repository. This application represents the core operational infrastructure of our business—governing real financial leads, calculating thousands of dollars in material orders, and producing legally binding statutory insurance documentation.
+Welcome to the **Wickham Roofing V4 "Wickham Roofing CRM"** engineering repository. This application represents the core operational infrastructure of our business—governing real financial leads, calculating thousands of dollars in material orders, and producing legally binding statutory insurance documentation.
 
 Because this CRM runs natively on local office hardware without third-party cloud SaaS fail-safes, we enforce an exceptionally rigorous standard for software contributions, schema modifications, and test assertions.
 
@@ -88,4 +88,4 @@ When writing routes or expanding API functionalities, abide by the established P
 - **Path Traversal Defense**: Never concatenate user-supplied input strings directly into file system path references. Rely on `uuid.UUID` parameter typecasting and invoke `sanitize_download_filename` when serving downloads.
 - **Secret & Database Isolation**: Verify that `.env` files and local databases (`*.db`, `*.db-shm`, `*.db-wal`, `tools/*.exe`) remain safely excluded from Git version tracking via `.gitignore`.
 
-Thank you for observing engineering rigor and maintaining the reliability of the Truck Server operating platform!
+Thank you for observing engineering rigor and maintaining the reliability of the Wickham Roofing CRM operating platform!

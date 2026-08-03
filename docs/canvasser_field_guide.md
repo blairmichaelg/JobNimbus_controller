@@ -1,6 +1,6 @@
 # Wickham Roofing — Canvasser & Field Rep Guide
 
-**Truck Server v4 · Field Role**
+**Wickham Roofing CRM v4 · Field Role**
 
 This guide covers everything a canvasser or field sales rep needs to know
 to use the Wickham Roofing field app: logging in, creating leads, taking
@@ -12,7 +12,7 @@ and understanding how offline mode and error recovery work.
 ## 1. Logging In
 
 1. Open the app on your phone or tablet. You'll see the **Wickham Roofing**
-   login screen with the company logo and the label **"Truck Server v4."**
+   login screen with the company logo and the label **"Wickham Roofing CRM v4."**
 2. Tap **"Enter Your PIN"** and use the on-screen keypad (0–9, ⌫) to type
    your assigned 4-digit PIN.
 3. If your PIN is wrong, you'll see **"✕ Incorrect PIN. Try again."**

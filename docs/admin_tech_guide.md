@@ -1,6 +1,6 @@
 # Wickham Roofing — Admin (Tech Admin) Guide
 
-**Truck Server v4 · Admin Role**
+**Wickham Roofing CRM v4 · Admin Role**
 
 This guide covers the full Admin workflow: the pipeline dashboard,
 resolving stuck jobs, generating documents, handling carrier approvals

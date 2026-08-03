@@ -1,6 +1,6 @@
 # Wickham Roofing — Operations Guide
 
-**Truck Server v4 · Operations Role (Scott)**
+**Wickham Roofing CRM v4 · Operations Role (Scott)**
 
 This guide covers the Operations Command board: tracking material
 orders, confirming deliveries, scheduling install crews, and reviewing

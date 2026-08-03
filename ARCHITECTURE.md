@@ -1,8 +1,8 @@
-# SYSTEM ARCHITECTURE & TECHNICAL DESIGN: V4 "TRUCK SERVER"
+# SYSTEM ARCHITECTURE & TECHNICAL DESIGN: V4 "WICKHAM ROOFING CRM"
 
 ## 1. Executive Technical Summary
 
-The **Wickham Roofing AI Controller (V4 "Truck Server")** is an advanced local-first CRM, financial ledger, and automated document synthesis engine. Developed to operate autonomously on field office laptops without requiring active cloud CRM subscriptions, V4 combines **SQLite in Write-Ahead Logging (WAL) mode**, **FastAPI**, **ARQ background workers over Redis**, and **Google Gemini 2.5 Flash** multimodal intelligence.
+The **Wickham Roofing AI Controller (V4 "Wickham Roofing CRM")** is an advanced local-first CRM, financial ledger, and automated document synthesis engine. Developed to operate autonomously on field office laptops without requiring active cloud CRM subscriptions, V4 combines **SQLite in Write-Ahead Logging (WAL) mode**, **FastAPI**, **ARQ background workers over Redis**, and **Google Gemini 2.5 Flash** multimodal intelligence.
 
 This document outlines the software structural patterns, separation of concerns, defensive security boundaries, and asynchronous orchestrations governing the repository.
 

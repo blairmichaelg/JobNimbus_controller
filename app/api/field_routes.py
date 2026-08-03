@@ -91,7 +91,7 @@ def _sync_create_new_job(job_id: str, inv_id: str, payload: LeadIntakePayload, i
         initial_history = [{
             "status": "LEAD_CAPTURED",
             "timestamp": datetime.now(__import__('datetime').timezone.utc).replace(tzinfo=None).isoformat() + "Z",
-            "note": "Initial canvasser intake via Truck Server"
+            "note": "Initial canvasser intake via Wickham Roofing CRM"
         }]
         
         conn.execute('''

@@ -1,6 +1,6 @@
 # Wickham Roofing — Accounting Guide
 
-**Truck Server v4 · Accounting Role**
+**Wickham Roofing CRM v4 · Accounting Role**
 
 Welcome to the Wickham Roofing Accounting system! This guide explains how to use your Accounting Ledger. Your main tasks here are tracking checks (both ACV and Supplement) with real dollar amounts, managing canvasser commissions, exporting invoices to QuickBooks Online, and reviewing job details.
 
@@ -139,4 +139,4 @@ Yes! Click the **"View Details →"** link on any job row. You will see the full
 
 ---
 
-*This guide reflects the latest production features for the Wickham Roofing Truck Server.*
+*This guide reflects the latest production features for the Wickham Roofing Wickham Roofing CRM.*

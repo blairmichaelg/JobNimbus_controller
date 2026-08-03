@@ -13,7 +13,7 @@
 - **AI Damage Signals (Phase 1)**: Integrated Gemini 2.5 Flash ARQ workers (`photo_processor.py`) for automated, background damage tagging of field roof photos without blocking UI threads.
 - **Deterministic Condition Index (Phase 2)**: Developed a non-LLM, strictly mathematical `calculate_condition_index()` model that merges AI vision signals and structured field data into a deterministic 0-100 property score and A-F grade.
 - **Storm-Event Inference (Phase 3)**: Replaced mock weather data with a live, geo-spatially accurate Historical Storm Ingestion engine querying the Iowa Environmental Mesonet (IEM) LSR API. Automatically maps severe hail and wind events (past 365 days) against a defined 150-mile service radius (GA, AL, FL) to infer "Suggested Dates of Loss" and generate targeted canvassing leads.
-- **Redis Queue Resilience (Phase 4)**: Enforced AOF persistence (`--appendonly yes`) in `srv_redis.ps1` and introduced a local backup health validation script (`check_backups.ps1`) for enhanced Truck Server stability.
+- **Redis Queue Resilience (Phase 4)**: Enforced AOF persistence (`--appendonly yes`) in `srv_redis.ps1` and introduced a local backup health validation script (`check_backups.ps1`) for enhanced Wickham Roofing CRM stability.
 - **AI Abstraction Layer (Phase 5)**: Architected formal `AiClient` interfaces, migrating all Gemini integrations under a unified `get_ai_client()` dependency injector. Refactored `document_parser.py` and background workers to use this decoupled layer.
 - **Test Suite Integrity (Phase 6)**: Fixed regression testing artifacts caused by abstraction refactoring. The full test suite (240+ tests) correctly validates all system security boundaries.
 ## [1.4.2] - 2026-07-29
@@ -75,7 +75,7 @@
 - **Manual Commission Override Engine**: Added UI controls ("Adjust %" / "Reset to Default") and backend API routing (`/api/office/accounting/jobs/{job_id}/commission-override`) enabling Accounting personnel (Debi) to manually override standard 10% canvasser commission allocations per job.
 - **Root Workspace Decluttering & Binary Isolation**: Consolidating repository structure by relocating orphaned documentation (`FIELD_RUNBOOK.md`, `security_tasks.md`) directly into the specialized `docs/` folder alongside complete operational role manuals. Isolated networking executable binaries (`cloudflared.exe`) into a dedicated `tools/` directory and secured `.gitignore` exclusion rules.
 - **Local Boot Script Optimization**: Resolved startup crashing in legacy Windows single-click boot scripts (`start_dev.ps1`, `start_prod.ps1` - now superseded) by replacing references to pruned historical diagnostic files with instant inline Python module inspections validating runtime dependencies and environment health.
-- **Enterprise Documentation Overhaul**: Modernized public engineering documentation (`README.md`, `ARCHITECTURE.md`, `DEPLOYMENT.md`, `CONTRIBUTING.md`) to reflect the multi-role standalone V4 Truck Server operating platform and celebrate our verified 229-test 100% passing test matrix.
+- **Enterprise Documentation Overhaul**: Modernized public engineering documentation (`README.md`, `ARCHITECTURE.md`, `DEPLOYMENT.md`, `CONTRIBUTING.md`) to reflect the multi-role standalone V4 Wickham Roofing CRM operating platform and celebrate our verified 229-test 100% passing test matrix.
 
 ## [1.0.0] - 2026-07-22
 ### Added & Fixed
@@ -84,7 +84,7 @@
 - **Production Cleanliness**: Ruthlessly pruned all dead code, orphaned UI templates, and legacy developer scripts. Removed 51 instances of unused code and legacy `.db`/`.txt` bloat from the repository root.
 - **UI-to-DB Re-wiring**: Repaired multiple silent JavaScript routing failures across the isolated Field, Operations, and Admin Triage dashboards caused by the Phase 9 JWT security upgrades.
 - **ARQ Worker Patch**: Patched a fatal `AttributeError` in the `field_routes.py` supplement resumption endpoint to correctly target `request.app.state.redis_pool`.
-- **E2E Mathematical Stability**: Implemented `tests/test_happy_path.py`, an end-to-end integration test proving the complete multi-role lifecycle (Canvasser injection, AI orchestration, Operations scheduling, and Accounting QBO export). The local-first Truck Server CRM is mathematically proven stable for launch.
+- **E2E Mathematical Stability**: Implemented `tests/test_happy_path.py`, an end-to-end integration test proving the complete multi-role lifecycle (Canvasser injection, AI orchestration, Operations scheduling, and Accounting QBO export). The local-first Wickham Roofing CRM CRM is mathematically proven stable for launch.
 
 ## [0.9.0] - 2026-07-21
 ### Added & Fixed
@@ -155,7 +155,7 @@
 ### Added & Fixed
 - **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
-- **Architectural Refactor**: Comprehensive backend hardening for the V4 Truck Server.
+- **Architectural Refactor**: Comprehensive backend hardening for the V4 Wickham Roofing CRM.
 - **SQLite Concurrency**: Enforced explicit `BEGIN IMMEDIATE` transaction blocks and PRAGMA configurations (WAL, mmap, busy_timeout) to eliminate read-to-write database locks.
 - **Universal Claim AST**: Built `ingestion_models.py` leveraging Pydantic V2 for mathematically deterministic extraction of adjustor claims.
 - **Role-Tailored Projections**: Deployed `live_material_board` and `financial_delta_view` SQL Views for immediate operations and accounting insights.
@@ -165,7 +165,7 @@
 ### Added & Fixed
 - **Security/Testing**: Refactored detect_pdf_format to remove test-environment-specific branches, ensuring the detector consistently classifies any malformed or corrupted file as UNKNOWN organically using strict pdfplumber exception handling in both production and test suites.
 - **Unified Pipeline Routing**: Upgraded pipeline.py and API endpoints to dynamically identify and route measurement PDFs (EagleView vs Hover) through a single robust ingestion path with strict error boundaries.
-- **System Stability**: Resolved critical asynchronous Coroutine execution bugs in the V4 Truck Server pipeline affecting inspection doc generation.
+- **System Stability**: Resolved critical asynchronous Coroutine execution bugs in the V4 Wickham Roofing CRM pipeline affecting inspection doc generation.
 - **Type Safety**: Enforced strict typing compliance (100% `mypy` passing) across `pdf_generator.py` ReportLab bindings.
 - **Code Cleanliness**: Resolved all `ruff` static analysis linting errors by pruning unused imports, unused variables, and organizing module imports.
 - **Testing Reliability**: Migrated `MagicMock` patches to `AsyncMock` to accommodate the newly refactored async pipeline architecture.
@@ -187,7 +187,7 @@
 
 ## [0.4.0] - 2026-06-30
 ### Added
-- **V4 Local CRM Pivot (Truck Server)**: Full independent pipeline replacing SaaS CRMs.
+- **V4 Local CRM Pivot (Wickham Roofing CRM)**: Full independent pipeline replacing SaaS CRMs.
 - **SQLite WAL State Machine**: Replaced JobNimbus with a robust, concurrent local database.
 - **Unified Office Dashboard**: Local UI displaying metadata, schedules, margins, and artifacts.
 - **Paperwork Matrix**: Generates Supplier POs and Georgia Statutory Compliance Documents locally.

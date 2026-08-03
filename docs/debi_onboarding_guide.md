@@ -1,6 +1,6 @@
 # Wickham Roofing — Debi's Onboarding Guide (Accounting)
 
-Welcome to the Wickham Roofing Truck Server v4! 
+Welcome to the Wickham Roofing Wickham Roofing CRM v4! 
 
 As the Accounting Lead, you have a critical role in tracking ACV/Supplement checks, managing canvasser commissions, and exporting invoices to QuickBooks Online. This guide contains everything you need to get started immediately.
 
@@ -42,6 +42,6 @@ While you don't have access to the Admin controls or Operations scheduling, you 
 - Click **"View Details →"** on any job row to see the full financial breakdown, margins, measurements, and all documents (like the Contingency Agreement or generated Invoices).
 
 ## Support
-If you get a network error during export or see anything strange with the commission calculations, please reach out to Michael or the Tech Admin immediately. The server runs autonomously 24/7 on the Truck Server.
+If you get a network error during export or see anything strange with the commission calculations, please reach out to Michael or the Tech Admin immediately. The server runs autonomously 24/7 on the Wickham Roofing CRM.
 
 Welcome aboard!
