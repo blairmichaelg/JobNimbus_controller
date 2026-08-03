@@ -626,6 +626,87 @@ def _fetch_latest_report_sync(job_id: str) -> dict | None:
     finally:
         conn.close()
 
+def _writeback_sol_financials(conn, job_id: str, sol_data) -> None:
+    """
+    Write parsed SoL financial fields into the financials table.
+    Uses INSERT OR IGNORE to create the row if it doesn't exist,
+    then UPDATE for only the non-zero parsed values.
+    Called after a successful parse_statement_of_loss().
+    Never overwrites a non-zero value with zero — parse gaps are skipped.
+    """
+    fin = sol_data.financials
+    if not fin:
+        return
+
+    # Ensure the financials row exists (may not exist yet at this pipeline stage)
+    conn.execute(
+        "INSERT OR IGNORE INTO financials (job_id) VALUES (?)",
+        (job_id,)
+    )
+
+    updates: dict[str, int] = {}
+
+    if fin.gross_rcv and fin.gross_rcv.value:
+        updates["carrier_rcv_cents"] = int(float(fin.gross_rcv.value) * 100)
+
+    if fin.total_depreciation and fin.total_depreciation.value:
+        updates["depreciation_cents"] = int(float(fin.total_depreciation.value) * 100)
+
+    if fin.deductible and fin.deductible.value:
+        updates["deductible_cents"] = int(float(fin.deductible.value) * 100)
+
+    if fin.net_claim and fin.net_claim.value:
+        updates["net_claim_cents"] = int(float(fin.net_claim.value) * 100)
+
+    if not updates:
+        logger.info("sol_writeback_skipped_no_values", job_id=job_id)
+        return
+
+    set_clause = ", ".join(f"{k} = CASE WHEN {k} = 0 OR {k} IS NULL THEN ? ELSE {k} END" for k in updates)
+    values = list(updates.values()) + [job_id]
+    conn.execute(
+        f"UPDATE financials SET {set_clause} WHERE job_id = ?",
+        values
+    )
+    conn.commit()
+    logger.info("sol_financials_written_back", job_id=job_id, fields=list(updates.keys()))
+
+def _writeback_ev_geometry(conn, job_id: str, ev_data) -> None:
+    """
+    Write EagleView/Hover roof geometry back to the jobs table.
+    Confirmed column names use ev_ prefix per PRAGMA table_info(jobs).
+    Only writes non-zero/non-None values to avoid overwriting real data.
+    """
+    updates: dict[str, object] = {}
+
+    if ev_data.total_area_sf:
+        updates["ev_total_area_sf"] = float(ev_data.total_area_sf)
+    if ev_data.predominant_pitch:
+        updates["ev_predominant_pitch"] = str(ev_data.predominant_pitch)
+    if ev_data.ridge_lf:
+        updates["ev_ridge_lf"] = float(ev_data.ridge_lf)
+    if ev_data.hip_lf:
+        updates["ev_hip_lf"] = float(ev_data.hip_lf)
+    if ev_data.valley_lf:
+        updates["ev_valley_lf"] = float(ev_data.valley_lf)
+    if ev_data.eaves_lf:
+        updates["ev_eaves_lf"] = float(ev_data.eaves_lf)
+    if ev_data.rake_lf:
+        updates["ev_rakes_lf"] = float(ev_data.rake_lf)   # NOTE: jobs table uses ev_rakes_lf (plural)
+
+    if not updates:
+        logger.info("ev_writeback_skipped_no_values", job_id=job_id)
+        return
+
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [job_id]
+    conn.execute(
+        f"UPDATE jobs SET {set_clause} WHERE id = ?",
+        values
+    )
+    conn.commit()
+    logger.info("ev_geometry_written_back", job_id=job_id, fields=list(updates.keys()))
+
 async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: str, ev_sha256: str, ev_doc_id: str, sol_sha256: str, sol_doc_id: str, resume: bool = False, ctx: dict = {}) -> dict:
     """
     ARQ Task to handle the complete supplement request flow.
@@ -683,6 +764,12 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
             
             # 1. Extract EV Data
             ev_data, ev_hash = await parse_measurement_pdf(str(ev_pdf_path))
+            
+            conn = get_connection()
+            try:
+                _writeback_ev_geometry(conn, job_id, ev_data)
+            finally:
+                conn.close()
 
             from app.core.database import _fetch_job_sync
             job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)  # type: ignore
@@ -707,6 +794,12 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
             except ValueError as e:
                 await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_OPERATOR_REVIEW, f"SoL Parse failed: {str(e)}")
                 return {"status": "halted_for_review"}
+
+            conn = get_connection()
+            try:
+                _writeback_sol_financials(conn, job_id, sol_data)
+            finally:
+                conn.close()
 
             unverified_items = [li for li in sol_data.line_items if not li.verified]
             gross_rcv_unverified = not sol_data.financials.gross_rcv.verified if sol_data.financials else False

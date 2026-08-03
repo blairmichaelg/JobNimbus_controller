@@ -211,8 +211,15 @@ def run_migrations() -> None:
             
             conn.execute("UPDATE schema_version SET version = 10, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
 
+        if current_version < 11:
+            import importlib
+            m11 = importlib.import_module("app.core.migrations.0011_add_depreciation_net_claim")
+            m11.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 11, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+
         conn.execute("COMMIT")
-        logger.info("migrations_applied", current_version=current_version, target_version=10)
+        logger.info("migrations_applied", current_version=current_version, target_version=11)
         
         # Since seed logic was removed from up(), do it here outside the transaction
         if current_version < 1:

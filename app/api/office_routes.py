@@ -655,7 +655,7 @@ def _sync_update_job_production(job_id: str, payload: ProductionPayload):
 async def update_job_production(job_id: str, payload: ProductionPayload, bg_tasks: BackgroundTasks):
     """
     Unified route to set both material orders and installation schedule.
-    Transitions job to INSTALL_SCHEDULED.
+    Transitions job to MATERIAL_ORDERED. Operations must confirm MATERIALS_ON_SITE before INSTALL_SCHEDULED becomes valid.
     """
     try:
         await asyncio.to_thread(_sync_update_job_production, job_id, payload)
@@ -1312,11 +1312,16 @@ class TogglePaymentPayload(BaseModel):
     date_received: str
 
 @router.post("/accounting/jobs/{job_id}/toggle-payment", dependencies=[Depends(verify_accounting)])
-def toggle_payment_route(job_id: str, payload: TogglePaymentPayload):
+async def toggle_payment_route(job_id: str, payload: TogglePaymentPayload, request: Request):
     from app.core.database import toggle_payment_flag
     try:
         amount_cents = int(round(payload.amount * 100))
-        toggle_payment_flag(job_id, payload.flag, amount_cents, payload.date_received)
+        result = toggle_payment_flag(job_id, payload.flag, amount_cents, payload.date_received)
+        if result.get("commission_triggered"):
+            await request.app.state.redis_pool.enqueue_job(
+                "process_commission",
+                job_id=job_id
+            )
         return {"status": "success"}
     except Exception as e:
         logger.error("toggle_payment_failed", error=str(e))

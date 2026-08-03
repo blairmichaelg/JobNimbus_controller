@@ -109,6 +109,8 @@ async def test_supplement_pdf_not_deleted_after_vault(
     vault_path.unlink()
 
 def test_accounting_brief_rcv_is_live_not_mock(db_conn):
+    db_conn.execute("DELETE FROM financials")
+    db_conn.commit()
     job_id = setup_test_job(db_conn, "SUPPLEMENT_GENERATED")
     setup_test_financials(db_conn, job_id, carrier_rcv_cents=500000)
 
