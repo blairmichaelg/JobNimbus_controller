@@ -302,7 +302,7 @@ class ConditionIndex(BaseModel):
     grade: str
     flags: list[str] = []
 
-def calculate_condition_index(job: InspectionJob, damage_signals: list[dict] = None) -> ConditionIndex:
+def calculate_condition_index(job: InspectionJob, damage_signals: list[dict] | None = None) -> ConditionIndex:
     """
     Deterministically calculates a 0-100 condition score based on inspection
     analyses and field photo damage signals. AI is strictly excluded from this math.
