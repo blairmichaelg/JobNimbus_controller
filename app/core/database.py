@@ -466,7 +466,10 @@ def upsert_financials(
     labor_cost_cents: int, 
     overhead_pct: float, 
     canvasser_commission_pct: float,
-    permits_fee_cents: int = 0
+    permits_fee_cents: int = 0,
+    deductible_cents: int = 0,
+    acv_payment_cents: int = 0,
+    recoverable_depreciation_cents: int = 0
 ) -> None:
     """Upsert financial pre-build parameters into the financials table.
 
@@ -491,8 +494,8 @@ def upsert_financials(
             INSERT INTO financials 
             (job_id, 
              revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, permits_fee_cents,
-             overhead_pct, canvasser_commission_pct)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             overhead_pct, canvasser_commission_pct, deductible_cents, acv_payment_cents, recoverable_depreciation_cents)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
                 revenue_cents = excluded.revenue_cents,
                 carrier_rcv_cents = excluded.carrier_rcv_cents,
@@ -500,11 +503,14 @@ def upsert_financials(
                 labor_cost_cents = excluded.labor_cost_cents,
                 permits_fee_cents = excluded.permits_fee_cents,
                 overhead_pct = excluded.overhead_pct,
-                canvasser_commission_pct = excluded.canvasser_commission_pct
+                canvasser_commission_pct = excluded.canvasser_commission_pct,
+                deductible_cents = excluded.deductible_cents,
+                acv_payment_cents = excluded.acv_payment_cents,
+                recoverable_depreciation_cents = excluded.recoverable_depreciation_cents
         ''', (
             job_id, 
             revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, permits_fee_cents,
-            overhead_pct, canvasser_commission_pct
+            overhead_pct, canvasser_commission_pct, deductible_cents, acv_payment_cents, recoverable_depreciation_cents
         ))
         conn.execute("COMMIT")
         logger.info("financials_upserted", job_id=job_id)

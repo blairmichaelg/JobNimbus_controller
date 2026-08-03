@@ -591,7 +591,10 @@ def _sync_update_job_financials(job_id: str, payload: FinancialsPayload):
         labor_cost_cents=int(round(payload.labor * 100)),
         overhead_pct=payload.overhead_pct,
         canvasser_commission_pct=payload.commission_pct,
-        permits_fee_cents=int(round(payload.permits_fee * 100))
+        permits_fee_cents=int(round(payload.permits_fee * 100)),
+        deductible_cents=int(round(payload.deductible * 100)),
+        acv_payment_cents=int(round(payload.acv_payment * 100)),
+        recoverable_depreciation_cents=int(round(payload.recoverable_depreciation * 100)),
     )
     
     # Convert returned integer cents back to dollars for API response
@@ -642,7 +645,11 @@ def _sync_update_job_production(job_id: str, payload: ProductionPayload):
         status="SCHEDULED"
     )
     
-    update_job_status(job_id, JobStatus.INSTALL_SCHEDULED, f"Scheduled with {payload.crew_name} on {payload.install_date}")
+    update_job_status(
+        job_id,
+        JobStatus.MATERIAL_ORDERED,
+        f"Material order placed with {payload.supplier_name}, delivery {payload.delivery_date}"
+    )
 
 @router.post("/jobs/{job_id}/production", dependencies=[Depends(verify_admin)])
 async def update_job_production(job_id: str, payload: ProductionPayload, bg_tasks: BackgroundTasks):
@@ -1051,34 +1058,7 @@ async def mark_supplement_sent_route(job_id: str):
     mark_supplement_sent(job_id)
     return {"status": "ok", "job_id": job_id}
 
-@router.post(
-    "/accounting/jobs/{job_id}/toggle-payment",
-    response_class=JSONResponse
-, dependencies=[Depends(verify_accounting), Depends(check_rate_limit)])
-async def toggle_payment(request: Request, job_id: str, payload: dict = Body(...)):
-    """
-    Toggle Payment functionality.
-    
-    Args:
-            request (Request): request parameter.
-            job_id (str): job_id parameter.
-            payload (dict): payload parameter.
-    
-    Returns:
-        Any: The resulting output.
-    """
-    flag = str(payload.get("flag", ""))
-    amount = payload.get("amount")
-    date_received = payload.get("date_received")
-    
-    from app.core.database import toggle_payment_flag
-    result = toggle_payment_flag(job_id, flag, amount, date_received)
-    if result.get("commission_triggered"):
-        await request.app.state.redis_pool.enqueue_job(
-            "process_commission",
-            job_id=job_id
-        )
-    return result
+
 
 
 @router.post(
