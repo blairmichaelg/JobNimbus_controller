@@ -20,7 +20,8 @@ from app.core.database import get_connection, update_job_status
 from app.core.pipeline import parse_measurement_pdf
 from app.services.hover_extractor import detect_pdf_format
 from app.services.pdf import PDFGenerator
-from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
+from app.api.field_routes import get_inspection_summary
+from app.config import FIELD_DOCS_DIR
 from app.core.job_costing import compute_job_profitability
 from app.core.database import insert_material_order, insert_schedule, JobStatus, upsert_financials, get_financials, insert_job_document, get_job_document_by_hash, _fetch_job_sync
 from app.core.backup import backup_database
@@ -369,8 +370,14 @@ async def download_evidence_grid(job_id: str):
             raise HTTPException(status_code=404, detail="No photos found for this job.")
 
         # Look for signature
-        sig_path = SIGNED_AGREEMENTS_DIR / f"{job_id}_signature.png"
-        signature_to_pass = str(sig_path) if sig_path.exists() else None
+        sig_path_c = FIELD_DOCS_DIR / job_id / f"{job_id}_contingency_sig.png"
+        sig_path_r = FIELD_DOCS_DIR / job_id / f"{job_id}_retail_contract_sig.png"
+        if sig_path_c.exists():
+            signature_to_pass = str(sig_path_c)
+        elif sig_path_r.exists():
+            signature_to_pass = str(sig_path_r)
+        else:
+            signature_to_pass = None
 
         # Generate PDF
         pdf_gen = PDFGenerator()

@@ -42,15 +42,11 @@ def setup_dirs(tmp_path, monkeypatch):
     """Point directories to a temp path during tests to avoid littering the repo."""
     test_field_photos = tmp_path / "field_photos"
     test_field_docs = tmp_path / "field_docs"
-    test_signed = tmp_path / "signed_agreements"
-    
     test_field_photos.mkdir()
     test_field_docs.mkdir()
-    test_signed.mkdir()
     
     monkeypatch.setattr("app.api.field_routes.FIELD_PHOTOS_DIR", test_field_photos)
     monkeypatch.setattr("app.api.field_routes.FIELD_DOCS_DIR", test_field_docs)
-    monkeypatch.setattr("app.api.field_routes.SIGNED_AGREEMENTS_DIR", test_signed)
     
     # Ensure cache and CRM DB exists for the test
     init_db()
@@ -194,7 +190,7 @@ def test_capture_signature():
     assert "pdf_path" in data
     
     import app.api.field_routes as fr
-    expected_path = fr.SIGNED_AGREEMENTS_DIR / "99999999-9999-9999-9999-999999999993_contingency_sig.png"
+    expected_path = fr.FIELD_DOCS_DIR / "99999999-9999-9999-9999-999999999993" / "99999999-9999-9999-9999-999999999993_contingency_sig.png"
     assert expected_path.exists()
     
     from PIL import Image
@@ -274,8 +270,7 @@ def test_capture_retail_signature():
     assert "noc_pdf_path" in data
     
     import app.api.field_routes as fr
-    expected_sig_path = fr.SIGNED_AGREEMENTS_DIR / "99999999-9999-9999-9999-999999999995_retail_contract_sig.png"
-    # Actually wait, I didn't change the hardcoded "_contingency_sig.png" from the _sync_process_image call!
+    expected_sig_path = fr.FIELD_DOCS_DIR / "99999999-9999-9999-9999-999999999995" / "99999999-9999-9999-9999-999999999995_retail_contract_sig.png"
     # Ah, let me check _sync_process_image in field_routes.py. 
 
 

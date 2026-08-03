@@ -38,8 +38,6 @@ router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends
 # Base directories (created on startup)
 FIELD_PHOTOS_DIR = Path("field_photos")
 
-SIGNED_AGREEMENTS_DIR = Path("signed_agreements")
-
 class LeadIntakePayload(BaseModel):
     """LeadIntakePayload definition."""
     homeowner_name: str
@@ -479,8 +477,9 @@ def _sync_process_image(encoded_b64: str, job_id: str, suffix: str = "contingenc
     if image.format not in ["PNG", "JPEG"]:
         raise ValueError("Unsupported image format")
         
-    SIGNED_AGREEMENTS_DIR.mkdir(parents=True, exist_ok=True)
-    sig_file_path = SIGNED_AGREEMENTS_DIR / f"{job_id}_{suffix}_sig.png"
+    job_dir = FIELD_DOCS_DIR / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    sig_file_path = job_dir / f"{job_id}_{suffix}_sig.png"
     
     # Convert to RGBA for PNG compatibility and save
     image = image.convert("RGBA")

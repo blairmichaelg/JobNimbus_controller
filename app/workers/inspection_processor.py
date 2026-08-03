@@ -23,7 +23,8 @@ from app.services.ai_service import get_ai_client
 from app.core.inspection_models import InspectionJob
 from app.core.cache import get_cached_analysis, set_cached_analysis
 from app.core.temp_manager import create_temp_file
-from app.api.field_routes import get_inspection_summary, SIGNED_AGREEMENTS_DIR
+from app.api.field_routes import get_inspection_summary
+from app.config import FIELD_DOCS_DIR
 from app.services.pdf import PDFGenerator
 from app.core.database import insert_job_document, update_job_status, JobStatus
 from app.config import get_settings
@@ -215,8 +216,14 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
 
         if not ctx.get("is_test"):
             # Look for signature
-            sig_path = SIGNED_AGREEMENTS_DIR / f"{job_id}_signature.png"
-            signature_to_pass = str(sig_path) if sig_path.exists() else None
+            sig_path_c = FIELD_DOCS_DIR / job_id / f"{job_id}_contingency_sig.png"
+            sig_path_r = FIELD_DOCS_DIR / job_id / f"{job_id}_retail_contract_sig.png"
+            if sig_path_c.exists():
+                signature_to_pass = str(sig_path_c)
+            elif sig_path_r.exists():
+                signature_to_pass = str(sig_path_r)
+            else:
+                signature_to_pass = None
 
             # Generate Evidence Grid
             pdf_gen = PDFGenerator()
