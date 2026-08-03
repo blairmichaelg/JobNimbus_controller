@@ -311,6 +311,12 @@ async def serve_field_app(request: Request, role: str = Depends(verify_field)):
         "field_token": request.cookies.get("auth_token", "")
     })
 
+@app.get("/help", tags=["frontend"])
+async def help_page(request: Request, role: str = Depends(get_current_role)):
+    return templates.TemplateResponse(
+        request, "help.html", {"request": request, "role": role}
+    )
+
 @app.get("/", tags=["frontend"], include_in_schema=False)
 async def root_redirect():
     """Redirect bare domain to login page."""

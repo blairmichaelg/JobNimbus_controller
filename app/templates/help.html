@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wickham Roofing CRM — Help & User Guides</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media (max-width: 768px) {
+            body.flex { flex-direction: column !important; overflow-y: auto !important; height: auto !important; display: block !important; }
+            .h-screen { height: auto !important; min-height: 100vh !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen flex flex-col overflow-y-auto font-sans">
+    <div class="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900">
+        <div class="flex items-center">
+            <h1 class="text-2xl font-bold text-white tracking-wide">Help & User Guides</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <a href="/auth/logout" class="text-gray-400 hover:text-white px-4 py-2 border border-gray-700 rounded transition-colors">Logout</a>
+        </div>
+    </div>
+    
+    <div class="p-8 max-w-4xl mx-auto w-full">
+{% if role == 'admin' %}
+<div class="mb-12 bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700">
+<h2 class="text-2xl font-black mt-8 mb-4 border-b border-gray-700 pb-2">Wickham Roofing — Admin (Tech Admin) Guide</h2>
+<strong>Wickham Roofing CRM v4 · Admin Role</strong>
+<p class="mb-4">This guide covers the full Admin workflow: the pipeline dashboard,
+resolving stuck jobs, generating documents, handling carrier approvals
+and denials, managing financials, and using the Emergency Override
+system. As Admin, you hold the highest level of access in the system.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">1. The Pipeline Dashboard (Kanban)</h3>
+<p class="mb-4">After logging in, you land on <strong>"Wickham Roofing - Pipeline Orchestrator"</strong>
+— your main command center showing every job as a card, organized by
+status column. The Wickham Roofing logo appears in the header alongside
+the title.</p>
+<h4 class="text-lg font-bold mt-4 mb-2">Navigation</h4>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>👥 Field Reps</strong> — manage canvasser/rep records.</li>
+<li><strong>⚠ Triage</strong> — jobs stuck waiting for your review.</li>
+<li><strong>Logout</strong></li></ul>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Status columns you'll see</h4>
+`LEAD_CAPTURED` → `CONTINGENCY_SIGNED` → `EV_ORDERED` → `EV_PARSED` →
+`PENDING_OPERATOR_REVIEW` → `SUPPLEMENT_GENERATED` →
+`AWAITING_CARRIER_RESPONSE` → `SUPPLEMENT_APPROVED` → `MATERIAL_ORDERED`
+→ `INSTALL_SCHEDULED` → `FINAL_INSPECTION` → `INVOICED`</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Alerts to watch for</h4>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Red "PENDING_OPERATOR_REVIEW" cards</strong> — a job is blocked and needs</li></ul>
+  your attention in Triage (see Section 2).
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Red "SLA EXCEEDED: X Days" badges</strong> — a carrier has gone silent too</li></ul>
+  long and the job needs an escalation letter (see Section 4).</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Clicking into a job</h4>
+Click any job card to open the <strong>unified job detail view</strong>. This is the
+same full-access view shared by Admin, Operations, and Accounting —
+all three roles see all financials, margins, documents, and actions.
+There is no restriction between these three office roles on job data.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">2. Resolving Stuck Jobs (Operator Triage)</h3>
+<p class="mb-4">When a measurement report or Statement of Loss parsing can't confidently
+extract a required number, the system <strong>refuses to guess</strong> — it
+hard-blocks the job into `PENDING_OPERATOR_REVIEW` instead of silently
+defaulting to zero. This is intentional and protects you from bad math
+downstream.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">How to resolve a stuck job</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>⚠ Triage</strong> from the dashboard.</li>
+<li class="mb-1">You'll see <strong>"⚠ Operator Triage — Stuck Jobs"</strong> with a list of every</li></ol>
+   job currently blocked, each labeled <strong>"PENDING REVIEW."</strong>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">For each stuck job, you'll see the exact fields the system couldn't</li></ol>
+   confidently extract: <em></em>Total Area (SF), Pitch (e.g. 6/12), Ridge LF,
+   Hip LF, Valley LF, Eaves LF, Rakes LF.<em></em>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Enter the correct values by hand from the actual report. Fields you</li></ol>
+   leave blank will keep their current value (placeholder text: *"Leave
+   blank to keep"*).
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>"Resolve & Resume Pipeline."</strong></li></ol>
+   - The button changes to <strong>"Queuing..."</strong> then <strong>"✓ Queued."</strong>
+   - You'll see green confirmation text: <em></em>"✓ Job queued. Pipeline will
+     resume momentarily,"<em></em> and the card fades out of the triage list.
+   - If something goes wrong, you'll see red text: <strong>"Error: [message]"</strong>
+     directly under the button.</p>
+<p class="mb-4">If there are no stuck jobs, you'll see a clean green banner:
+<strong>"✓ No jobs stuck in review. All clear."</strong></p>
+<p class="mb-4"><strong>Why this matters:</strong> Never guess a value just to clear a job faster.
+The whole point of this hard-block is to keep bad numbers out of
+supplements and carrier-facing documents. Take the extra minute to
+verify against the real report.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">3. Uploading Measurement Reports & Statement of Loss</h3>
+<p class="mb-4">From a job's detail page, you'll find the <strong>Control Panel</strong> section
+with <strong>"Upload Documents."</strong></p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Supported measurement report formats</h4>
+The system automatically detects whether a measurement PDF is an
+<strong>EagleView</strong> or <strong>Hover</strong> report and routes it to the correct parser.
+You do not need to specify the format — just upload the PDF and the
+system handles detection transparently.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">How to upload</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Drag and drop the <strong>Measurement Report PDF</strong> (EagleView or Hover)</li></ol>
+   and the <strong>Statement of Loss PDF</strong> into their respective drop zones.
+   The measurement zone is labeled <em></em>"📐 Measurement Report (EagleView
+   or Hover)"<strong> and the other </strong>"📋 Statement of Loss."<em></em>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>"Upload & Trigger Pipeline."</strong></li></ol>
+   - The button changes to <strong>"Enqueuing Documents..."</strong>
+   - A progress bar appears and updates through stages like
+     <strong>"Extracting multimodal data..."</strong> and <em></em>"Generating Narrative &
+     PDFs..."<em></em>
+   - When complete, the page reloads automatically.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">If something fails, you'll see a toast: <strong>"Upload failed: [error]"</strong></li></ol>
+   and the drop zones reappear so you can retry.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Important current limitation</h4>
+<strong>Both files are required together every time.</strong> As of this writing,
+you cannot re-upload just a corrected Statement of Loss on its own —
+the system requires both the Measurement Report and SoL PDFs to be
+submitted as a pair, even if only one document was actually wrong. If
+you need to correct a single document, re-upload both files together
+(using the original measurement report again if it was already correct).
+This is a known workflow limitation the team is aware of and may improve
+in a future update.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Common upload errors</h4>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>"Only PDF files are allowed."</strong> — you attached something other than</li></ul>
+  a PDF.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><em></em>"Please upload exactly two PDF files (Measurement Report and</li></ul>
+  Statement of Loss)."<em></em> — you're missing one of the two required
+  documents.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">4. Escalating a Stalled Carrier</h3>
+<p class="mb-4">When a job has exceeded its SLA window with no carrier response, a red
+alert appears on the job detail page: <strong>"⚠ Carrier SLA Exceeded (X Days)"</strong>
+— where X shows exactly how many days it's been overdue. (You may also
+spot this earlier on the Kanban dashboard as <strong>"SLA EXCEEDED: X Days"</strong>
+on the job card itself.)</p>
+<h4 class="text-lg font-bold mt-4 mb-2">How to escalate</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>"Generate Escalation Demand Letter."</strong></li>
+<li class="mb-1">You'll be asked to confirm: a dialog box appears before anything</li></ol>
+   happens, since this generates a real document tied to the carrier
+   relationship.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Once confirmed, the button changes to <em></em>"Generating PDF via</li></ol>
+   Gemini..."<strong> then </strong>"Demand Letter Generated ✓."<em></em>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">A download link appears: <strong>"⬇ Download Generated Demand Letter."</strong></li></ol>
+<p class="mb-4">Take a moment before confirming — this creates a formal document, so
+make sure escalation is actually warranted before clicking through.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">5. Approving or Denying a Supplement</h3>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Approving</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>"✓ Mark Supplement Approved."</strong></li>
+<li class="mb-1">You'll be asked to confirm: <em></em>"Mark supplement as APPROVED? This</li></ol>
+   will alert Scott and Debi."<em></em>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Once confirmed, the page reloads and the job moves forward in the</li></ol>
+   pipeline.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Denying (triggers AI Rebuttal)</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Paste the carrier's denial text into the <em></em>"Carrier Denial Text</li></ol>
+   (paste from email)"<em></em> box.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>"✗ Mark Denied — Generate AI Rebuttal."</strong></li>
+<li class="mb-1">If the text box is empty, you'll see a <strong>red toast notification</strong> in</li></ol>
+   the corner: <strong>"Please paste the carrier denial text first."</strong>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">You'll then be asked to confirm, since this action consumes AI</li></ol>
+   processing time and generates a real rebuttal letter: a confirmation
+   dialog appears before the request is sent.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Once confirmed, a toast notification appears instead of a blocking</li></ol>
+   popup, and the system automatically checks every few seconds for
+   completion — you don't need to guess when it's done or manually
+   refresh. Once the rebuttal is ready, the page reloads on its own
+   with the rebuttal available to download. If generation genuinely
+   fails, the system detects that too and reloads to reflect the
+   failed state rather than leaving you waiting indefinitely.</p>
+<p class="mb-4"><strong>Take your time before denying.</strong> This isn't reversible, and it kicks
+off real AI generation — make sure the denial text is accurate and
+complete before confirming.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">6. Reviewing Financials</h3>
+<p class="mb-4">On the job detail page, under <strong>"Financials,"</strong> you can view and edit:
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>Revenue</li>
+<li>Materials</li>
+<li>Labor</li>
+<li>Carrier RCV</li>
+<li>Deductible</li>
+<li>ACV Payment</li>
+<li>Recoverable Dep.</li></ul></p>
+<p class="mb-4">Click <strong>"Save Financials"</strong> when done. You'll see a confirmation toast:
+<strong>"Financials saved!"</strong> If something goes wrong, the toast will show
+the specific error message instead.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">7. Document Vault</h3>
+<p class="mb-4">Every job has a <strong>Document Vault</strong> for storing artifacts beyond the
+core measurement report/SoL pipeline documents.</p>
+<h4 class="text-lg font-bold mt-4 mb-2">How to upload</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Drag a file into the vault drop zone.</li>
+<li class="mb-1">On success: <strong>"Document uploaded successfully!"</strong></li>
+<li class="mb-1">On failure: the toast will show the specific error.</li></ol>
+<h4 class="text-lg font-bold mt-4 mb-2">Downloadable documents available per job</h4>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>⬇ Download QBO CSV</strong></li>
+<li><strong>Notice of Cancellation (PDF)</strong></li>
+<li><strong>Evidence Grid (PDF)</strong></li>
+<li><strong>⬇ Download Supplement PDF</strong></li>
+<li><strong>⬇ Download Generated Demand Letter</strong> (once escalated)</li>
+<li><strong>⬇ Download Rebuttal Letter</strong> (once a denial has been processed)</li></ul>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Document visibility</h4>
+Documents in the system have a visibility level:
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>`field_safe`</strong> — visible to field reps (e.g., measurement reports,</li></ul>
+  contingency agreements, photos).
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>`office_only`</strong> — visible only to Admin, Operations, and Accounting</li></ul>
+  (e.g., QBO exports, financial documents).</p>
+<p class="mb-4">Field reps can only see and download `field_safe` documents. Office
+roles (Admin, Operations, Accounting) can see and download all documents
+regardless of visibility.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">8. Emergency Admin Override</h3>
+<p class="mb-4">This is your highest-privilege tool: the ability to <strong>force</strong> a job
+into any status, bypassing the normal pipeline entirely. Use this only
+when a job is genuinely stuck and cannot be resolved through Triage or
+the normal workflow buttons above.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">How to use it</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">On the job detail page, scroll to the bottom to the red-bordered</li></ol>
+   <strong>"⚠ Admin Override (Emergency Use Only)"</strong> panel and click to expand it.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Read the warning text: *"This forcefully changes the job's status,</li></ol>
+   bypassing the normal pipeline. Use only when a job is stuck and
+   cannot be resolved through Triage or normal workflow buttons. This
+   action is logged."*
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Select the <strong>New Status</strong> you want to force the job into from the</li></ol>
+   dropdown.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Type a clear <strong>Reason for Override</strong> — this field is required. You</li></ol>
+   cannot submit without it, and the system will reject the request
+   even if attempted directly through the API without a reason.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>"Force Status Change."</strong></li>
+<li class="mb-1">You'll get one final confirmation dialog summarizing exactly what</li></ol>
+   you're about to do and the reason you gave, before anything happens.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">On success, you'll see <strong>"✓ Override applied. Reloading..."</strong> and</li></ol>
+   the page refreshes.</p>
+<h4 class="text-lg font-bold mt-4 mb-2">Why the reason field matters</h4>
+Every override is permanently logged with the reason you provide. This
+isn't just a formality — it's your audit trail. If you or anyone else
+ever needs to understand why a job's status doesn't match its normal
+history, this note is the explanation. Always write something specific
+and useful, such as:
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>"Carrier confirmed verbal approval by phone; documentation pending. Advancing manually to avoid delay."</li>
+<li>"Duplicate job created during offline sync error; forcing to CLOSED to remove from active pipeline."</li></ul>
+<p class="mb-4">Avoid vague notes like "fixing" or "testing."</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">When to use Override vs. Triage</h4>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Use Triage</strong> when a job is stuck specifically because of missing</li></ul>
+  measurement data from report parsing.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Use Override</strong> only for everything else — genuinely stuck jobs, data</li></ul>
+  entry mistakes, duplicate records, or unusual situations the normal
+  workflow buttons can't handle.</p>
+<p class="mb-4"><strong>This is not reversible in a simple sense.</strong> You can override again to
+a different status, but any side effects the normal pipeline would have
+triggered along the way (notifications, document generation, etc.) will
+not happen automatically. Use this sparingly and document your reasoning
+clearly every time.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">FAQ</h3>
+<strong>Q: A job is stuck in PENDING_OPERATOR_REVIEW. What do I do?</strong>
+Go to <strong>⚠ Triage</strong>, find the job, enter the missing measurement values
+by hand from the real report, and click <strong>Resolve & Resume Pipeline.</strong>
+<p class="mb-4"><strong>Q: Can I re-upload just a corrected Statement of Loss?</strong>
+Not currently — you need to re-upload both the Measurement Report and
+Statement of Loss PDFs together, even if only one was wrong. Use the
+same measurement report file again if it was already correct.</p>
+<p class="mb-4"><strong>Q: Does the system support Hover measurement reports?</strong>
+Yes — the system automatically detects whether a PDF is EagleView or
+Hover and routes it to the correct parser. You do not need to specify
+the format.</p>
+<p class="mb-4"><strong>Q: I clicked Deny by mistake. Can I undo it?</strong>
+No — denial triggers real AI rebuttal generation immediately after you
+confirm. That's why there's a confirmation dialog now; always double-
+check the denial text before confirming.</p>
+<p class="mb-4"><strong>Q: What's the difference between Triage and Admin Override?</strong>
+Triage fixes a specific, known problem (missing measurements from
+parsing). Override is a blunt instrument for anything else — use it
+only when nothing else applies.</p>
+<p class="mb-4"><strong>Q: Do I need a reason to use Admin Override?</strong>
+Yes, always. The system will not let you submit an override without
+one, and this reason becomes part of the permanent audit trail.</p>
+<p class="mb-4"><strong>Q: How do I know an AI Rebuttal actually generated?</strong>
+After confirming a denial, the system checks automatically in the
+background every few seconds and reloads the page once it's either
+ready or has genuinely failed — you don't need to manually refresh or
+guess how long to wait.</p>
+<p class="mb-4"><strong>Q: What if I need to escalate a job but I'm not sure it's warranted yet?</strong>
+Take the extra moment before confirming — escalation generates a real
+demand letter tied to the carrier relationship, so it's worth being
+certain first.</p>
+<p class="mb-4"><em></em>Q: Can Scott (Operations) and Debi (Accounting) see the same job
+data I see?<em></em>
+Yes — all three office roles (Admin, Operations, Accounting) share the
+same unified job detail view with full access to financials, margins,
+and all documents. The only role with restricted document visibility
+is field reps/canvassers, who can only see `field_safe` documents.</p>
+<p class="mb-4">---</p>
+<p class="mb-4">*This guide reflects the Admin workflow as of commit `da9b80b`. If new
+statuses, buttons, or workflows are added in future updates, this guide
+should be reviewed and updated to match.*</p>
+</div>
+<div class="mt-8 text-center"><a href="/admin" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors text-lg">Back to Dashboard</a></div>
+{% endif %}
+{% if role == 'accounting' %}
+<div class="mb-12 bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700">
+<h2 class="text-2xl font-black mt-8 mb-4 border-b border-gray-700 pb-2">Wickham Roofing — Accounting Guide</h2>
+<strong>Wickham Roofing CRM v4 · Accounting Role</strong>
+<p class="mb-4">Welcome to the Wickham Roofing Accounting system! This guide explains how to use your Accounting Ledger. Your main tasks here are tracking checks (both ACV and Supplement) with real dollar amounts, managing canvasser commissions, exporting invoices to QuickBooks Online, and reviewing job details.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">1. Logging In</h3>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Open the app and enter your assigned 4-digit PIN.</li>
+<li class="mb-1">Once logged in, you will be taken directly to the <strong>"Accounting Ledger."</strong> You'll see the Wickham Roofing logo at the top.</li></ol>
+<p class="mb-4">To log out, click <strong>Logout</strong> in the top-right corner of your dashboard.</p>
+<p class="mb-4"><strong>Note:</strong> As the accountant, you have access to financial data across all jobs and all sales reps. You can see everyone's commission data because aggregating and paying commissions is your core responsibility. Please keep your PIN secure.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">2. Understanding the Ledger</h3>
+<p class="mb-4">At the top of your dashboard, you'll see two quick-glance metric cards:</p>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>"Supplemented RCV Added"</strong> — The total additional value your team has won through approved supplements.</li>
+<li><strong>"QuickBooks Export Queue"</strong> — The number of jobs that are finished and waiting to be exported to QuickBooks Online.</li></ul>
+<p class="mb-4">Below the metrics, you'll find your working tables: one for tracking ACV/Supplement checks, one for commissions that are ready to pay, and the QuickBooks export tool.</p>
+<p class="mb-4">If a table is empty (for example, if there are no pending checks today), you'll see a friendly message like <strong>"No pending checks to record"</strong> so you always know you're fully caught up.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Viewing Full Job Details</h4>
+Every job row includes a <strong>"View Details →"</strong> link. Clicking this opens the full job profile. This gives you complete access to everything about that job — including financials, profit margins, measurement data, signed documents, and supplements.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">3. Recording Checks (ACV & Supplement)</h3>
+<p class="mb-4">To protect the company against insurance carriers short-paying us, the system requires you to enter the <strong>actual dollar amount and date</strong> for every check received, rather than just clicking a simple "received" checkbox.</p>
+<h4 class="text-lg font-bold mt-4 mb-2">How to record a check</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Find the job under the ACV or Supplement section that is currently marked <strong>"Pending."</strong></li>
+<li class="mb-1">Click it to open the check entry form.</li>
+<li class="mb-1">Enter two things:</li></ol>
+   - <strong>Amount:</strong> The actual dollar figure written on the check.
+   - <strong>Date received:</strong> The date you received it.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>"Confirm Received."</strong></li></ol>
+<h4 class="text-lg font-bold mt-4 mb-2">The Short-Pay Warning</h4>
+The system automatically calculates what the check <em>should</em> be based on the carrier's approved numbers:
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Expected ACV Check:</strong> The total Carrier Replacement Cost Value (RCV) minus the Recoverable Depreciation (the portion the carrier holds back until the job is done).</li>
+<li><strong>Expected Supplement Check:</strong> The Recoverable Depreciation amount itself.</li></ul>
+<p class="mb-4">If the check amount you enter is lower than the expected value by about 2% or more, the system will pause and warn you:</p>
+<blockquote class="border-l-4 border-yellow-500 pl-4 py-2 my-4 bg-gray-800 italic"><em>"This amount ($X) is less than the expected $Y. This may indicate a carrier short-pay. Continue anyway?"</em></blockquote>
+<p class="mb-4">This is not an error! It is simply a warning to double-check your typing. If the carrier genuinely shorted us on the payment, confirm the amount anyway so the system has the correct record, and follow up with the insurance carrier separately to collect the missing funds.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">4. Paying Commissions</h3>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">The Default Commission Rate</h4>
+Every job automatically defaults to paying the canvasser a commission of <strong>10% of total revenue</strong> (the full roof sale price). This is not based on profit, and permit fees are not deducted from this calculation.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Adjusting a Commission Manually</h4>
+If you have a special arrangement with a rep for a specific job, you can manually override their commission percentage:</p>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Find the job's commission amount and click <strong>"Adjust %."</strong></li>
+<li class="mb-1">An input box will appear, pre-filled with the current rate (10%).</li>
+<li class="mb-1">Enter the new percentage (for example, `12` or `15`).</li>
+<li class="mb-1">Click <strong>"Save."</strong></li>
+<li class="mb-1">You will be asked to confirm the change.</li>
+<li class="mb-1">Once confirmed, the commission amount recalculates instantly!</li></ol>
+<h4 class="text-lg font-bold mt-4 mb-2">Resetting a Job Back to the Default</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>"Reset"</strong> next to the job.</li>
+<li class="mb-1">Confirm the prompt to reset the job back to 10%.</li>
+<li class="mb-1">The commission immediately recalculates back to the standard rate.</li></ol>
+<p class="mb-4"><strong>Important:</strong> Overrides apply <em>only</em> to the specific job you edit. Every other job continues to automatically use the standard 10% default unless you adjust it.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Downloading Commission Documents</h4>
+When you are ready to pay a rep, click <strong>"Download PDF"</strong> next to their commission entry. The system will instantly generate a beautifully formatted commission statement document for your payroll records.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">5. Exporting to QuickBooks Online</h3>
+<p class="mb-4"><ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>"Export QBO CSV."</strong></li>
+<li class="mb-1">The button will change to <strong>"Exporting..."</strong> while the file is prepared.</li>
+<li class="mb-1">A spreadsheet file (CSV) will download automatically to your computer. It contains one row for every job ready to be invoiced, pre-formatted with:</li></ol>
+   - Customer name
+   - Invoice date (today)
+   - Due date (Net 30)
+   - Terms (Net 30)
+   - Item description ("Roofing Services")
+   - Amount (based on carrier RCV)
+   - Memo (invoice ID and claim number)</p>
+<p class="mb-4">You can upload this file directly into QuickBooks Online to generate your invoices in bulk!</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Duplicate Export Protection</h4>
+Once a job is exported, the system permanently marks it as exported. It will <strong>never</strong> appear in future export batches, so you don't have to worry about accidentally double-billing a customer in QuickBooks.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">6. System Permissions & Boundaries</h3>
+<p class="mb-4">To keep the system organized, certain tools are restricted based on your role.</p>
+<strong>Things you cannot do in the system:</strong>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>You cannot access the Admin control panel or the Triage tools.</li>
+<li>You cannot access Field rep intake screens or Operations' crew scheduling tools.</li>
+<li>You cannot create or manage employee user accounts.</li></ul>
+<strong>Things you CAN do:</strong>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>Via the "View Details →" link on your ledger, you have full access to any job's complete file.</li>
+<li>You have access to every sales rep's commission data to process payroll. </li></ul>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">Frequently Asked Questions (FAQ)</h3>
+<p class="mb-4"><strong>Q: Why does the commission calculate from revenue instead of profit?</strong>
+By design, Wickham Roofing pays canvassers 10% of the total roof sale price, not a share of profit. This applies to every job automatically unless you manually adjust it.</p>
+<p class="mb-4"><strong>Q: I need to pay a rep a different percentage on one specific job. Will that change everyone else's rate?</strong>
+No. When you use the <strong>"Adjust %"</strong> button on a specific job, it only affects that single job. Every other job remains at the default 10%.</p>
+<p class="mb-4"><strong>Q: Why is my ACV check amount supposed to be less than the total carrier RCV?</strong>
+That is completely normal. Carriers typically withhold recoverable depreciation until the job is finished, so the ACV check is intentionally lower than the total RCV. The system calculates the <em>correct</em> expected ACV (RCV minus depreciation), so you will only see a warning if the check is actually short.</p>
+<p class="mb-4"><strong>Q: Can I export the same job to QuickBooks twice by accident?</strong>
+No. Once a job is exported, it is automatically removed from future export batches.</p>
+<p class="mb-4"><strong>Q: Can I see a job's full financials and signed documents?</strong>
+Yes! Click the <strong>"View Details →"</strong> link on any job row. You will see the full job profile with all financials, margins, documents, and supplements.</p>
+<p class="mb-4">---</p>
+<em>This guide reflects the latest production features for the Wickham Roofing Wickham Roofing CRM.</em>
+</div>
+<div class="mb-12 bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700">
+<h2 class="text-2xl font-black mt-8 mb-4 border-b border-gray-700 pb-2">Wickham Roofing — Debi's Onboarding Guide (Accounting)</h2>
+<p class="mb-4">Welcome to the Wickham Roofing Wickham Roofing CRM v4!</p>
+<p class="mb-4">As the Accounting Lead, you have a critical role in tracking ACV/Supplement checks, managing canvasser commissions, and exporting invoices to QuickBooks Online. This guide contains everything you need to get started immediately.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">1. Access & Credentials</h3>
+<p class="mb-4"><strong>Your Secure Access PIN:</strong> `5392`</p>
+<p class="mb-4">You will use this PIN to log in to the Accounting Dashboard. Please do not share this PIN with field reps or operations, as it grants full financial oversight across the entire company.</p>
+<strong>App URL:</strong>
+You can access the CRM system securely from your phone, tablet, or home computer at:
+👉 <strong>[https://app.wickhamroofing.app](https://app.wickhamroofing.app)</strong>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">2. Your Core Responsibilities & Workflow</h3>
+<p class="mb-4">Once you log in, you will be taken directly to the <strong>Accounting Ledger</strong>. Here is what you'll do on a daily basis:</p>
+<h4 class="text-lg font-bold mt-4 mb-2">Tracking ACV and Supplement Checks</h4>
+Unlike the old system where we just checked a box, you will now enter the <strong>actual dollar amounts</strong> for checks.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Find a job under the ACV or Supplement section that is currently marked <strong>"Pending."</strong></li>
+<li class="mb-1">Click it and enter the exact dollar amount from the physical check you received, along with the date.</li>
+<li class="mb-1">The system acts as a safeguard: it compares the check amount against the expected RCV or Depreciation. If the check is short by 2% or more, the system will flag a warning to you so you can follow up with the insurance carrier!</li></ol>
+<h4 class="text-lg font-bold mt-4 mb-2">Paying Canvasser Commissions</h4>
+The brand new Commission Engine is now live and fully automated! 
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>Every canvasser earns a default <strong>10% of total revenue</strong> on a job. </li>
+<li>You can override this on a per-job basis by clicking <strong>"Adjust %"</strong> (e.g., if you have a special arrangement of 12% for a specific job).</li>
+<li>Need a paper trail? Click <strong>"Download PDF"</strong> next to a rep's name to generate an automated, professional commission statement document for payout records.</li></ul>
+<h4 class="text-lg font-bold mt-4 mb-2">QuickBooks Online (QBO) Exports</h4>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>Look at the <strong>"QBO Export Queue"</strong> metric card at the top of your dashboard to see how many jobs are waiting to be exported.</li>
+<li>Click <strong>"Export QBO CSV"</strong> to download a ready-to-import file with all the new jobs.</li>
+<li><strong>Safeguard:</strong> Once you export a job, the system marks it exported. You can never accidentally double-export a job to QuickBooks!</li></ul>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">3. Transparency & Visibility</h3>
+While you don't have access to the Admin controls or Operations scheduling, you <strong>DO</strong> have full access to view any job's complete profile. 
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>Click <strong>"View Details →"</strong> on any job row to see the full financial breakdown, margins, measurements, and all documents (like the Contingency Agreement or generated Invoices).</li></ul>
+<p class="mb-4"><h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">Support</h3>
+If you get a network error during export or see anything strange with the commission calculations, please reach out to Michael or the Tech Admin immediately. The server runs autonomously 24/7 on the Wickham Roofing CRM.</p>
+<p class="mb-4">Welcome aboard!</p>
+</div>
+<div class="mt-8 text-center"><a href="/accounting" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors text-lg">Back to Dashboard</a></div>
+{% endif %}
+{% if role == 'operations' %}
+<div class="mb-12 bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700">
+<h2 class="text-2xl font-black mt-8 mb-4 border-b border-gray-700 pb-2">Wickham Roofing — Operations Guide</h2>
+<strong>Wickham Roofing CRM v4 · Operations Role (Scott)</strong>
+<p class="mb-4">This guide covers the Operations Command board: tracking material
+orders, confirming deliveries, scheduling install crews, and reviewing
+full job details. Your role is focused on keeping jobs moving through
+the production pipeline once a supplement has been approved.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">1. Logging In</h3>
+<p class="mb-4"><ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Open the app and enter your assigned 4-digit PIN.</li>
+<li class="mb-1">On success, you're taken to <strong>"Operations Command"</strong> — your main</li></ol>
+   working screen. The Wickham Roofing logo appears in the header.</p>
+<p class="mb-4">To log out, click <strong>Logout</strong> in the top-right corner of the dashboard.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">2. Understanding the Operations Board</h3>
+<p class="mb-4">The board is organized into three panels, each representing a stage a
+job passes through after its supplement is approved and before
+installation begins.</p>
+<h4 class="text-lg font-bold mt-4 mb-2">Panel 1: Alert — Materials Needed</h4>
+<strong>"Supplement approved. Awaiting material order placement."</strong>
+<p class="mb-4">Jobs appear here the moment a supplement is approved and no material
+order has been placed yet. This is your cue to place the order with
+your supplier.</p>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>Click <strong>"Mark Ordered"</strong> once you've placed the order.</li>
+<li>If no jobs are waiting, you'll see: <strong>"No pending material orders."</strong></li></ul>
+<h4 class="text-lg font-bold mt-4 mb-2">Panel 2: Awaiting Delivery</h4>
+<strong>"Materials ordered. Waiting for arrival on site."</strong>
+<p class="mb-4">Jobs appear here once you've marked materials as ordered, but before
+they've physically arrived on site.</p>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>Click <strong>"Mark On Site"</strong> once the materials have actually arrived at</li></ul>
+  the job location.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>If no jobs are waiting, you'll see: <strong>"No materials awaiting delivery."</strong></li></ul>
+<h4 class="text-lg font-bold mt-4 mb-2">Panel 3: Ready to Build</h4>
+<strong>"Materials on site. Awaiting crew assignment."</strong>
+<p class="mb-4">Jobs appear here once materials have arrived. This is where you assign
+a crew and set an install date.</p>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>If no jobs are ready, you'll see: <strong>"No jobs ready to build."</strong></li></ul>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Viewing full job details</h4>
+Every job card on the board includes a <strong>"View Details →"</strong> link that
+opens the full job detail page. This gives you complete access to all
+job information — including financials, margins, measurement data, all
+documents, and supplements. Admin, Operations, and Accounting all share
+this same unified detail view with no restrictions between these three
+office roles.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">3. Marking Materials as Ordered</h3>
+<p class="mb-4"><ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Find the job under <strong>"Alert: Materials Needed."</strong></li>
+<li class="mb-1">Click <strong>"Mark Ordered."</strong></li>
+<li class="mb-1">You'll be asked to confirm: <em></em>"Confirm materials have been ordered</li></ol>
+   for this job?"<em></em>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Once confirmed, the page reloads and the job moves into the</li></ol>
+   <strong>Awaiting Delivery</strong> panel.</p>
+<p class="mb-4">If something goes wrong, you'll see a popup: <em></em>"Error updating
+status."<em></em> If this happens, try again, and contact the Tech Admin if
+it persists.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">4. Marking Materials as On Site</h3>
+<p class="mb-4"><ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Find the job under <strong>"Awaiting Delivery."</strong></li>
+<li class="mb-1">Once the materials have physically arrived, click <strong>"Mark On Site."</strong></li>
+<li class="mb-1">You'll be asked to confirm: <em></em>"Confirm materials have arrived on</li></ol>
+   site for this job?"<em></em>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Once confirmed, the page reloads and the job moves into the</li></ol>
+   <strong>Ready to Build</strong> panel, ready for crew scheduling.</p>
+<p class="mb-4"><strong>Important:</strong> Only click this once materials have actually arrived —
+this step drives the entire pipeline forward, and other roles rely on
+this status being accurate. Marking it too early can cause a crew to
+be scheduled before materials are actually on hand.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">5. Scheduling a Crew</h3>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Find the job under <strong>"Ready to Build."</strong></li>
+<li class="mb-1">Fill in:</li></ol>
+   - <strong>Assign Crew</strong> — type the crew name (e.g. "Alpha Team").
+   - <strong>Install Date</strong> — pick the date using the date picker.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Click <strong>"Schedule Installation."</strong></li>
+<li class="mb-1">You'll be asked to confirm with your exact entries, for example:</li></ol>
+   <strong>"Schedule Alpha Team for install on 2026-07-28?"</strong>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Once confirmed, the page reloads once the job is scheduled.</li></ol>
+<p class="mb-4">Double-check the crew name and date before confirming — the confirmation
+message shows exactly what you typed, so use that as a chance to catch
+typos before committing.</p>
+<p class="mb-4">If something goes wrong, you'll see a popup: <em></em>"Error scheduling
+crew."<em></em> Double-check the crew name and date, then try again.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">6. What You Cannot Do (By Design)</h3>
+<p class="mb-4">For security and role isolation, your access is intentionally limited:</p>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>You cannot access the Admin control panel, Triage, or the Emergency</li></ul>
+  Override tool.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>You cannot access Field rep intake screens.</li>
+<li>You cannot create or manage field rep accounts.</li></ul>
+<p class="mb-4"><strong>What you CAN do:</strong> Via the "View Details →" links on your board, you
+have full read access to any job's detail page, including financials,
+margins, measurement data, and all documents. This is the same unified
+view that Admin and Accounting see — there is no restriction between
+these three office roles on job data.</p>
+<p class="mb-4">If you try to access a restricted admin-only page directly (e.g.,
+Triage), you'll be blocked with a security error — this is expected.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">FAQ</h3>
+<p class="mb-4"><strong>Q: I marked materials as ordered by mistake. Can I undo it?</strong>
+There is a confirmation step before this action fires, so double-check
+before confirming. If you've already confirmed in error, contact the
+Tech Admin to correct the job's status.</p>
+<p class="mb-4"><strong>Q: A job isn't showing up on my board at all. What's wrong?</strong>
+Jobs only appear once their supplement has been approved. If a job
+should be here but isn't, check with the Tech Admin — it may still be
+in the supplement/carrier approval stage.</p>
+<p class="mb-4"><strong>Q: What's the difference between "Mark Ordered" and "Mark On Site"?</strong>
+"Mark Ordered" means you've placed the order with your supplier. "Mark
+On Site" means the materials have physically arrived at the job
+location and crew scheduling can begin. Don't mark something on site
+until it's actually there — this drives the real-world production
+schedule and downstream crew assignment.</p>
+<p class="mb-4"><strong>Q: Can I see a job's financials or documents?</strong>
+Yes — click the <strong>"View Details →"</strong> link on any job card. You'll see
+the full job detail page with all financials, margins, documents, and
+supplements. This is the same view that Admin and Accounting see.</p>
+<p class="mb-4"><strong>Q: What happens if I try to access an admin page directly?</strong>
+You'll be blocked with an access error. This is intentional — while
+you have full access to job details, admin-specific tools like Triage
+and Emergency Override are restricted to the Admin role.</p>
+<p class="mb-4"><strong>Q: I typed the wrong crew name or date. What happens?</strong>
+Before anything is saved, you'll see a confirmation popup showing
+exactly what you entered — for example, "Schedule Alpha Team for
+install on 2026-07-28?" Use that moment to check your entry. If you
+already confirmed with a mistake, contact the Tech Admin to correct it.</p>
+<p class="mb-4">---</p>
+<p class="mb-4">*This guide reflects the Operations workflow as of commit `da9b80b`.
+If new panels, buttons, or workflows are added in future updates, this
+guide should be reviewed and updated to match.*</p>
+</div>
+<div class="mt-8 text-center"><a href="/api/operations/board" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors text-lg">Back to Dashboard</a></div>
+{% endif %}
+{% if role == 'field' %}
+<div class="mb-12 bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700">
+<h2 class="text-2xl font-black mt-8 mb-4 border-b border-gray-700 pb-2">Wickham Roofing — Canvasser & Field Rep Guide</h2>
+<strong>Wickham Roofing CRM v4 · Field Role</strong>
+<p class="mb-4">This guide covers everything a canvasser or field sales rep needs to know
+to use the Wickham Roofing field app: logging in, creating leads, taking
+photos, capturing signatures, reviewing your past jobs and documents,
+and understanding how offline mode and error recovery work.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">1. Logging In</h3>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Open the app on your phone or tablet. You'll see the <strong>Wickham Roofing</strong></li></ol>
+   login screen with the company logo and the label <strong>"Wickham Roofing CRM v4."</strong>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Tap <strong>"Enter Your PIN"</strong> and use the on-screen keypad (0–9, ⌫) to type</li></ol>
+   your assigned 4-digit PIN.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">If your PIN is wrong, you'll see <strong>"✕ Incorrect PIN. Try again."</strong></li></ol>
+   Re-enter carefully — don't guess repeatedly.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">On success, you're taken straight to the <strong>New Lead</strong> screen.</li></ol>
+<p class="mb-4"><strong>Security reminder:</strong> Your PIN is yours only. Never share it, and never
+let someone else work inside your session. The system checks your identity
+on every job you touch — using someone else's PIN can cause job ownership
+issues down the line.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">2. Creating a New Lead</h3>
+<p class="mb-4">When you're with a homeowner and ready to start a job, you'll fill out the
+<strong>New Lead</strong> form.</p>
+<h4 class="text-lg font-bold mt-4 mb-2">Step-by-step</h4>
+<p class="mb-4"><ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1"><strong>Job Type</strong> — Choose either:</li></ol>
+   - <strong>Insurance Restoration (Contingency)</strong> — for storm/insurance claims.
+   - <strong>Retail Cash</strong> — for out-of-pocket jobs.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1"><strong>Homeowner Name</strong> — Use their legal or billing name.</li>
+<li class="mb-1"><strong>Address Line 1, City, State, Zip</strong> — Enter manually, or tap</li></ol>
+   <strong>📍 Auto-Fill Address from GPS</strong> to have the app fill it in automatically.
+   - ⚠️ <strong>Always double-check the GPS address.</strong> Rural addresses in Thomas
+     County can come back slightly wrong or incomplete. If you see
+     <strong>"Failed to reverse geocode"</strong> or a <strong>GPS Error</strong>, just type the
+     address manually.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1"><strong>Phone</strong> — Required.</li>
+<li class="mb-1"><strong>Date of Loss (Optional)</strong> — If the homeowner knows when the storm</li></ol>
+   damage happened, enter it here.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1"><strong>Property Photos (up to 15)</strong> — Tap <strong>📷 Tap to add photos</strong> to open</li></ol>
+   your camera or photo library.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">3. Taking and Reviewing Photos</h3>
+<p class="mb-4"><ul class="list-disc pl-5 mb-4 space-y-1"><li>You can add <strong>up to 15 photos</strong> per job. A counter shows <strong>"X / 15 photos"</strong></li></ul>
+  as you go.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>If you try to add more than 15 at once:</strong> the app keeps the first</li></ul>
+  ones that fit and gives you two clear warnings so you don't miss it:
+  - A toast message: *"Maximum of 15 photos allowed. 5 photo(s) were
+    not added."*
+  - The photo counter itself turns <strong>red and bold</strong> for about 6 seconds,
+    showing something like <em>"15 / 15 photos — 5 rejected!"</em>
+  
+  If you see either of these, go back and manually pick which extra
+  shots matter most, then remove a less important photo to make room.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Reviewing your photos:</strong> Tap any thumbnail to open it full-screen and</li></ul>
+  check focus and lighting before submitting. If a photo is blurry or
+  unclear, tap the <strong>✕</strong> on that thumbnail to remove it and retake it.</p>
+<h4 class="text-lg font-bold mt-4 mb-2">Photo tips</h4>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>Capture every roof slope, damage area, flashing, and accessory (vents,</li></ul>
+  skylights, chimneys).
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>Shoot in good light. Avoid heavy shadows or backlighting.</li>
+<li>Take a wide shot of each side of the house, then close-ups of damage.</li></ul>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">4. Reviewing the Contingency Agreement (Insurance Jobs)</h3>
+<p class="mb-4">If the job type is <strong>Insurance Restoration</strong>, the homeowner must review
+and acknowledge the contingency agreement before signing.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">What the homeowner sees</h4>
+Before the signature canvas, the app displays the <strong>full legal text</strong> of
+the Insurance Contingency Agreement in a scrollable box. This includes:</p>
+<p class="mb-4"><ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Scope of Work & Payment</strong> — explaining that the final scope and price</li></ul>
+  are determined by the insurance carrier's approved estimate.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Georgia Deductible Law Warning</strong> (O.C.G.A. § 33-24-59.27) — a</li></ul>
+  prominent red warning that it is illegal for a contractor to waive or
+  rebate the deductible.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Public Adjuster Restriction</strong> — clarifying that the contractor does</li></ul>
+  not represent the homeowner in insurance negotiations.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Statutory Cancellation Rights</strong> — a red notice that the homeowner</li></ul>
+  may cancel within five business days if their insurer denies coverage.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">Required acknowledgment</h4>
+Below the agreement text, there is a <strong>required checkbox</strong>:</p>
+<blockquote class="border-l-4 border-yellow-500 pl-4 py-2 my-4 bg-gray-800 italic">*"I have presented this agreement to the homeowner and they accept
+the terms."*</blockquote>
+<p class="mb-4">This checkbox <strong>must</strong> be checked before the form can be submitted. The
+app will not allow submission without it.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">5. Capturing the Signature (Insurance Jobs)</h3>
+<p class="mb-4">If the job type is <strong>Insurance Restoration</strong>, a signature is <strong>required</strong>
+before you can submit — the app will block submission with <em></em>"Please lock
+the signature before submitting"<em></em> if you skip it.</p>
+<h4 class="text-lg font-bold mt-4 mb-2">How to sign</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Have the homeowner draw their signature on the canvas under</li></ol>
+   <strong>"Homeowner Signature (Contingency Agreement)."</strong>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">If you make a mistake before locking, tap <strong>Clear Signature</strong> to</li></ol>
+   wipe the canvas and start over.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">If nothing is drawn, tapping the lock button shows</li></ol>
+   <strong>"Please draw a signature before locking."</strong>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Once a signature is drawn, tap <strong>Lock Signature</strong>.</li></ol>
+   - The button changes to <strong>✏️ Edit Signature</strong>, and the standalone
+     <strong>Clear Signature</strong> button disappears — you don't need it anymore
+     once locked.
+   - If you or the homeowner need to redo it, tap <strong>✏️ Edit Signature</strong>.
+     This automatically <strong>clears the canvas</strong> so you get a fresh, blank
+     space to redraw — no overlapping ink, no extra button needed.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">When you're satisfied, tap <strong>Submit Lead</strong>.</li></ol>
+<p class="mb-4"><strong>Retail Cash jobs</strong> do not require a signature at this stage.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">6. Submitting the Lead</h3>
+<p class="mb-4">When you tap <strong>Submit Lead</strong>, you'll see a progress modal with messages like:
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>"Creating Lead..."</li>
+<li>"Uploading Photo X of Y..."</li>
+<li>"Generating Contract..." <em>(this is the final step you'll see before completion)</em></li></ul></p>
+<p class="mb-4">If everything succeeds, you'll see <strong>"Lead Captured"</strong> and
+<strong>"The office has been notified."</strong> — the job is now live in the system.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">7. My Recent Jobs & Documents</h3>
+<p class="mb-4">Below the New Lead form, you'll find a <strong>"My Recent Jobs"</strong> section
+that automatically loads your most recent jobs (up to 20).</p>
+<h4 class="text-lg font-bold mt-4 mb-2">What you see</h4>
+Each job card shows:
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Homeowner name</strong></li>
+<li><strong>Address</strong></li>
+<li><strong>Current status</strong> (e.g., LEAD_CAPTURED, CONTINGENCY_SIGNED)</li>
+<li>A <strong>"Load Documents ↓"</strong> button</li></ul>
+<h4 class="text-lg font-bold mt-4 mb-2">Viewing your documents</h4>
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Tap <strong>"Load Documents ↓"</strong> on any job card.</li>
+<li class="mb-1">The card expands to show all <strong>field-safe</strong> documents for that job —</li></ol>
+   this includes your uploaded photos, measurement reports (EagleView or
+   Hover), and the signed contingency agreement PDF.
+<ol class="list-decimal pl-5 mb-4 space-y-1"><li class="mb-1">Tap <strong>"View"</strong> next to any document to open or download it.</li>
+<li class="mb-1">Tap <strong>"Hide Documents ↑"</strong> to collapse the list.</li></ol>
+<h4 class="text-lg font-bold mt-4 mb-2">What you will NOT see</h4>
+You will <strong>never</strong> see office-only documents such as:
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>Financial calculations or QBO exports</li>
+<li>Commission statements</li>
+<li>Internal supplement narratives</li>
+<li>Carrier correspondence or demand letters</li></ul>
+<p class="mb-4">This is enforced at the server level — even if you know a document's
+ID, the system will block access with a <strong>403 Forbidden</strong> response.
+This is by design to protect sensitive business and financial data.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">8. If Something Goes Wrong Mid-Submission (Server Errors)</h3>
+<p class="mb-4">Sometimes the server itself rejects a step — for example, a photo file is
+too large, or there's a temporary server issue. This is different from
+having no signal (covered in Section 9).</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">What you'll see</h4>
+If a photo or the signature upload fails due to a server-side error, the
+app <strong>stops the submission</strong> and shows a message like:</p>
+<blockquote class="border-l-4 border-yellow-500 pl-4 py-2 my-4 bg-gray-800 italic">*"Photo 3 failed: [error detail] — Tap Submit Lead again to retry the
+remaining steps."*</blockquote>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">What to do — and why it's safe and efficient</h4>
+<strong>Just tap Submit Lead again.</strong> The app is smart about retries:</p>
+<p class="mb-4"><ul class="list-disc pl-5 mb-4 space-y-1"><li>It will <strong>not</strong> create a duplicate job — it remembers the lead was</li></ul>
+  already created and picks up exactly where it left off.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>It will <strong>not</strong> re-upload photos that already succeeded. If photo 3</li></ul>
+  out of 15 failed, retrying only re-attempts photo 3 onward — photos
+  1 and 2 are already safely on the server and won't be sent again.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>If all your photos succeeded but the signature failed, retrying only</li></ul>
+  re-sends the signature — none of your photos get re-uploaded.</p>
+<p class="mb-4">This means you don't need to worry about wasting time or mobile data
+re-sending things that already worked. The app only retries the exact
+step that failed.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">If it keeps failing</h4>
+If retrying doesn't work after 2–3 attempts, note the job address and
+contact the office — there may be an issue with a specific file (for
+example, a corrupted photo) that needs a fresh photo taken instead.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">9. Working Offline (No Signal / Weak Signal)</h3>
+<p class="mb-4">The app is built to handle bad service in the field, whether you have zero
+signal or a connection that drops partway through a submission.</p>
+<h4 class="text-lg font-bold mt-4 mb-2">If you're fully offline when you submit</h4>
+You'll see: <em></em>"Offline Mode: Lead, photos, and signature saved locally.
+Will sync automatically when connection returns."<em></em>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">If your connection drops mid-submission</h4>
+The app saves <strong>everything</strong> — the lead info, all photos, and the
+signature — as one complete package, tied to the job that was already
+created if it got that far. You do not need to worry about photos or
+signatures getting lost, and you will not end up with a duplicate job
+once it syncs.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">How you know something is still waiting to sync</h4>
+Look for a small badge in the corner of the screen showing <em></em>"X pending
+sync."<em></em> This badge stays visible — it does not disappear after a few
+seconds like the offline banner does — so you always know if work is
+still waiting to reach the office.</p>
+<p class="mb-4"><ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Yellow badge</strong> — normal. Items are waiting for a connection and will</li></ul>
+  sync automatically. The count goes down as items succeed.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Red badge saying "FAILED — contact office"</strong> — something is</li></ul>
+  permanently stuck (for example, a corrupted photo file that the server
+  keeps rejecting). This will not fix itself by waiting. <em></em>Contact the
+  office right away<em></em> so they can help resolve that specific job.</p>
+<p class="mb-4"><h4 class="text-lg font-bold mt-4 mb-2">What to do if you see a pending sync badge</h4>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Yellow:</strong> No action needed beyond getting to a signal area. It syncs</li></ul>
+  automatically.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Red:</strong> Note the job/address shown and contact the office immediately</li></ul>
+  — this item needs manual attention and won't clear on its own.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">10. Common Situations & What They Mean</h3>
+<p class="mb-4">| What you see | What it means | What to do |
+|---|---|---|
+| "✕ Incorrect PIN. Try again." | Wrong PIN entered | Re-enter your PIN carefully |
+| "Failed to reverse geocode." | GPS couldn't find an address | Type the address manually |
+| "Photo X failed: [error] — Tap Submit Lead again to retry" | A server error stopped the submission | Tap Submit Lead again — it's safe, skips completed photos, and won't duplicate the job |
+| "Maximum of 15 photos allowed..." toast + red "X rejected!" counter | You selected more than 15 photos | Remove a less important photo, then re-add the one you need |
+| "Please draw a signature before locking." | Signature canvas is empty | Have the homeowner draw their signature |
+| "Please lock the signature before submitting." | Signature was drawn but never locked | Tap Lock Signature before submitting |
+| Yellow "X pending sync" badge | Work is saved locally, waiting for a connection | Get to a signal area — it will sync automatically |
+| Red "FAILED — contact office" badge | An item is permanently stuck and needs help | Contact the office with the job details |
+| "Offline Mode: Lead, photos, and signature saved locally." | You were offline when you submitted | No action needed — it will sync when connected |</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">11. What You Cannot Do (By Design)</h3>
+<p class="mb-4">For security, the field app strictly limits what canvassers can access:
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>You cannot see or open jobs that aren't yours. The system checks your</li></ul>
+  identity (via your PIN login) against the job's assigned canvasser on
+  every request. Attempting to access another rep's job will result in a
+  <strong>403 Forbidden</strong> error.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>You cannot access office, admin, or accounting screens.</li>
+<li>You cannot view other reps' commissions or job lists.</li>
+<li>You cannot see office-only documents (financials, commissions, QBO</li></ul>
+  exports, carrier correspondence) — even if you know the document ID.
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>You <strong>can</strong> see and download your own field-safe documents (photos,</li></ul>
+  measurement reports, signed contingency agreements) via the "My Recent
+  Jobs" section.</p>
+<p class="mb-4">This is intentional — it protects homeowner data and keeps each rep's
+work isolated and auditable.</p>
+<p class="mb-4">---</p>
+<h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">FAQ</h3>
+<p class="mb-4"><strong>Q: Do I need to type my name every time I create a lead?</strong>
+No — the system already knows who you are from your PIN login and
+attaches your identity automatically.</p>
+<p class="mb-4"><strong>Q: What if I lose signal right after I hit Submit?</strong>
+Nothing is lost. The entire lead — including photos and signature — is
+saved as one package on your device and will sync automatically,
+without creating a duplicate job, once you're back online.</p>
+<p class="mb-4"><strong>Q: A photo failed with an error message. Did I lose my lead, and will I have to re-upload everything?</strong>
+No to both. Your lead is safe, and any photos that already uploaded
+successfully will NOT be sent again. Just tap <strong>Submit Lead</strong> — it only
+retries the exact step that failed.</p>
+<p class="mb-4"><strong>Q: Can I take more than 15 photos?</strong>
+No, 15 is the maximum per job. If you try to add more, the app warns
+you two ways: a toast message, and the photo counter briefly turning
+red to show exactly how many were rejected.</p>
+<p class="mb-4"><strong>Q: What if the homeowner wants to redo their signature?</strong>
+Tap <strong>✏️ Edit Signature</strong> — it automatically clears the canvas so they
+can draw a clean, fresh signature. This does not delete or restart the lead.</p>
+<p class="mb-4"><strong>Q: How do I know my offline lead actually made it to the office?</strong>
+Watch the pending-sync badge in the corner. Once it disappears (or the
+count drops), it has successfully synced. If it ever turns red, that
+means something needs office attention — it won't resolve itself.</p>
+<p class="mb-4"><strong>Q: Can I create a lead without a signature?</strong>
+Only for Retail Cash jobs. Insurance Restoration jobs require a locked
+signature before you can submit.</p>
+<p class="mb-4"><strong>Q: What happens if GPS gives me the wrong address?</strong>
+Just overwrite the address fields manually — GPS is a shortcut, not a
+guarantee, especially in rural areas.</p>
+<p class="mb-4"><strong>Q: Can I see my old jobs and their documents?</strong>
+Yes — scroll down past the New Lead form to the <strong>"My Recent Jobs"</strong>
+section. You'll see your most recent jobs with the ability to load and
+download your field-safe documents (photos, measurement reports, signed
+contingency agreements).</p>
+<p class="mb-4"><strong>Q: Can I see the office's financial documents or supplements?</strong>
+No — those are classified as "office_only" and are strictly hidden from
+field reps. You can only see documents marked as "field_safe."</p>
+<p class="mb-4"><strong>Q: I retried a failed submission a few times and it's still failing. What now?</strong>
+Stop retrying after 2–3 attempts. Note the job and the exact error
+message, then contact the office — there may be a bad file or a larger
+issue that needs manual review rather than repeated retries.</p>
+<strong>Q: Who do I contact if something seems broken?</strong>
+Contact the office/Tech Admin if:
+<ul class="list-disc pl-5 mb-4 space-y-1"><li>You see a red "FAILED — contact office" badge.</li>
+<li>Retrying a failed submission doesn't resolve after a few tries.</li>
+<li>You believe a job was duplicated.</li>
+<li>Photos are consistently failing to upload.</li>
+<li>You're unsure whether a signature was captured correctly.</li></ul>
+<p class="mb-4">---</p>
+<p class="mb-4">*This guide reflects the field app as of commit `da9b80b`. If the app's
+screens, buttons, or error messages change in a future update, this
+guide should be reviewed and updated to match.*</p>
+</div>
+<div class="mb-12 bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700">
+<h2 class="text-2xl font-black mt-8 mb-4 border-b border-gray-700 pb-2">Wickham Roofing V4 "Wickham Roofing CRM" - Field Runbook</h2>
+<p class="mb-4">This runbook provides emergency operational procedures for Scott during the first live dry run. If the V4 CRM behaves unexpectedly, execute the diagnostics below before escalating.</p>
+<p class="mb-4"><h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">1. If the Upload Hangs (Mobile Field App)</h3>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Symptom</strong>: The mobile browser spins indefinitely after tapping "Submit".</li>
+<li><strong>Diagnosis</strong>: The Cloudflare tunnel may have expired or crashed.</li>
+<li><strong>Action</strong>:</li></ul>
+  1. Go to the office laptop and check the `logs\tunnel_*.log` file or the `srv_tunnel.ps1` window.
+  2. Verify the session status is `online`. If disconnected, terminate the script window and run `scripts\services\srv_tunnel.ps1` to restart the tunnel.
+  3. Send the <em>new</em> Cloudflare URL to the canvasser if it changed. Note: The mobile app uses `localStorage` caching, so no field data was lost. They just need to reload with the new URL and tap submit again.</p>
+<p class="mb-4"><h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">2. If the Margin is Red (Office Dashboard)</h3>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Symptom</strong>: The Financials Card shows a red warning banner (Margin < 35%).</li>
+<li><strong>Diagnosis</strong>: The dynamic math engine triggered a low-margin safety threshold based on your inputs.</li>
+<li><strong>Action</strong>:</li></ul>
+  1. Double-check the "Total Revenue" input vs the "Carrier RCV". Ensure no zeros are missing.
+  2. Verify the Supplier PO PDF to ensure the `MaterialBOM` did not over-calculate the waste factor.
+  3. If the math is correct, the roof is genuinely unprofitable.</p>
+<p class="mb-4"><h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">3. If the PDF Doesn't Generate</h3>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Symptom</strong>: Clicking "Download Estimate" or "Supplier PO" returns an error or a broken link.</li>
+<li><strong>Diagnosis</strong>: The automated math engine (ReportLab) threw an exception during PDF rendering.</li>
+<li><strong>Action</strong>:</li></ul>
+  1. Open a new terminal on the office laptop.
+  2. Run the diagnostic tool: `python scripts/analyze_logs.py`
+  3. This will scan the `structlog` output for exact stack traces and identify the `job_id` that crashed. Send this trace to engineering.</p>
+<p class="mb-4"><h3 class="text-xl font-bold mt-6 mb-3 text-blue-400">4. If the Database is Locked (State Machine Stuck)</h3>
+<ul class="list-disc pl-5 mb-4 space-y-1"><li><strong>Symptom</strong>: The job is stuck in `EV_PARSED` but you know the `MaterialBOM` was calculated.</li>
+<li><strong>Diagnosis</strong>: An async task crashed halfway, leaving the claim orphaned from the state machine.</li>
+<li><strong>Action</strong>:</li></ul>
+  1. Identify the `job_id` from the dashboard URL.
+  2. Use the SRE override tool to force the state machine forward:
+     ```bash
+     python scripts/recover_job.py <job_id> SUPPLEMENT_SUBMITTED
+     ```
+  3. Refresh the office dashboard. The job will now be unlocked.</p>
+<blockquote class="border-l-4 border-yellow-500 pl-4 py-2 my-4 bg-gray-800 italic">[!CAUTION]
+Never manually edit the `data/truck_server.db` SQLite file with external viewers (like DBeaver) while Uvicorn is running. The Write-Ahead Log (WAL) mode requires FastAPI to maintain the file lock. Use `recover_job.py` instead.</blockquote>
+</div>
+<div class="mt-8 text-center"><a href="/field" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors text-lg">Back to Dashboard</a></div>
+{% endif %}
+
+    </div>
+</body>
+</html>
