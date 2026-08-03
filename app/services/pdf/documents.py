@@ -196,7 +196,7 @@ class DocumentsGenerator(PDFEngine):
             
             # --- Warranty ---
             story.append(Paragraph("Workmanship Warranty", self.custom_styles["SectionHeading"]))
-            warranty_text = "Contractor warrants workmanship against defects for a period of 5 years from the date of completion. This warranty does not cover damage caused by acts of God, including but not limited to hail, wind events exceeding manufacturer specifications, or other severe weather. Manufacturer material warranties are passed through separately and are not affected by this clause."
+            warranty_text = "Wickham Roofing CRM provides a 1-year workmanship warranty on all full roof replacements. Material warranties are provided directly by the manufacturer."
             story.append(Paragraph(warranty_text, self.custom_styles["BodyText"]))
             story.append(Spacer(1, 15))
             
@@ -340,9 +340,8 @@ class DocumentsGenerator(PDFEngine):
             story.append(Spacer(1, 15))
             
             warranty_text = (
-                "Wickham Roofing LLC guarantees the workmanship of the installation for a "
-                "period of 5 years from the date of completion. Material warranties are provided directly by the manufacturer "
-                "and any claims regarding defective materials must be directed to the manufacturer."
+                "Wickham Roofing CRM provides a 1-year workmanship warranty on all full roof replacements. "
+                "Material warranties are provided directly by the manufacturer."
             )
             story.append(self._box_warning("Warranty Disclaimer", warranty_text, colors.lightgrey))
             story.append(Spacer(1, 20))

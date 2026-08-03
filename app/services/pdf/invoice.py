@@ -113,7 +113,7 @@ class InvoiceGenerator(PDFEngine):
                 "Complete tear-off and disposal of existing roofing",
                 "New synthetic underlayment and drip edge",
                 "Re-flashing of all penetrations and valleys",
-                "5-year Wickham Roofing workmanship warranty",
+                "Wickham Roofing CRM provides a 1-year workmanship warranty on all full roof replacements. Material warranties are provided directly by the manufacturer.",
                 "Haul-away and job site cleanup",
             ]
             for item in included:
