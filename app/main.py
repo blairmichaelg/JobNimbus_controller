@@ -311,6 +311,11 @@ async def serve_field_app(request: Request, role: str = Depends(verify_field)):
         "field_token": request.cookies.get("auth_token", "")
     })
 
+@app.get("/", tags=["frontend"], include_in_schema=False)
+async def root_redirect():
+    """Redirect bare domain to login page."""
+    return RedirectResponse(url="/login", status_code=303)
+
 @app.get("/login", tags=["frontend"])
 async def serve_login(request: Request, redirect_url: str = "/"):
     """Serve the universal login page with optional post-auth redirect target."""
