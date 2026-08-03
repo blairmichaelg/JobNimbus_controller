@@ -49,3 +49,19 @@ def clear_rate_limits():
         _request_history.clear()
     except ImportError:
         pass
+
+@pytest.fixture(autouse=True)
+def patch_pipeline_writebacks(monkeypatch):
+    """
+    Patch DB writeback helpers to no-ops in all tests.
+    Tests that specifically test writeback behavior should
+    override this fixture or use the real function directly.
+    """
+    monkeypatch.setattr(
+        "app.core.pipeline._writeback_sol_financials",
+        lambda conn, job_id, sol_data: None
+    )
+    monkeypatch.setattr(
+        "app.core.pipeline._writeback_ev_geometry",
+        lambda conn, job_id, ev_data: None
+    )

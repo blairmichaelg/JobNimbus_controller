@@ -85,10 +85,13 @@ class InspectionReportGenerator(PDFEngine):
                 "F": colors.HexColor("#b71c1c"),
             }.get(condition.grade, colors.HexColor("#333333"))
 
+            # hexval property returns "0xRRGGBB" — strip "0x" and prepend "#" for CSS compatibility
+            grade_hex = ("#" + grade_color.hexval()[2:]) if hasattr(grade_color, "hexval") else "#333333"
             score_data = [[
-                Paragraph(f'<font size="32" color="{grade_color.hexval() if hasattr(grade_color,"hexval") else "#333"}">'
-                          f'<b>{condition.score}/100 — Grade {condition.grade}</b></font>',
-                          self.custom_styles.get("BodyText", self.styles["Normal"])),
+                Paragraph(
+                    f'<font size="32" color="{grade_hex}"><b>{condition.score}/100 — Grade {condition.grade}</b></font>',
+                    self.custom_styles.get("BodyText", self.styles["Normal"])
+                ),
             ]]
             score_table = Table(score_data, colWidths=[6.3 * inch])
             score_table.setStyle(TableStyle([
@@ -182,6 +185,13 @@ class InspectionReportGenerator(PDFEngine):
                     ("TOPPADDING", (0, 0), (-1, -1), 8),
                 ]))
                 story.append(KeepTogether([photo_row, Spacer(1, 0.05 * inch)]))
+
+            # Guard: empty photo section fallback
+            if not any(analysis_map.get(p.filepath.name) for p in job.photos):
+                story.append(Paragraph(
+                    "No photo evidence was available for this report.",
+                    self.custom_styles.get("BodyText", self.styles["Normal"])
+                ))
 
             story.append(PageBreak())
 

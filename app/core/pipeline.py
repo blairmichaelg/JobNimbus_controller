@@ -63,6 +63,13 @@ async def run_full_office_pipeline(job_id: str, ev_pdf_path: Path, customer_name
         ev_data, ev_hash = await parse_measurement_pdf(ev_pdf_path)
         log.info("pipeline_ev_parsed", sq=ev_data.total_area_sf / 100.0)
 
+        conn = get_connection()
+        try:
+            _writeback_ev_geometry(conn, job_id, ev_data)
+            conn.commit()
+        finally:
+            conn.close()
+
         import asyncio
         from app.core.database import _fetch_job_sync
         job_dict = await asyncio.to_thread(_fetch_job_sync, job_id)
@@ -645,9 +652,16 @@ def _writeback_sol_financials(conn, job_id: str, sol_data) -> None:
     )
 
     updates: dict[str, int] = {}
+    _initial_rcv_to_set: int | None = None
 
     if fin.gross_rcv and fin.gross_rcv.value:
-        updates["carrier_rcv_cents"] = int(float(fin.gross_rcv.value) * 100)
+        rcv = int(float(fin.gross_rcv.value) * 100)
+        updates["carrier_rcv_cents"] = rcv
+        # carrier_initial_rcv_cents is set once (first parse wins).
+        # Written separately below after the main UPDATE, using a WHERE NULL guard.
+        _initial_rcv_to_set = rcv
+    else:
+        _initial_rcv_to_set = None
 
     if fin.total_depreciation and fin.total_depreciation.value:
         updates["depreciation_cents"] = int(float(fin.total_depreciation.value) * 100)
@@ -668,7 +682,15 @@ def _writeback_sol_financials(conn, job_id: str, sol_data) -> None:
         f"UPDATE financials SET {set_clause} WHERE job_id = ?",
         values
     )
-    conn.commit()
+
+    # Lock in carrier_initial_rcv_cents exactly once — never overwrite if already set
+    if _initial_rcv_to_set is not None:
+        conn.execute(
+            "UPDATE financials SET carrier_initial_rcv_cents = ? "
+            "WHERE job_id = ? AND (carrier_initial_rcv_cents IS NULL OR carrier_initial_rcv_cents = 0)",
+            (_initial_rcv_to_set, job_id)
+        )
+
     logger.info("sol_financials_written_back", job_id=job_id, fields=list(updates.keys()))
 
 def _writeback_ev_geometry(conn, job_id: str, ev_data) -> None:
@@ -704,7 +726,6 @@ def _writeback_ev_geometry(conn, job_id: str, ev_data) -> None:
         f"UPDATE jobs SET {set_clause} WHERE id = ?",
         values
     )
-    conn.commit()
     logger.info("ev_geometry_written_back", job_id=job_id, fields=list(updates.keys()))
 
 async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: str, ev_sha256: str, ev_doc_id: str, sol_sha256: str, sol_doc_id: str, resume: bool = False, ctx: dict = {}) -> dict:
@@ -768,6 +789,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
             conn = get_connection()
             try:
                 _writeback_ev_geometry(conn, job_id, ev_data)
+                conn.commit()
             finally:
                 conn.close()
 
@@ -798,6 +820,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
             conn = get_connection()
             try:
                 _writeback_sol_financials(conn, job_id, sol_data)
+                conn.commit()
             finally:
                 conn.close()
 
