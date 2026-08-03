@@ -59,7 +59,7 @@
         {% for status in statuses %}
         <div class="kanban-col flex flex-col h-full bg-gray-900 rounded-lg border border-gray-800 shadow-lg">
             <div class="p-4 border-b border-gray-800 {{ 'bg-red-900 kanban-col-alert' if status == 'PENDING_OPERATOR_REVIEW' else 'bg-gray-800' }} rounded-t-lg">
-                <h2 class="font-bold text-gray-300 uppercase tracking-wider text-sm">{{ status | replace('_', ' ') }}</h2>
+                <h2 class="font-bold text-gray-300 uppercase tracking-wider text-sm">{{ status | status_label }}</h2>
             </div>
             
             <div class="flex-1 overflow-y-auto p-4 space-y-4">

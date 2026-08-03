@@ -633,6 +633,29 @@ def _fetch_latest_report_sync(job_id: str) -> dict | None:
     finally:
         conn.close()
 
+def _writeback_sol_claim_info(conn, job_id: str, sol_data) -> None:
+    """
+    Write claim_number/insurer_name from a parsed SoL into the jobs table,
+    ONLY if those fields are currently NULL/empty on the job. This handles
+    the case where the rep didn't have this info at lead capture, but the
+    first SoL document contains it. Never overwrites office-entered data.
+    """
+    updates = {}
+    if getattr(sol_data, "claim_number", None) and getattr(sol_data.claim_number, "value", None):
+        updates["claim_number"] = sol_data.claim_number.value
+    if getattr(sol_data, "insurer_name", None) and getattr(sol_data.insurer_name, "value", None):
+        updates["insurer_name"] = sol_data.insurer_name.value
+
+    if not updates:
+        return
+
+    set_clause = ", ".join(
+        f"{k} = CASE WHEN {k} IS NULL OR {k} = '' THEN ? ELSE {k} END" for k in updates
+    )
+    values = list(updates.values()) + [job_id]
+    conn.execute(f"UPDATE jobs SET {set_clause} WHERE id = ?", values)
+    logger.info("sol_claim_info_written_back", job_id=job_id, fields=list(updates.keys()))
+
 def _writeback_sol_financials(conn, job_id: str, sol_data) -> None:
     """
     Write parsed SoL financial fields into the financials table.
@@ -820,6 +843,7 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
             conn = get_connection()
             try:
                 _writeback_sol_financials(conn, job_id, sol_data)
+                _writeback_sol_claim_info(conn, job_id, sol_data)
                 conn.commit()
             finally:
                 conn.close()

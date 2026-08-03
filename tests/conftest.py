@@ -65,3 +65,7 @@ def patch_pipeline_writebacks(monkeypatch):
         "app.core.pipeline._writeback_ev_geometry",
         lambda conn, job_id, ev_data: None
     )
+    monkeypatch.setattr(
+        "app.core.pipeline._writeback_sol_claim_info",
+        lambda conn, job_id, sol_data: None
+    )

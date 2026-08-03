@@ -68,6 +68,7 @@ class JobStatus(str, Enum):
     # OTHER
     AWAITING_CARRIER_RESPONSE = "AWAITING_CARRIER_RESPONSE"
     APPRAISAL_INVOKED = "APPRAISAL_INVOKED"
+    CLAIM_DENIED = "CLAIM_DENIED"  # Primary claim denied outright — no SoL issued
 
     @classmethod
     def is_operator_gate(cls, status: "JobStatus") -> bool:

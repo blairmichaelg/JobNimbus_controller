@@ -67,6 +67,7 @@ CRITICAL RULES:
 4. Return ONLY valid JSON matching the schema. No prose, no markdown.
 
 Extract:
+- Claim metadata: claim_number, insurer_name
 - All line items with: category_code, activity_code, description,
   quantity, unit, unit_price, tax, claimed_rcv, depreciation, acv, page
 - Roof geometry summary: pitch, total_squares, eaves_lf, valleys_lf, rakes_lf
@@ -181,6 +182,8 @@ async def _gemini_extract(
         line_items=line_items,
         roof_geometry=geometry,
         financials=financials,
+        claim_number=_sourced(str(data.get("claim_number")), 0, str(data.get("claim_number"))) if data.get("claim_number") else None,
+        insurer_name=_sourced(str(data.get("insurer_name")), 0, str(data.get("insurer_name"))) if data.get("insurer_name") else None,
         source_doc_sha256=source_doc_sha256,
         source_doc_id=source_doc_id,
         ast_version=1,

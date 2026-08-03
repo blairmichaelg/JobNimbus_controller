@@ -80,6 +80,11 @@ class ProductionPayload(BaseModel):
     crew_name: str
     install_date: str
 
+class JobClaimInfoPayload(BaseModel):
+    claim_number: str | None = None
+    insurer_name: str | None = None
+    loss_date: str | None = None  # ISO date string
+
 class ManualFlashingPayload(BaseModel):
     """ManualFlashingPayload definition."""
     flashing_lf: float
@@ -650,6 +655,56 @@ def _sync_update_job_production(job_id: str, payload: ProductionPayload):
         JobStatus.MATERIAL_ORDERED,
         f"Material order placed with {payload.supplier_name}, delivery {payload.delivery_date}"
     )
+
+def _sync_update_job_claim_info(job_id: str, payload: JobClaimInfoPayload):
+    conn = get_connection()
+    try:
+        updates = {}
+        if payload.claim_number is not None:
+            updates["claim_number"] = payload.claim_number
+        if payload.insurer_name is not None:
+            updates["insurer_name"] = payload.insurer_name
+            
+        if updates:
+            set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
+            values = list(updates.values()) + [job_id]
+            conn.execute(f"UPDATE jobs SET {set_clause} WHERE id = ?", values)
+            
+        if payload.loss_date is not None:
+            import uuid
+            cursor = conn.execute("SELECT id FROM storm_verifications WHERE job_id = ?", (job_id,))
+            row = cursor.fetchone()
+            if row:
+                conn.execute("UPDATE storm_verifications SET loss_date = ? WHERE job_id = ?", (payload.loss_date, job_id))
+            else:
+                sv_id = str(uuid.uuid4())
+                conn.execute('''
+                    INSERT INTO storm_verifications (id, job_id, loss_date, event_type, begin_lat, begin_lon, match_confidence)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (sv_id, job_id, payload.loss_date, 'Unknown', 0.0, 0.0, 'Pending'))
+        conn.commit()
+    finally:
+        conn.close()
+
+@router.patch("/jobs/{job_id}/claim-info", dependencies=[Depends(verify_accounting)])
+async def update_job_claim_info(job_id: str, payload: JobClaimInfoPayload, bg_tasks: BackgroundTasks):
+    """
+    Allows office/ops staff to add or update claim_number, insurer_name,
+    and loss_date after job creation — covers the common real-world case
+    where the homeowner files the claim after the rep has already left.
+    Only updates fields that are provided (non-None); never overwrites
+    an existing value with null.
+    """
+    try:
+        await asyncio.to_thread(_sync_update_job_claim_info, job_id, payload)
+        
+        # Trigger Hot Backup
+        bg_tasks.add_task(backup_database)
+        
+        return {"status": "success"}
+    except Exception as e:
+        logger.error("claim_info_update_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to update claim info.")
 
 @router.post("/jobs/{job_id}/production", dependencies=[Depends(verify_admin)])
 async def update_job_production(job_id: str, payload: ProductionPayload, bg_tasks: BackgroundTasks):

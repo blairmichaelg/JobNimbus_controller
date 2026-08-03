@@ -74,7 +74,7 @@
                         <div>
                             <p class="text-sm text-gray-400">Current Status</p>
                             <span class="mt-1 px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-blue-900 text-blue-200">
-                                {{ job.status }}
+                                {{ job.status | status_label }}
                             </span>
                         </div>
                     </div>
@@ -569,6 +569,7 @@
                                 <option value="PENDING_OPERATOR_REVIEW">PENDING_OPERATOR_REVIEW</option>
                                 <option value="SUPPLEMENT_GENERATED">SUPPLEMENT_GENERATED</option>
                                 <option value="AWAITING_CARRIER_RESPONSE">AWAITING_CARRIER_RESPONSE</option>
+                                <option value="CLAIM_DENIED">CLAIM_DENIED</option>
                                 <option value="SUPPLEMENT_APPROVED">SUPPLEMENT_APPROVED</option>
                                 <option value="MATERIAL_ORDERED">MATERIAL_ORDERED</option>
                                 <option value="INSTALL_SCHEDULED">INSTALL_SCHEDULED</option>

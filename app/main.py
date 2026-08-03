@@ -170,6 +170,43 @@ os.makedirs("app/templates", exist_ok=True)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+STATUS_LABELS = {
+    "LEAD_CAPTURED": "New Lead",
+    "CONTINGENCY_SIGNED": "Agreement Signed",
+    "RETAIL_CONTRACT_SIGNED": "Retail Contract Signed",
+    "CLAIM_FILED": "Claim Filed — Waiting on Adjuster",
+    "ADJUSTER_MEETING_COMPLETED": "Adjuster Met — Waiting on Estimate",
+    "PHOTOS_UPLOADED": "Photos Uploaded",
+    "EV_PARSED": "Measurements Received",
+    "STATEMENT_OF_LOSS_RECEIVED": "Insurance Estimate Received",
+    "PENDING_OPERATOR_REVIEW": "Needs Office Review",
+    "PIPELINE_FAILED": "Processing Error — Needs Attention",
+    "INSPECTION_FAILED": "Inspection Processing Failed",
+    "SUPPLEMENT_GENERATED": "Supplement Ready to Send",
+    "SUPPLEMENT_SUBMITTED": "Supplement Sent to Carrier",
+    "SUPPLEMENT_DENIED": "Supplement Denied — Needs Rebuttal",
+    "SUPPLEMENT_APPROVED": "Supplement Approved",
+    "SCOPE_APPROVED": "Scope Approved",
+    "MATERIAL_ORDERED": "Materials Ordered",
+    "MATERIALS_ON_SITE": "Materials On Site",
+    "INSTALL_SCHEDULED": "Install Scheduled",
+    "INSTALL_COMPLETED": "Install Completed",
+    "INSPECTION_COMPLETED": "Inspection Completed",
+    "FINAL_INSPECTION": "Final Inspection",
+    "INVOICED": "Invoiced",
+    "PAYMENT_RECEIVED": "Payment Received",
+    "CLOSED": "Job Closed",
+    "RETAIL_QUOTE_GENERATED": "Quote Generated",
+    "RETAIL_QUOTE_ACCEPTED": "Quote Accepted",
+    "RETAIL_QUOTE_DECLINED": "Quote Declined",
+    "AWAITING_CARRIER_RESPONSE": "Waiting on Insurance Company",
+    "APPRAISAL_INVOKED": "Appraisal Process Started",
+    "CLAIM_DENIED": "Claim Denied by Insurer",
+}
+
+templates.env.filters["status_label"] = lambda s: STATUS_LABELS.get(s, s)
+
+
 def days_since(date_str: str) -> int:
     if not date_str:
         return 0
