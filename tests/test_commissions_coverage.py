@@ -118,9 +118,9 @@ async def test_generate_commission_statement(setup_teardown_db, tmp_path):
     }
     commission_mock = {
         "canvasser_name": "Test Rep",
-        "revenue": 10000.0,
-        "material_cost": 3000.0,
-        "labor_cost": 2000.0,
+        "revenue_val": 10000.0,
+        "material_cost_val": 3000.0,
+        "labor_cost_val": 2000.0,
         "overhead_amount": 1000.0,
         "gross_profit": 4000.0,
         "commission_pct": 0.10,

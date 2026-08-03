@@ -129,9 +129,10 @@ wickham_crm/
 ├── sample_pdfs/                # Calibration & Regression Test Sample Documents
 ├── signed_agreements/          # Vaulted Client Contingency & Contract Signatures
 ├── generated_exports/          # Cached Accounting QuickBooks Online (QBO) CSV Exports
-├── setup_network.ps1           # Cloudflare Tunnel automated download utility
-├── start_dev.ps1               # Local developer boot sequence script (Port 8001)
 ├── scripts/                    # Maintenance and operational scripts
+│   ├── dev/
+│   │   ├── setup_network.ps1   # Cloudflare Tunnel automated download utility
+│   │   └── start_dev.ps1       # Local developer boot sequence script (Port 8001)
 │   └── services/               # Wrapper scripts for Task Scheduler (srv_*.ps1)
 ├── render.yaml                 # Infrastructure-as-Code container deployment specifications
 ├── Dockerfile                  # Container build instructions for cloud fallback hosting

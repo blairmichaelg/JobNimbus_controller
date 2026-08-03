@@ -194,16 +194,20 @@ class InvoiceGenerator(PDFEngine):
             table_data = [["Job ID", "Homeowner", "Revenue", "Costs", "Margin"]]
             
             for j in jobs:
-                rev = j.get("revenue")
-                mat = j.get("material_cost")
-                lab = j.get("labor_cost")
+                rev = j.get("revenue_cents")
+                mat = j.get("material_cost_cents")
+                lab = j.get("labor_cost_cents")
 
                 if rev is None or mat is None or lab is None:
                     raise ValueError(
                         f"Job {j.get('id', 'UNKNOWN')} missing critical financial field "
-                        f"(revenue={rev}, material_cost={mat}, labor_cost={lab}). "
+                        f"(revenue_cents={rev}, material_cost_cents={mat}, labor_cost_cents={lab}). "
                         "Resolve in database before generating financial report."
                     )
+
+                rev = rev / 100.0
+                mat = mat / 100.0
+                lab = lab / 100.0
 
                 oh_pct = j.get("overhead_pct", 0.0)
                 comm_pct = j.get("canvasser_commission_pct", 0.0)

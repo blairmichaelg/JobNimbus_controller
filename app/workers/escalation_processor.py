@@ -123,8 +123,8 @@ async def process_escalation(ctx: dict, job_id: str) -> dict:
     # ── Build financial context for AI prompt ─────────────────────────────
     fin_context = "Financial data not available."
     if fin:
-        revenue = fin.get("revenue", 0) or 0
-        carrier = fin.get("carrier_rcv", 0) or 0
+        revenue = (fin.get("revenue_cents", 0) or 0) / 100.0
+        carrier = (fin.get("carrier_rcv_cents", 0) or 0) / 100.0
         delta = revenue - carrier
         fin_context = (
             f"  Contract Revenue: ${revenue:,.2f}\n"

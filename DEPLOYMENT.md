@@ -55,7 +55,7 @@ Open `.env` in a secure editor and configure your production parameter tokens:
 ### 4. Automated Windows Launch (Task Scheduler)
 To eliminate manual setup errors in field branch environments, V4 includes automated PowerShell orchestration utilities invoked on system boot:
 
-1. **First-Time Network Provisioning**: Run `setup_network.ps1` once to automatically fetch and place the secure Cloudflare Web Tunneling binary into the isolated `tools/` directory.
+1. **First-Time Network Provisioning**: Run `scripts\dev\setup_network.ps1` once to automatically fetch and place the secure Cloudflare Web Tunneling binary into the isolated `tools/` directory.
 2. **Master Production Boot Sequence**: The server is now configured to boot automatically via **Windows Task Scheduler**. Upon user login, Task Scheduler triggers the individual wrapper scripts located in `scripts\services\`:
    - `srv_redis.ps1`: Ensures Redis is running (or boots a container if needed).
    - `srv_fastapi.ps1`: Launches the Uvicorn FastAPI Server (Port 8000) with logging to `logs\fastapi_*.log`.

@@ -197,8 +197,15 @@ def run_migrations() -> None:
             
             conn.execute("UPDATE schema_version SET version = 8, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
 
+        if current_version < 9:
+            import importlib
+            m9 = importlib.import_module("app.core.migrations.0009_drop_real_financials")
+            m9.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 9, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+
         conn.execute("COMMIT")
-        logger.info("migrations_applied", current_version=current_version, target_version=8)
+        logger.info("migrations_applied", current_version=current_version, target_version=9)
         
         # Since seed logic was removed from up(), do it here outside the transaction
         if current_version < 1:
@@ -328,7 +335,7 @@ def _update_job_status_internal(conn: sqlite3.Connection, job_id: str, new_statu
             )
             
     elif new_status == JobStatus.MATERIAL_ORDERED:
-        fin_cursor = conn.execute("SELECT revenue FROM financials WHERE job_id = ?", (job_id,))
+        fin_cursor = conn.execute("SELECT revenue_cents FROM financials WHERE job_id = ?", (job_id,))
         if not fin_cursor.fetchone():
             raise RuntimeError("ILLEGAL TRANSITION: Cannot order materials without calculated financials.")
     elif new_status == JobStatus.INSTALL_SCHEDULED:
@@ -473,37 +480,23 @@ def upsert_financials(
     try:
         conn.execute("BEGIN IMMEDIATE")
         
-        # Write to both the old REAL columns (for NOT NULL compatibility) and the new INTEGER cents columns
-        revenue_real = revenue_cents / 100.0
-        carrier_rcv_real = carrier_rcv_cents / 100.0
-        material_cost_real = material_cost_cents / 100.0
-        labor_cost_real = labor_cost_cents / 100.0
-        permits_fee_real = permits_fee_cents / 100.0
-        
         conn.execute('''
             INSERT INTO financials 
             (job_id, 
              revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, permits_fee_cents,
-             revenue, carrier_rcv, material_cost, labor_cost, permits_fee,
              overhead_pct, canvasser_commission_pct)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
                 revenue_cents = excluded.revenue_cents,
                 carrier_rcv_cents = excluded.carrier_rcv_cents,
                 material_cost_cents = excluded.material_cost_cents,
                 labor_cost_cents = excluded.labor_cost_cents,
                 permits_fee_cents = excluded.permits_fee_cents,
-                revenue = excluded.revenue,
-                carrier_rcv = excluded.carrier_rcv,
-                material_cost = excluded.material_cost,
-                labor_cost = excluded.labor_cost,
-                permits_fee = excluded.permits_fee,
                 overhead_pct = excluded.overhead_pct,
                 canvasser_commission_pct = excluded.canvasser_commission_pct
         ''', (
             job_id, 
             revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, permits_fee_cents,
-            revenue_real, carrier_rcv_real, material_cost_real, labor_cost_real, permits_fee_real,
             overhead_pct, canvasser_commission_pct
         ))
         conn.execute("COMMIT")
@@ -638,18 +631,18 @@ def get_financials(job_id: str) -> Optional[dict]:
     try:
         cursor = conn.execute("""
             SELECT job_id, 
-                   revenue_cents / 100.0 as revenue,
-                   carrier_rcv_cents / 100.0 as carrier_rcv,
-                   material_cost_cents / 100.0 as material_cost,
-                   labor_cost_cents / 100.0 as labor_cost,
+                   revenue_cents,
+                   carrier_rcv_cents,
+                   material_cost_cents,
+                   labor_cost_cents,
                    overhead_pct,
                    canvasser_commission_pct,
-                   permits_fee_cents / 100.0 as permits_fee,
-                   deductible_cents / 100.0 as deductible,
-                   acv_payment_cents / 100.0 as acv_payment,
-                   recoverable_depreciation_cents / 100.0 as recoverable_depreciation,
-                   carrier_initial_rcv_cents / 100.0 as carrier_initial_rcv,
-                   carrier_supplemented_rcv_cents / 100.0 as carrier_supplemented_rcv,
+                   permits_fee_cents,
+                   deductible_cents,
+                   acv_payment_cents,
+                   recoverable_depreciation_cents,
+                   carrier_initial_rcv_cents,
+                   carrier_supplemented_rcv_cents,
                    qbo_exported,
                    qbo_exported_at
             FROM financials 
@@ -669,12 +662,12 @@ def get_monthly_financials(month: int, year: int) -> list[dict]:
     try:
         cursor = conn.execute("""
             SELECT j.id, j.homeowner_name, j.status, 
-                   f.revenue_cents / 100.0 as revenue, 
-                   f.material_cost_cents / 100.0 as material_cost, 
-                   f.labor_cost_cents / 100.0 as labor_cost, 
+                   f.revenue_cents, 
+                   f.material_cost_cents, 
+                   f.labor_cost_cents, 
                    f.overhead_pct, 
                    f.canvasser_commission_pct, 
-                   f.permits_fee_cents / 100.0 as permits_fee
+                   f.permits_fee_cents
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
             WHERE j.status IN ('INVOICED', 'CLOSED')
@@ -768,13 +761,13 @@ def get_qbo_export_batch() -> list[dict]:
         cursor = conn.execute(
             """
             SELECT j.id as job_id, j.homeowner_name, j.status,
-                   f.revenue_cents / 100.0 as revenue, 
-                   f.carrier_rcv_cents / 100.0 as carrier_rcv, 
-                   f.material_cost_cents / 100.0 as material_cost,
-                   f.labor_cost_cents / 100.0 as labor_cost, 
+                   f.revenue_cents, 
+                   f.carrier_rcv_cents, 
+                   f.material_cost_cents,
+                   f.labor_cost_cents, 
                    f.overhead_pct,
                    f.canvasser_commission_pct, 
-                   f.permits_fee_cents / 100.0 as permits_fee
+                   f.permits_fee_cents
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
             WHERE j.status IN ('SUPPLEMENT_APPROVED', 'INVOICED')
@@ -866,13 +859,13 @@ def atomic_qbo_export() -> list[dict]:
         cursor = conn.execute("""
             SELECT j.id as job_id, j.invoice_id, j.homeowner_name, j.status,
                    j.claim_number,
-                   f.revenue_cents / 100.0 as revenue, 
-                   f.carrier_rcv_cents / 100.0 as carrier_rcv, 
-                   f.material_cost_cents / 100.0 as material_cost,
-                   f.labor_cost_cents / 100.0 as labor_cost, 
+                   f.revenue_cents, 
+                   f.carrier_rcv_cents, 
+                   f.material_cost_cents,
+                   f.labor_cost_cents, 
                    f.overhead_pct,
                    f.canvasser_commission_pct, 
-                   f.permits_fee_cents / 100.0 as permits_fee
+                   f.permits_fee_cents
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
             WHERE j.status IN ('SUPPLEMENT_APPROVED', 'INVOICED')

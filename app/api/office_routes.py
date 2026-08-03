@@ -155,9 +155,9 @@ def get_job_details(job_id: str) -> Dict[str, Union[Dict[str, Union[str, float, 
         if fin_dict:
             # Dynamically compute exact margins
             margins = compute_job_profitability(
-                revenue_cents=int(round(fin_dict["revenue"] * 100)),
-                materials_cents=int(round(fin_dict["material_cost"] * 100)),
-                labor_cents=int(round(fin_dict["labor_cost"] * 100)),
+                revenue_cents=fin_dict["revenue_cents"],
+                materials_cents=fin_dict["material_cost_cents"],
+                labor_cents=fin_dict["labor_cost_cents"],
                 overhead_pct=fin_dict["overhead_pct"],
                 commission_pct=fin_dict["canvasser_commission_pct"],
                 commission_pct_override=job_dict.get("commission_pct_override")
@@ -833,20 +833,20 @@ def get_accounting_brief():
     conn = get_connection()
     try:
         cursor = conn.execute("""
-            SELECT COALESCE(SUM(f.carrier_rcv), 0.0) as total_rcv
+            SELECT COALESCE(SUM(f.carrier_rcv_cents), 0) as total_rcv_cents
             FROM financials f
             JOIN jobs j ON j.id = f.job_id
             WHERE j.status IN ('SUPPLEMENT_GENERATED', 'SUPPLEMENT_APPROVED')
               AND f.qbo_exported = 0
         """)
         rcv_row = cursor.fetchone()
-        supplemented_rcv = f"${rcv_row['total_rcv']:,.2f}"
+        supplemented_rcv = f"${(rcv_row['total_rcv_cents'] / 100.0):,.2f}"
         
         cursor = conn.execute("""
             SELECT j.id, j.invoice_id, j.homeowner_name, j.status,
                    j.acv_received, j.acv_received_at,
                    j.supplement_received, j.supplement_received_at,
-                   f.carrier_rcv, f.recoverable_depreciation
+                   f.carrier_rcv_cents, f.recoverable_depreciation_cents
             FROM jobs j
             JOIN financials f ON j.id = f.job_id
             WHERE j.status IN ('SUPPLEMENT_GENERATED', 'SUPPLEMENT_APPROVED',
@@ -859,9 +859,10 @@ def get_accounting_brief():
         qbo_ready = len(rows)
         acct_rows = []
         for r in rows:
-            recoverable_dep = r["recoverable_depreciation"] or 0
+            recoverable_dep = (r["recoverable_depreciation_cents"] or 0) / 100.0
+            carrier_rcv = (r["carrier_rcv_cents"] or 0) / 100.0
             if recoverable_dep and recoverable_dep > 0:
-                acv_expected = r["carrier_rcv"] - recoverable_dep
+                acv_expected = carrier_rcv - recoverable_dep
                 supp_expected = recoverable_dep
             else:
                 acv_expected = None
@@ -929,8 +930,8 @@ async def export_qbo_csv(token=Depends(verify_accounting)):
             "Terms":                 "Net 30",
             "Item(Product/Service)": "Roofing Services",
             "ItemQuantity":          1,
-            "ItemRate":              job["carrier_rcv"],
-            "ItemAmount":            job["carrier_rcv"],
+            "ItemRate":              job["carrier_rcv_cents"] / 100.0,
+            "ItemAmount":            job["carrier_rcv_cents"] / 100.0,
             "Memo":                  f"Invoice {job.get('invoice_id','N/A')} | "
                                      f"Claim {job.get('claim_number','N/A')}"
         }
@@ -1188,7 +1189,7 @@ def get_commissions_ready():
     try:
         cursor = conn.execute("""
             SELECT j.id as job_id, j.invoice_id, j.homeowner_name, j.canvasser_name, j.commission_generated_at,
-                   j.commission_pct_override, f.revenue, f.canvasser_commission_pct
+                   j.commission_pct_override, f.revenue_cents, f.canvasser_commission_pct
             FROM jobs j
             LEFT JOIN financials f ON j.id = f.job_id
             WHERE j.commission_ready = 1
@@ -1200,7 +1201,7 @@ def get_commissions_ready():
             effective_pct = row["commission_pct_override"] if row["commission_pct_override"] is not None else row["canvasser_commission_pct"]
             if effective_pct is None: 
                 effective_pct = 0.10
-            revenue = row["revenue"] or 0.0
+            revenue = (row["revenue_cents"] or 0) / 100.0
             row["canvasser_commission"] = revenue * effective_pct
             results.append(row)
         return results

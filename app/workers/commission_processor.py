@@ -54,14 +54,14 @@ async def process_commission(
         return {"status": "failed",
                 "reason": "no_financials_record"}
 
-    revenue         = fin.get("revenue", 0.0)
-    material_cost   = fin.get("material_cost", 0.0)
-    labor_cost      = fin.get("labor_cost", 0.0)
+    revenue         = fin.get("revenue_cents", 0) / 100.0
+    material_cost   = fin.get("material_cost_cents", 0) / 100.0
+    labor_cost      = fin.get("labor_cost_cents", 0) / 100.0
     overhead_pct    = fin.get("overhead_pct", 0.25)
     commission_pct  = fin.get(
         "canvasser_commission_pct", 0.0
     )
-    permits_fee     = fin.get("permits_fee", 0.0)
+    permits_fee     = fin.get("permits_fee_cents", 0) / 100.0
 
     overhead_amount = revenue * overhead_pct
     gross_profit    = (
@@ -76,9 +76,9 @@ async def process_commission(
         "canvasser_name":    job.get(
             "canvasser_name", "N/A"
         ),
-        "revenue":           revenue,
-        "material_cost":     material_cost,
-        "labor_cost":        labor_cost,
+        "revenue_val":           revenue,
+        "material_cost_val":     material_cost,
+        "labor_cost_val":        labor_cost,
         "overhead_amount":   round(overhead_amount, 2),
         "gross_profit":      round(gross_profit, 2),
         "commission_pct":    commission_pct,

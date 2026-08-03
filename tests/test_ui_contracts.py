@@ -41,8 +41,8 @@ def setup_test_financials(conn: sqlite3.Connection, job_id: str, qbo_exported: i
     conn.execute("BEGIN IMMEDIATE")
     conn.execute(
         """
-        INSERT INTO financials (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct, permits_fee, qbo_exported)
-        VALUES (?, 1000, 1000, 100, 100, 10, 0, 0, ?)
+        INSERT INTO financials (job_id, revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, overhead_pct, canvasser_commission_pct, permits_fee_cents, qbo_exported)
+        VALUES (?, 100000, 100000, 10000, 10000, 10, 0, 0, ?)
         """,
         (job_id, qbo_exported)
     )

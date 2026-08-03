@@ -40,14 +40,14 @@ def setup_test_job(conn: sqlite3.Connection, status: str = "SUPPLEMENT_GENERATED
     conn.execute("COMMIT")
     return job_id
 
-def setup_test_financials(conn: sqlite3.Connection, job_id: str, carrier_rcv: float = 0.0, qbo_exported: int = 0):
+def setup_test_financials(conn: sqlite3.Connection, job_id: str, carrier_rcv_cents: float = 0.0, qbo_exported: int = 0):
     conn.execute("BEGIN IMMEDIATE")
     conn.execute(
         """
-        INSERT INTO financials (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct, permits_fee, qbo_exported)
-        VALUES (?, 1000, ?, 100, 100, 10, 0, 0, ?)
+        INSERT INTO financials (job_id, revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, overhead_pct, canvasser_commission_pct, permits_fee_cents, qbo_exported)
+        VALUES (?, 100000, ?, 10000, 10000, 10, 0, 0, ?)
         """,
-        (job_id, carrier_rcv, qbo_exported)
+        (job_id, carrier_rcv_cents, qbo_exported)
     )
     conn.execute("COMMIT")
 
@@ -110,7 +110,7 @@ async def test_supplement_pdf_not_deleted_after_vault(
 
 def test_accounting_brief_rcv_is_live_not_mock(db_conn):
     job_id = setup_test_job(db_conn, "SUPPLEMENT_GENERATED")
-    setup_test_financials(db_conn, job_id, carrier_rcv=5000.0)
+    setup_test_financials(db_conn, job_id, carrier_rcv_cents=500000)
 
     response = client.get("/api/office/accounting/brief")
     assert response.status_code == 200
@@ -246,7 +246,7 @@ async def test_generate_material_order_pipeline_dynamic_waste(
 ):
     from app.core.supplement_models import EagleViewData
     job_id = setup_test_job(db_conn, "APPROVED")
-    setup_test_financials(db_conn, job_id, carrier_rcv=10000.0)
+    setup_test_financials(db_conn, job_id, carrier_rcv_cents=1000000)
     
     mock_field_docs.__truediv__.return_value = tmp_path
     

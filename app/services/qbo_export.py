@@ -163,7 +163,7 @@ def generate_qbo_invoice(job_id: str, bom: MaterialBOM, customer_name: str = "Un
         oh_pct = financials.get("overhead_pct", 0.0)
         if oh_pct > 0:
             oh_val = oh_pct if oh_pct < 1 else (oh_pct / 100.0)
-            base = financials.get("material_cost", 0.0) + financials.get("labor_cost", 0.0)
+            base = (financials.get("material_cost_cents", 0) + financials.get("labor_cost_cents", 0)) / 100.0
             oh_amt = base * oh_val
             lines.append(
                 InvoiceLine(
@@ -175,7 +175,7 @@ def generate_qbo_invoice(job_id: str, bom: MaterialBOM, customer_name: str = "Un
                 )
             )
             
-        permits = financials.get("permits_fee", 0.0)
+        permits = financials.get("permits_fee_cents", 0) / 100.0
         if permits > 0:
             lines.append(
                 InvoiceLine(

@@ -41,7 +41,7 @@ async def test_end_to_end_happy_path(field_headers, ops_headers, accounting_head
         try:
             conn.execute("BEGIN IMMEDIATE")
             conn.execute('''
-                INSERT INTO financials (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct, permits_fee)
+                INSERT INTO financials (job_id, revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, overhead_pct, canvasser_commission_pct, permits_fee_cents)
                 VALUES (?, 10000, 10000, 3000, 3000, 10, 10, 0)
             ''', (job_id,))
             conn.execute("COMMIT")

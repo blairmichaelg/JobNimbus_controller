@@ -29,9 +29,9 @@
 - **What passed as-is**: 
   - Migrations (`0001_initial_schema.py`) defensively use `IF NOT EXISTS` and handle `sqlite3.OperationalError` gracefully, ensuring they are strictly idempotent.
   - `PRAGMA foreign_keys=ON;` is enforced at the SQLite connection layer.
-  - **Float Currency**: **[RESOLVED]** Migrated all monetary values from `REAL` floats to `INTEGER` cents via migration `0007_integer_cents.py`. Core job costing logic (`app/core/job_costing.py`) has been refactored for precision integer arithmetic, eliminating drift risk. Legacy `REAL` columns are retained strictly for rollback safety but deprecated. 
-    - **Deprecation Plan (TODO)**: Drop legacy `REAL` columns after 30 days in production with no incidents. 
-    - **Safety Net**: Created `scripts/verify_currency_consistency.py` to enforce that legacy `REAL` columns remain mathematically identical to `_cents` columns via CI checks until deprecation.
+  - **Float Currency**: **[RESOLVED]** Migrated all monetary values from `REAL` floats to `INTEGER` cents via migration `0007_integer_cents.py`. Legacy `REAL` columns were safely dropped via migration `0009_drop_real_financials.py` and integer cents are now the exclusive source of truth for all financial operations.
+    - **Deprecation Plan**: **[COMPLETED]** Legacy `REAL` columns have been completely removed from the schema.
+    - **Safety Net**: Removed dual-write overhead in `app/core/database.py` and eliminated floating point calculations in commission processing.
   - **Timezones**: Grep reveals 6 instances of deprecated `datetime.utcnow()` (e.g., in `database.py`, `photo_processor.py`). Need to refactor to timezone-aware `datetime.now(timezone.utc)`.
   - **WAL Backup Restore Test**: **[RESOLVED]** Executed a staging-based WAL backup and restore stress test (`scripts/staging_backup_test.py`). Process: Cloned live DB -> Hashed rows -> Backed up via WAL -> Corrupted DB -> Restored -> Re-hashed. Result: **100% Data Integrity Verified** with exact row-count and checksum matches.
 

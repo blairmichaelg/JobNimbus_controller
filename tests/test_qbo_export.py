@@ -149,9 +149,9 @@ def test_generate_qbo_invoice_includes_op_and_fees(mock_get_financials):
     """Verify that O&P and Permit Fees are injected from the financials table."""
     mock_get_financials.return_value = {
         "overhead_pct": 10.0, 
-        "material_cost": 10000.0,
-        "labor_cost": 5000.0,
-        "permits_fee": 150.00
+        "material_cost_cents": 1000000,
+        "labor_cost_cents": 500000,
+        "permits_fee_cents": 15000
     }
     
     bom = MaterialBOM(

@@ -12,7 +12,7 @@ def setup_job():
     ''', (job_id, JobStatus.LEAD_CAPTURED.value))
     
     conn.execute('''
-        INSERT INTO financials (job_id, revenue, carrier_rcv, material_cost, labor_cost, overhead_pct, canvasser_commission_pct, permits_fee)
+        INSERT INTO financials (job_id, revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, overhead_pct, canvasser_commission_pct, permits_fee_cents)
         VALUES (?, 10000, 10000, 3000, 2000, 10, 5, 100)
     ''', (job_id,))
     conn.close()

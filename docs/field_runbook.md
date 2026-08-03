@@ -4,11 +4,11 @@ This runbook provides emergency operational procedures for Scott during the firs
 
 ## 1. If the Upload Hangs (Mobile Field App)
 - **Symptom**: The mobile browser spins indefinitely after tapping "Submit".
-- **Diagnosis**: The `ngrok` tunnel may have expired or crashed.
+- **Diagnosis**: The Cloudflare tunnel may have expired or crashed.
 - **Action**:
-  1. Go to the office laptop terminal running `ngrok http 8000`.
-  2. Verify the session status is `online`. If disconnected, press `CTRL+C` and restart the command.
-  3. Send the *new* Ngrok URL to the canvasser. Note: The mobile app uses `localStorage` caching, so no field data was lost. They just need to reload with the new URL and tap submit again.
+  1. Go to the office laptop and check the `logs\tunnel_*.log` file or the `srv_tunnel.ps1` window.
+  2. Verify the session status is `online`. If disconnected, terminate the script window and run `scripts\services\srv_tunnel.ps1` to restart the tunnel.
+  3. Send the *new* Cloudflare URL to the canvasser if it changed. Note: The mobile app uses `localStorage` caching, so no field data was lost. They just need to reload with the new URL and tap submit again.
 
 ## 2. If the Margin is Red (Office Dashboard)
 - **Symptom**: The Financials Card shows a red warning banner (Margin < 35%).
