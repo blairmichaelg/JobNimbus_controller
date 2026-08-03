@@ -204,8 +204,15 @@ def run_migrations() -> None:
             
             conn.execute("UPDATE schema_version SET version = 9, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
 
+        if current_version < 10:
+            import importlib
+            m10 = importlib.import_module("app.core.migrations.0010_drop_legacy_real_columns")
+            m10.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 10, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+
         conn.execute("COMMIT")
-        logger.info("migrations_applied", current_version=current_version, target_version=9)
+        logger.info("migrations_applied", current_version=current_version, target_version=10)
         
         # Since seed logic was removed from up(), do it here outside the transaction
         if current_version < 1:
