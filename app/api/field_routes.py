@@ -498,7 +498,7 @@ def _sync_insert_agreement(agreement_id: str, job_id: str, pdf_path: str, sig_fi
         conn.close()
 
 @router.post("/jobs/{job_id}/contingency-sign")
-async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, claims: dict = Depends(get_current_claims)):
+async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, request: Request, claims: dict = Depends(get_current_claims)):
     """
     Contingency Sign functionality.
     
@@ -540,13 +540,23 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, cl
             logger.error("signature_image_verification_failed", error=str(e))
             raise HTTPException(status_code=400, detail="Invalid or corrupt image data")
 
+        secure_ip = request.client.host if request.client else "Unknown IP"
+        # Prefer X-Forwarded-For if behind a proxy
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            secure_ip = forwarded.split(",")[0].strip()
+            
+        secure_ua = request.headers.get("User-Agent", "Unknown UA")
+        timestamp_utc = datetime.now(__import__('datetime').timezone.utc).replace(microsecond=0).isoformat() + "Z"
+
         from app.services.pdf import PDFGenerator
         pdf_gen = PDFGenerator()
         pdf_path = await pdf_gen.generate_contingency_pdf(
             job_dict, 
             str(sig_file_path), 
             payload.signer_name, 
-            payload.ip_address or "Unknown IP"
+            secure_ip,
+            timestamp_utc
         )
         
         agreement_id = str(uuid.uuid4())
@@ -554,8 +564,7 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, cl
         import hashlib
         
         def _insert_doc_and_agreement():
-            ts = datetime.now(__import__('datetime').timezone.utc).replace(tzinfo=None).isoformat() + "Z"
-            _sync_insert_agreement(agreement_id, job_id, pdf_path, str(sig_file_path), ts, payload.signer_name, payload.ip_address, payload.user_agent)
+            _sync_insert_agreement(agreement_id, job_id, pdf_path, str(sig_file_path), timestamp_utc, payload.signer_name, secure_ip, secure_ua)
             with open(pdf_path, "rb") as f:
                 file_hash = hashlib.sha256(f.read()).hexdigest()
             insert_job_document(job_id, Path(pdf_path).name, "CONTINGENCY_SIGNED", str(pdf_path), file_hash, "field_safe", "CONTINGENCY_SIGNED")
@@ -582,7 +591,7 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, cl
 
 
 @router.post("/jobs/{job_id}/sign-retail-contract")
-async def sign_retail_contract(job_id: str, payload: RetailContractSignaturePayload, claims: dict = Depends(get_current_claims)):
+async def sign_retail_contract(job_id: str, payload: RetailContractSignaturePayload, request: Request, claims: dict = Depends(get_current_claims)):
     """
     Handle E-Signature for Retail Contracts.
     Saves PNG, generates PDF, logs agreement, and updates status.
@@ -613,6 +622,14 @@ async def sign_retail_contract(job_id: str, payload: RetailContractSignaturePayl
             logger.error("signature_image_verification_failed", error=str(e))
             raise HTTPException(status_code=400, detail="Invalid or corrupt image data")
 
+        secure_ip = request.client.host if request.client else "Unknown IP"
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            secure_ip = forwarded.split(",")[0].strip()
+            
+        secure_ua = request.headers.get("User-Agent", "Unknown UA")
+        timestamp_utc = datetime.now(__import__('datetime').timezone.utc).replace(microsecond=0).isoformat() + "Z"
+
         from app.services.pdf.documents import DocumentsGenerator
         pdf_gen = DocumentsGenerator()
         
@@ -623,10 +640,11 @@ async def sign_retail_contract(job_id: str, payload: RetailContractSignaturePayl
             job=job_dict, 
             signature_path=str(sig_file_path), 
             signer_name=payload.signer_name, 
-            ip_address=payload.ip_address or "Unknown IP",
+            ip_address=secure_ip,
             total_price_cents=total_price_cents,
             deposit_cents=deposit_cents,
-            scope_description=payload.scope_description
+            scope_description=payload.scope_description,
+            timestamp_utc=timestamp_utc
         )
         
         noc_pdf_path = await pdf_gen.generate_retail_notice_of_cancellation(job=job_dict)
@@ -636,8 +654,7 @@ async def sign_retail_contract(job_id: str, payload: RetailContractSignaturePayl
         import hashlib
         
         def _insert_docs_and_agreement():
-            ts = datetime.now(__import__('datetime').timezone.utc).replace(tzinfo=None).isoformat() + "Z"
-            _sync_insert_agreement(agreement_id, job_id, pdf_path, str(sig_file_path), ts, payload.signer_name, payload.ip_address, payload.user_agent)
+            _sync_insert_agreement(agreement_id, job_id, pdf_path, str(sig_file_path), timestamp_utc, payload.signer_name, secure_ip, secure_ua)
             
             with open(pdf_path, "rb") as f:
                 file_hash = hashlib.sha256(f.read()).hexdigest()

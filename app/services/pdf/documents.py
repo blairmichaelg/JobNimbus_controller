@@ -23,7 +23,7 @@ from app.services.pdf.constants import COMPANY_NAME, COMPANY_PHONE, COMPANY_EMAI
 from app.services.pdf.engine import PDFEngine
 
 class DocumentsGenerator(PDFEngine):
-    async def generate_contingency_pdf(self, job: dict, signature_path: str, signer_name: str, ip_address: str) -> str:
+    async def generate_contingency_pdf(self, job: dict, signature_path: str, signer_name: str, ip_address: str, timestamp_utc: str = "") -> str:
         """Generate a basic Legal Contingency document with embedded signature and legal footer."""
         job_id = job.get("id", "UNKNOWN")
         log = logger.bind(job_id=job_id)
@@ -70,7 +70,8 @@ class DocumentsGenerator(PDFEngine):
                 log.error("signature_render_failed", error=str(e))
                 
             story.append(Spacer(1, 10))
-            story.append(Paragraph(f"Digitally signed by {signer_name} from IP {ip_address}", self.custom_styles["FinePrint"]))
+            time_str = f" on {timestamp_utc}" if timestamp_utc else ""
+            story.append(Paragraph(f"Digitally signed by {signer_name} from IP {ip_address}{time_str}", self.custom_styles["FinePrint"]))
             
             doc.build(story)
 
@@ -138,7 +139,7 @@ class DocumentsGenerator(PDFEngine):
         await asyncio.to_thread(build_pdf)
         return filepath
 
-    async def generate_retail_contract_pdf(self, job: dict, signature_path: str, signer_name: str, ip_address: str, total_price_cents: int, deposit_cents: int, scope_description: str) -> str:
+    async def generate_retail_contract_pdf(self, job: dict, signature_path: str, signer_name: str, ip_address: str, total_price_cents: int, deposit_cents: int, scope_description: str, timestamp_utc: str = "") -> str:
         """Generate a Retail Sales Contract document."""
         job_id = job.get("id", "UNKNOWN")
         log = logger.bind(job_id=job_id)
@@ -216,7 +217,8 @@ class DocumentsGenerator(PDFEngine):
                 log.error("signature_render_failed", error=str(e))
                 
             story.append(Spacer(1, 10))
-            story.append(Paragraph(f"Digitally signed by {signer_name} from IP {ip_address}", self.custom_styles["FinePrint"]))
+            time_str = f" on {timestamp_utc}" if timestamp_utc else ""
+            story.append(Paragraph(f"Digitally signed by {signer_name} from IP {ip_address}{time_str}", self.custom_styles["FinePrint"]))
             
             doc.build(story)
 
