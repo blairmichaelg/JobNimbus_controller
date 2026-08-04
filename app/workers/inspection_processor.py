@@ -16,6 +16,8 @@ import io
 import asyncio
 import structlog
 from pathlib import Path
+import traceback
+from arq.worker import Retry
 
 from PIL import Image as PILImage
 
@@ -119,10 +121,12 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
     Returns:
         The updated InspectionJob with analyses populated.
     """
-    job = await get_inspection_summary(job_id)
+    job_try = ctx.get('job_try', 1)
+    try:
+        job = await get_inspection_summary(job_id)
 
-    log = logger.bind(job_id=job.job_id, total_photos=len(job.photos))
-    log.info("inspection_processing_started")
+        log = logger.bind(job_id=job.job_id, total_photos=len(job.photos))
+        log.info("inspection_processing_started")
 
     ai = get_ai_client()
 
@@ -251,7 +255,34 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
 
         return job
     except Exception as e:
-        log.error("inspection_processing_failed", error=str(e))
+        error_msg = str(e)
+        log.error("inspection_processing_failed", error=error_msg, try_num=job_try)
+        
+        is_transient = "timeout" in error_msg.lower() or "429" in error_msg or "connection" in error_msg.lower()
+        if is_transient and job_try < 3:
+            log.info("retrying_inspection_processing", defer=job_try * 10)
+            raise Retry(defer=job_try * 10)
+
+        error_trace = traceback.format_exc()
         if not ctx.get("is_test"):
-            await asyncio.to_thread(update_job_status, job_id, JobStatus.INSPECTION_FAILED, note=str(e))
+            try:
+                from app.core.database import update_job_status, JobStatus, get_connection
+                await asyncio.to_thread(update_job_status, job_id, JobStatus.INSPECTION_FAILED, note=error_msg[:200])
+                
+                def _log_task_error():
+                    conn = get_connection()
+                    try:
+                        conn.execute("BEGIN IMMEDIATE")
+                        conn.execute(
+                            "INSERT INTO job_tasks (job_id, task_type, phase, last_error) VALUES (?, ?, ?, ?)",
+                            (job_id, "INSPECTION_VISION", "ANALYSIS", error_trace)
+                        )
+                        conn.execute("COMMIT")
+                    except Exception:
+                        conn.execute("ROLLBACK")
+                    finally:
+                        conn.close()
+                await asyncio.to_thread(_log_task_error)
+            except Exception as db_err:
+                log.error("failed_to_log_inspection_failure", error=str(db_err))
         raise
