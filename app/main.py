@@ -446,6 +446,19 @@ def _fetch_active_jobs_sync():
         conn.close()
 
 
+@app.get("/office", tags=["frontend"])
+async def route_office_dashboard(role: str = Depends(get_current_role)):
+    """Route user to their role-appropriate dashboard from generic /office link."""
+    if role == "admin":
+        return RedirectResponse(url="/admin", status_code=303)
+    elif role == "accounting":
+        return RedirectResponse(url="/accounting", status_code=303)
+    elif role == "operations":
+        return RedirectResponse(url="/api/operations/board", status_code=303)
+    elif role == "field":
+        return RedirectResponse(url="/field", status_code=303)
+    return RedirectResponse(url="/admin", status_code=303)
+
 @app.get("/admin", tags=["frontend"])
 async def serve_admin_dashboard(request: Request, role: str = Depends(verify_admin)):
     """Serve the Admin Kanban Board."""
