@@ -591,6 +591,7 @@ def insert_job_document(job_id: str, filename: str, file_type: str, storage_path
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        conn.execute("DELETE FROM job_documents WHERE job_id = ? AND filename = ?", (job_id, filename))
         doc_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO job_documents (id, job_id, filename, file_type, storage_path, sha256_hash, visibility, category) 

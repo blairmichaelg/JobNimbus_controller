@@ -521,6 +521,32 @@ async def upload_job_document(job_id: str, file_type: str = Form(...), file: Upl
         logger.error("job_document_upload_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to save document")
 
+@router.get("/jobs/{job_id}/docs/download/{doc_id}", dependencies=[Depends(verify_office_role)])
+async def download_office_job_document(job_id: str, doc_id: str):
+    """Download any vaulted document for a job (Office/Admin access)."""
+    try:
+        job_id = str(uuid.UUID(job_id))
+        doc_id = str(uuid.UUID(doc_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id or doc_id format.")
+
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT storage_path, filename, file_type FROM job_documents WHERE id = ? AND job_id = ?", (doc_id, job_id))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Document not found.")
+
+        path = Path(row["storage_path"])
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="File missing from disk.")
+
+        from fastapi.responses import FileResponse
+        from app.services.security import sanitize_download_filename
+        return FileResponse(path, media_type=row["file_type"] or "application/pdf", filename=sanitize_download_filename(row["filename"]))
+    finally:
+        conn.close()
+
 @router.get("/jobs/{job_id}/docs/inspection_letter", dependencies=[Depends(verify_admin)])
 async def get_inspection_letter(job_id: str):
     """
