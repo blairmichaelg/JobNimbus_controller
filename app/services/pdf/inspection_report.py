@@ -53,7 +53,7 @@ class InspectionReportGenerator(PDFEngine):
             story = []
 
             # ── COVER PAGE ───────────────────────────────────────────────────
-            story.extend(self._universal_letterhead(doc_type="Roof Inspection Report"))
+            story.append(Paragraph("<b>ROOF INSPECTION REPORT</b>", self.custom_styles.get("Title", self.styles["Title"])))
             story.append(Spacer(1, 0.2 * inch))
 
             # Property info table
