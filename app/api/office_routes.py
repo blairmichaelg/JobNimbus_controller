@@ -208,6 +208,11 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
     Trigger the V4 Automath pipeline.
     Saves PDF, extracts metrics, calculates BOM, generates QBO CSV, and updates status.
     """
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Must upload a PDF file.")
 
@@ -282,6 +287,11 @@ async def upload_supplement_docs(
     Upload both EagleView and Statement of Loss PDFs to trigger the Supplement pipeline.
     Injects the background task directly into the ARQ queue.
     """
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
     if ev_file.content_type != "application/pdf" or sol_file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Both files must be PDFs.")
 
@@ -411,6 +421,12 @@ def download_job_document(
     Download a file from the Universal Document Vault.
     Enforces RBAC: Field reps cannot access financial or office-only documents.
     """
+    try:
+        job_id = str(uuid.UUID(job_id))
+        doc_id = str(uuid.UUID(doc_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id or doc_id format.")
+
     from app.api.field_routes import assert_field_rep_owns_job
     if role == "field":
         assert_field_rep_owns_job(claims, job_id)
@@ -430,7 +446,8 @@ def download_job_document(
         if not path.exists():
             raise HTTPException(status_code=404, detail="File is missing from disk.")
             
-        return FileResponse(path, media_type=row["file_type"], filename=row["filename"])
+        from app.services.security import sanitize_download_filename
+        return FileResponse(path, media_type=row["file_type"], filename=sanitize_download_filename(row["filename"]))
     finally:
         conn.close()
 

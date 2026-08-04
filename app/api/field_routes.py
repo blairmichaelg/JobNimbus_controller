@@ -194,6 +194,11 @@ async def upload_field_photo(job_id: str, request: Request, file: UploadFile = F
     Returns:
         Any: The resulting output.
     """
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
     assert_field_rep_owns_job(claims, job_id)
     """
     Accept direct photo uploads from the iPad over LAN.
@@ -283,6 +288,12 @@ async def download_field_document(job_id: str, doc_id: str, claims: dict = Depen
     Returns:
         Any: The resulting output.
     """
+    try:
+        job_id = str(uuid.UUID(job_id))
+        doc_id = str(uuid.UUID(doc_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id or doc_id format.")
+
     assert_field_rep_owns_job(claims, job_id)
     """
     Download a field-safe document. Strictly blocks office-only documents.
@@ -302,7 +313,8 @@ async def download_field_document(job_id: str, doc_id: str, claims: dict = Depen
             raise HTTPException(status_code=404, detail="File is missing from disk.")
             
         from fastapi.responses import FileResponse
-        return FileResponse(path, media_type=row["file_type"], filename=row["filename"])
+        from app.services.security import sanitize_download_filename
+        return FileResponse(path, media_type=row["file_type"], filename=sanitize_download_filename(row["filename"]))
     finally:
         conn.close()
 
