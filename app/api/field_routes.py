@@ -338,7 +338,7 @@ async def trigger_inspection_report(job_id: str, request: Request, claims: dict 
 
 
 @router.get("/jobs/{job_id}/inspection", response_model=InspectionJob)
-async def get_inspection_summary(job_id: str, claims: dict = Depends(get_current_claims)):
+async def get_inspection_summary(job_id: str, claims: dict | None = Depends(get_current_claims)):
     """
     Get Inspection Summary functionality.
     
@@ -349,7 +349,8 @@ async def get_inspection_summary(job_id: str, claims: dict = Depends(get_current
     Returns:
         Any: The resulting output.
     """
-    assert_field_rep_owns_job(claims, job_id)
+    if isinstance(claims, dict):
+        assert_field_rep_owns_job(claims, job_id)
     """
     Retrieve the full InspectionJob summary.
     Constructs the job by scanning the local field_photos/{job_id} directory

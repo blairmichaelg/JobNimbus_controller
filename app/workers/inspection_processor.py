@@ -122,10 +122,11 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
         The updated InspectionJob with analyses populated.
     """
     job_try = ctx.get('job_try', 1)
+    log = logger.bind(job_id=job_id, try_num=job_try)
     try:
-        job = await get_inspection_summary(job_id)
+        job = await get_inspection_summary(job_id, claims={"role": "admin"})
 
-        log = logger.bind(job_id=job.job_id, total_photos=len(job.photos))
+        log = log.bind(total_photos=len(job.photos))
         log.info("inspection_processing_started")
 
         ai = get_ai_client()
