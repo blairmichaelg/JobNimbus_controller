@@ -330,12 +330,25 @@ async def health_check(request: Request):
         structlog.get_logger().warning("health_check_degraded", db_ok=db_ok, redis_ok=redis_ok)
         raise HTTPException(status_code=503, detail="Service degraded")
 
+    # Get git commit hash for deployment visibility
+    import subprocess
+    try:
+        commit_hash = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], 
+            text=True, 
+            stderr=subprocess.DEVNULL
+        ).strip()
+    except Exception:
+        commit_hash = "unknown"
+
     structlog.get_logger().info("health_check_ok")
     return {
         "status": "ok",
         "env": settings.app_env,
         "db": "ok",
-        "redis": "ok"
+        "redis": "ok",
+        "db_path": settings.get_db_path,
+        "commit_hash": commit_hash
     }
 
 
