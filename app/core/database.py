@@ -586,12 +586,13 @@ def insert_schedule(job_id: str, crew_name: str, install_date: str, delivery_dat
         conn.close()
 
 
-def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str, sha256_hash: str | None = None, visibility: str = "office_only", category: str = "UNSPECIFIED") -> str:
+def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str, sha256_hash: str | None = None, visibility: str = "office_only", category: str = "UNSPECIFIED", replace_existing: bool = False) -> str:
     """Register a generated or uploaded file in the universal document vault."""
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
-        conn.execute("DELETE FROM job_documents WHERE job_id = ? AND filename = ?", (job_id, filename))
+        if replace_existing:
+            conn.execute("DELETE FROM job_documents WHERE job_id = ? AND filename = ?", (job_id, filename))
         doc_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO job_documents (id, job_id, filename, file_type, storage_path, sha256_hash, visibility, category) 

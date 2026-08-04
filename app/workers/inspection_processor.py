@@ -233,7 +233,7 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
             pdf_path = await pdf_gen.generate_evidence_grid(job, signature_to_pass)
             
             # Vault the document and update status (Threaded)
-            await asyncio.to_thread(insert_job_document, job_id, "evidence_grid.pdf", "application/pdf", pdf_path, None, "field_safe", "INSPECTION_REPORT")
+            await asyncio.to_thread(insert_job_document, job_id, "evidence_grid.pdf", "application/pdf", pdf_path, None, "field_safe", "INSPECTION_REPORT", True)
 
             # Generate homeowner-facing inspection report (separate from internal evidence grid)
             try:
@@ -243,7 +243,7 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
                 await asyncio.to_thread(
                     insert_job_document,
                     job_id, "inspection_report_homeowner.pdf", "application/pdf",
-                    hr_path, None, "field_safe", "HOMEOWNER_INSPECTION_REPORT"
+                    hr_path, None, "field_safe", "HOMEOWNER_INSPECTION_REPORT", True
                 )
                 log.info("homeowner_report_generated", path=hr_path)
             except Exception as hr_err:
