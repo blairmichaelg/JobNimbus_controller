@@ -593,6 +593,31 @@ def insert_job_document(job_id: str, filename: str, file_type: str, storage_path
         conn.execute("BEGIN IMMEDIATE")
         if replace_existing:
             conn.execute("DELETE FROM job_documents WHERE job_id = ? AND filename = ?", (job_id, filename))
+        else:
+            # Exact Deduplication Check: Same job, same content (sha256_hash)
+            if sha256_hash:
+                cursor = conn.execute(
+                    "SELECT id FROM job_documents WHERE job_id = ? AND sha256_hash = ?",
+                    (job_id, sha256_hash)
+                )
+                row = cursor.fetchone()
+                if row:
+                    conn.execute(
+                        "UPDATE job_documents SET filename = ?, file_type = ?, storage_path = ?, visibility = ?, category = ? WHERE id = ?",
+                        (filename, file_type, storage_path, visibility, category, row["id"])
+                    )
+                    conn.execute("COMMIT")
+                    return row["id"]
+            else:
+                cursor = conn.execute(
+                    "SELECT id FROM job_documents WHERE job_id = ? AND filename = ? AND category = ? AND storage_path = ?",
+                    (job_id, filename, category, storage_path)
+                )
+                row = cursor.fetchone()
+                if row:
+                    conn.execute("COMMIT")
+                    return row["id"]
+
         doc_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO job_documents (id, job_id, filename, file_type, storage_path, sha256_hash, visibility, category) 
