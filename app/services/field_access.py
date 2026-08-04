@@ -10,7 +10,7 @@ def assert_field_rep_owns_job(claims: dict, job_id: str) -> None:
     Admins are allowed to bypass this check.
     Raises 403 Forbidden if not.
     """
-    if claims.get("role") == "admin":
+    if claims.get("role") in ["admin", "operations", "accounting"]:
         return
         
     field_rep_id = claims.get("rep_id")

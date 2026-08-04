@@ -146,7 +146,7 @@ class InspectionReportGenerator(PDFEngine):
             logo_path = Path("app/static/logo.png")
             if logo_path.exists():
                 try:
-                    img_logo = RLImage(str(logo_path), width=1.8 * inch, height=0.9 * inch)
+                    img_logo = RLImage(str(logo_path), width=1.1 * inch, height=1.1 * inch)
                     img_logo.hAlign = 'CENTER'
                     story.append(img_logo)
                     story.append(Spacer(1, 0.02 * inch))

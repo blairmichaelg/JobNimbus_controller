@@ -363,6 +363,20 @@ async def get_inspection_summary(job_id: str, claims: dict | None = Depends(get_
     if job_dir.exists() and job_dir.is_dir():
         # Settle seconds = 0 for direct HTTP uploads (no Drive sync delay)
         photos = await asyncio.to_thread(get_stable_photos, job_dir, 0)
+        
+        # Ensure all photos are registered in the universal document vault for all roles
+        if photos:
+            def _sync_photos_to_vault():
+                from app.core.database import insert_job_document
+                for p in photos:
+                    try:
+                        insert_job_document(
+                            job_id, p.filepath.name, "image/jpeg",
+                            str(p.filepath), p.sha256, "field_safe", "INSPECTION_PHOTO", False
+                        )
+                    except Exception:
+                        pass
+            await asyncio.to_thread(_sync_photos_to_vault)
 
     # Retrieve all cached analyses for this job
     analyses = await asyncio.to_thread(get_cached_analyses_for_job, job_id)
