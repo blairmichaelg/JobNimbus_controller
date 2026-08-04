@@ -265,7 +265,7 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
         error_trace = traceback.format_exc()
         if not ctx.get("is_test"):
             try:
-                from app.core.database import update_job_status, JobStatus, get_connection
+                from app.core.database import get_connection
                 await asyncio.to_thread(update_job_status, job_id, JobStatus.INSPECTION_FAILED, note=error_msg[:200])
                 
                 def _log_task_error():
