@@ -319,6 +319,24 @@ async def download_field_document(job_id: str, doc_id: str, claims: dict = Depen
         conn.close()
 
 
+@router.post("/jobs/{job_id}/inspection-report", status_code=202)
+async def trigger_inspection_report(job_id: str, request: Request, claims: dict = Depends(get_current_claims)):
+    """Queue the inspection processor to build the homeowner inspection report from uploaded photos."""
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
+    assert_field_rep_owns_job(claims, job_id)
+
+    redis = getattr(request.app.state, "redis_pool", None)
+    if not redis:
+        raise HTTPException(status_code=503, detail="Redis connection unavailable")
+
+    await redis.enqueue_job("process_inspection", job_id=job_id)
+    return {"status": "accepted", "job_id": job_id, "message": "Inspection report generation started."}
+
+
 @router.get("/jobs/{job_id}/inspection", response_model=InspectionJob)
 async def get_inspection_summary(job_id: str, claims: dict = Depends(get_current_claims)):
     """

@@ -563,5 +563,6 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
         "condition_index": condition_index,
         "storm_events": storm_events,
         "role": role,
-        "auth_token": request.cookies.get("auth_token", "")
+        "auth_token": request.cookies.get("auth_token", ""),
+        "office_token": request.cookies.get("auth_token", "")
     })

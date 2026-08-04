@@ -116,3 +116,14 @@ def test_admin_dashboard_renders_retail_contract_signed(set_auth, db_conn):
     assert "123 Test St" in html
     # Check that the badge text appears
     assert "AGREEMENT SIGNED" in html
+
+
+def test_job_detail_page_exposes_inspection_report_action(set_auth, db_conn):
+    job_id = setup_test_job(db_conn, "LEAD_CAPTURED")
+
+    response = client.get(f"/office/jobs/{job_id}")
+    assert response.status_code == 200
+    html = response.text
+
+    assert "Generate Homeowner Inspection Report" in html
+    assert "OFFICE_TOKEN" in html

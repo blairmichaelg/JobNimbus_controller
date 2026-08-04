@@ -101,9 +101,10 @@ def test_create_new_job_lead_intake():
 def test_upload_field_photo():
     """POST /api/field/jobs/{id}/photos should save the photo."""
     file_content = b"\xFF\xD8\xFFfake_jpeg_content"
+    job_id = "99999999-9999-9999-9999-999999999901"
     
     response = client.post(
-        "/api/field/jobs/TEST-JOB-001/photos",
+        f"/api/field/jobs/{job_id}/photos",
         files={"file": ("test_roof.jpg", file_content, "image/jpeg")}
     )
     
@@ -113,14 +114,15 @@ def test_upload_field_photo():
     
     # Verify file was physically written to the mocked FIELD_PHOTOS_DIR
     import app.api.field_routes as fr
-    saved_file = fr.FIELD_PHOTOS_DIR / "TEST-JOB-001" / "test_roof.jpg"
+    saved_file = fr.FIELD_PHOTOS_DIR / job_id / "test_roof.jpg"
     assert saved_file.exists()
     assert saved_file.read_bytes() == file_content
 
 
 def test_upload_missing_file():
     """Missing file payload should be rejected by FastAPI directly."""
-    response = client.post("/api/field/jobs/TEST-JOB-001/photos")
+    job_id = "99999999-9999-9999-9999-999999999901"
+    response = client.post(f"/api/field/jobs/{job_id}/photos")
     assert response.status_code == 422  # Unprocessable Entity
 
 

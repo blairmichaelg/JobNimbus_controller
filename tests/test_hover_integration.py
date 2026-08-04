@@ -43,9 +43,10 @@ def test_eagleview_upload_endpoint_hover_file(setup_test_db):
 
 
 def test_eagleview_upload_endpoint_unknown_file(setup_test_db):
+    job_id = "99999999-9999-9999-9999-999999999902"
     conn = get_connection()
     conn.execute("INSERT INTO jobs (id, homeowner_name, status, job_type, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                 ("hover-unknown-job", "Unknown Test", "LEAD", "INSURANCE", "123", "City", "ST", "123", "123"))
+                 (job_id, "Unknown Test", "LEAD", "INSURANCE", "123", "City", "ST", "123", "123"))
     conn.commit()
     conn.close()
 
@@ -59,7 +60,7 @@ def test_eagleview_upload_endpoint_unknown_file(setup_test_db):
         with open(tmp_path, "rb") as f:
             files = {"file": ("dummy.pdf", f, "application/pdf")}
             response = client.post(
-                "/api/office/jobs/hover-unknown-job/eagleview",
+                f"/api/office/jobs/{job_id}/eagleview",
                 files=files,
                 cookies={"auth_token": admin_token}
             )

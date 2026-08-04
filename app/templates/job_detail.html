@@ -227,6 +227,9 @@
                             <a href="/api/office/download/INV-{{ job.id[:8].upper() }}_QBO.csv" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Download QBO CSV</a>
                             <a href="/api/office/jobs/{{ job.id }}/docs/cancellation" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Notice of Cancellation (PDF)</a>
                             <a href="/api/office/jobs/{{ job.id }}/evidence_grid" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Evidence Grid (PDF)</a>
+                            <button type="button" id="inspectionReportBtn" onclick="triggerInspectionReport('{{ job.id }}')" class="text-green-400 hover:text-green-300 border border-green-700 rounded p-2 text-center hover:bg-gray-700 transition font-semibold">
+                                Generate Homeowner Inspection Report
+                            </button>
                         </div>
                     </div>
                     {% if job.status == 'SUPPLEMENT_GENERATED' %}
@@ -598,7 +601,7 @@
 
     <!-- Vanilla JS API Bridge -->
     <script>
-        const OFFICE_TOKEN = "{{ office_token }}";
+        const OFFICE_TOKEN = "{{ office_token or auth_token or '' }}";
 
         function showToast(message, type = 'error') {
             const container = document.getElementById('toastContainer');
@@ -619,6 +622,34 @@
                 toast.classList.add('opacity-0');
                 setTimeout(() => toast.remove(), 300);
             }, 5000);
+        }
+
+        async function triggerInspectionReport(jobId) {
+            const btn = document.getElementById('inspectionReportBtn');
+            if (!btn) return;
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+
+            try {
+                if (!OFFICE_TOKEN) {
+                    throw new Error('Authentication token missing from context.');
+                }
+
+                const response = await fetch(`/api/field/jobs/${jobId}/inspection-report`, {
+                    method: 'POST',
+                    headers: { 'x-internal-token': OFFICE_TOKEN }
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Inspection report generation failed.');
+                }
+                showToast(data.message || 'Inspection report generation started.', 'success');
+                setTimeout(() => window.location.reload(), 1800);
+            } catch (error) {
+                btn.disabled = false;
+                btn.textContent = 'Generate Homeowner Inspection Report';
+                showToast(error.message, 'error');
+            }
         }
 
         let evFile = null;

@@ -142,7 +142,7 @@ class TestUploadIdempotency:
         # 3. Simulate file upload
         file_content = b"fake pdf content"
         response = client.post(
-            "/api/office/jobs/job-123/eagleview",
+            "/api/office/jobs/99999999-9999-9999-9999-999999999903/eagleview",
             files={"file": ("eagleview.pdf", file_content, "application/pdf")}
         )
         

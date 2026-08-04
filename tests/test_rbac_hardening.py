@@ -85,9 +85,9 @@ def test_accounting_financials_allowed(setup_db):
 
 def test_field_rep_document_access(tmp_path):
     conn = get_connection()
-    job_id = "test-job-rbac-2"
+    job_id = "99999999-9999-9999-9999-999999999904"
     rep_id = "rep-123"
-    other_job_id = "test-job-rbac-3"
+    other_job_id = "99999999-9999-9999-9999-999999999905"
     
     try:
         conn.execute("INSERT OR IGNORE INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, canvasser_rep_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
