@@ -71,12 +71,24 @@
                 </span>
             </div>
 
-            {% if job.pipeline_error_message %}
+            {% set error_text = job.last_error or job.pipeline_error_message %}
+            {% if error_text %}
             <div class="bg-red-950 border border-red-700 rounded p-3
                         mb-4">
-                <p class="text-red-300 text-sm font-mono">
-                    Error: {{ job.pipeline_error_message }}
-                </p>
+                <div class="flex items-center justify-between gap-3 mb-2">
+                    <p class="text-red-300 text-sm font-semibold">
+                        Worker error details
+                    </p>
+                    <span class="text-xs uppercase tracking-wide text-red-400">
+                        Captured from ARQ worker
+                    </span>
+                </div>
+                <details class="group">
+                    <summary class="cursor-pointer text-sm text-red-200">
+                        Show stack trace / failure context
+                    </summary>
+                    <pre class="mt-3 whitespace-pre-wrap break-words text-xs leading-5 text-red-100 bg-gray-950/70 p-3 rounded overflow-auto max-h-48">{{ error_text }}</pre>
+                </details>
             </div>
             {% endif %}
 

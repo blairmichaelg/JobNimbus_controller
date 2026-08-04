@@ -135,7 +135,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Wickham Roofing AI Orchestrator",
     description="Standalone CRM orchestrator and Google Gemini AI middleware.",
-    version="0.1.0",
+    version="1.6.1",
     lifespan=lifespan,
 )
 
@@ -179,7 +179,7 @@ STATUS_LABELS = {
     "PHOTOS_UPLOADED": "Photos Uploaded",
     "EV_PARSED": "Measurements Received",
     "STATEMENT_OF_LOSS_RECEIVED": "Insurance Estimate Received",
-    "PENDING_OPERATOR_REVIEW": "Needs Office Review",
+    "PENDING_OPERATOR_REVIEW": "Manual Review Required",
     "PIPELINE_FAILED": "Processing Error — Needs Attention",
     "INSPECTION_FAILED": "Inspection Processing Failed",
     "SUPPLEMENT_GENERATED": "Supplement Ready to Send",

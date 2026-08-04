@@ -122,6 +122,13 @@ python -m pytest tests/ -v
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+### 4. Fresh Demo Reset (Recommended Before Live Demos)
+If you need the CRM in a completely clean, empty-job state for a presentation, run the built-in reset script before starting the stack:
+```powershell
+python scripts/db_demo_reset.py
+```
+This clears all jobs, resets the demo database to a pristine state, removes uploaded artifacts from the document directories, and restores the default demo field rep `Jerry Grubb` with PIN `1111`.
+
 > [!TIP]
 > **Windows One-Click Automation**: On Windows desktop environments, the server is now configured to boot automatically via **Task Scheduler** on login. Task Scheduler invokes a suite of wrapper scripts (`scripts\services\srv_redis.ps1`, `srv_fastapi.ps1`, `srv_worker.ps1`, `srv_tunnel.ps1`) that handle automated recovery, logging, and port binding.
 > 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.1] - 2026-08-04
+### Added & Prepared
+- **Demo Readiness**: Added a documented fresh-state database reset workflow for demo prep, including a one-shot reset script that clears all jobs and restores the default Jerry Grubb demo field rep state.
+- **UI Error-State Polish**: Hardened admin-facing triage and dashboard surfaces so review/failure states surface worker-generated error details clearly in the UI.
+- **Version Metadata**: Updated packaged project metadata and app version identifiers to reflect the current release state.
+
 ## [1.6.0] - 2026-08-04
 ### Added & Hardened
 - **Health Telemetry**: Expanded `/health` pre-flight check endpoint to report `app_env`, `db_path`, and git `commit_hash` for deployment visibility.

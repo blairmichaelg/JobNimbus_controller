@@ -1050,6 +1050,14 @@ async def admin_triage_view(request: Request):
             SELECT j.id, j.homeowner_name, j.address_line1,
                    j.status, j.created_at,
                    j.pipeline_error_message,
+                   (
+                       SELECT jt.last_error
+                       FROM job_tasks jt
+                       WHERE jt.job_id = j.id
+                         AND jt.last_error IS NOT NULL
+                       ORDER BY CASE jt.task_type WHEN 'SUPPLEMENT_DRAFTING' THEN 0 ELSE 1 END
+                       LIMIT 1
+                   ) AS last_error,
                    j.ev_total_area_sf, j.ev_predominant_pitch,
                    j.ev_ridge_lf, j.ev_hip_lf,
                    j.ev_valley_lf, j.ev_eaves_lf, j.ev_rakes_lf

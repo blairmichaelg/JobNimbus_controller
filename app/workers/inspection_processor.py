@@ -128,88 +128,86 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
         log = logger.bind(job_id=job.job_id, total_photos=len(job.photos))
         log.info("inspection_processing_started")
 
-    ai = get_ai_client()
+        ai = get_ai_client()
 
-    # Iterate in the natively cancellable async loop
-    for idx, photo in enumerate(job.photos):
-        photo_log = log.bind(
-            photo=photo.filepath.name,
-            index=idx + 1,
-            total=len(job.photos),
-        )
-
-        # Check cache first (EPIC 1)
-        cached = await asyncio.to_thread(get_cached_analysis, job.job_id, photo.sha256)
-        if cached:
-            cached.filename = photo.filepath.name
-            job.analyses.append(cached)
-            photo_log.info("photo_analysis_cache_hit", damage=cached.damage_detected)
-            continue
-
-        photo_log.info("photo_processing_started")
-
-        uploaded_name = None
-        ai_file_path = None
-        try:
-            # 0. Dual-Image Scaling: Create 1600px temporary file for AI
-            photo_log.debug("downscaling_for_ai")
-            ai_file_path = await asyncio.to_thread(resize_for_ai, photo.filepath, max_width=1600)
-
-            # 1. Upload to Gemini File API
-            uploaded_name = await ai.upload_media_file(ai_file_path)
-            assert uploaded_name is not None
-            photo_log.debug("photo_uploaded", remote_name=uploaded_name)
-
-            # 2. Poll until processing completes
-            file_status = await ai.get_file_status(uploaded_name)
-            assert file_status is not None
-            while file_status == "PROCESSING":
-                await asyncio.sleep(2)  # CRITICAL: Yields to event loop, respects ARQ CancelledError
-                file_status = await ai.get_file_status(uploaded_name)
-                assert file_status is not None
-
-            assert file_status is not None
-            if file_status == "FAILED":
-                photo_log.error("photo_processing_failed_on_server")
-                continue
-
-            # 3. Analyze with backoff protection
-            analysis = await ai.analyze_roof_photo(uploaded_name, photo.filepath.name, job.job_id)
-            analysis.filename = photo.filepath.name
-            job.analyses.append(analysis)
-
-            # Cache the successful result (EPIC 1)
-            await asyncio.to_thread(set_cached_analysis, job.job_id, photo.sha256, analysis)
-
-            photo_log.info(
-                "photo_analysis_complete",
-                damage=analysis.damage_detected,
-                severity=analysis.severity.value,
-                confidence=analysis.confidence,
+        # Iterate in the natively cancellable async loop
+        for idx, photo in enumerate(job.photos):
+            photo_log = log.bind(
+                photo=photo.filepath.name,
+                index=idx + 1,
+                total=len(job.photos),
             )
 
-        except RuntimeError as e:
-            # Rate limit exhausted after max retries
-            photo_log.error("photo_analysis_rate_limited", error=str(e))
-            continue
-        except Exception as e:
-            photo_log.error("photo_analysis_unexpected_error", error=str(e))
-            continue
-        finally:
-            # 4. Cleanup: immediately delete from Google's servers
-            if uploaded_name:
-                try:
-                    await ai.delete_file(uploaded_name)
-                    photo_log.debug("remote_file_deleted", remote_name=uploaded_name)
-                except Exception as e:
-                    photo_log.warning("remote_file_cleanup_failed", remote_name=uploaded_name, error=str(e))
-            if ai_file_path:
-                try:
-                    Path(ai_file_path).unlink(missing_ok=True)
-                except Exception as e:
-                    photo_log.warning("local_temp_cleanup_failed", path=ai_file_path, error=str(e))
+            # Check cache first (EPIC 1)
+            cached = await asyncio.to_thread(get_cached_analysis, job.job_id, photo.sha256)
+            if cached:
+                cached.filename = photo.filepath.name
+                job.analyses.append(cached)
+                photo_log.info("photo_analysis_cache_hit", damage=cached.damage_detected)
+                continue
 
-    try:
+            photo_log.info("photo_processing_started")
+
+            uploaded_name = None
+            ai_file_path = None
+            try:
+                # 0. Dual-Image Scaling: Create 1600px temporary file for AI
+                photo_log.debug("downscaling_for_ai")
+                ai_file_path = await asyncio.to_thread(resize_for_ai, photo.filepath, max_width=1600)
+
+                # 1. Upload to Gemini File API
+                uploaded_name = await ai.upload_media_file(ai_file_path)
+                assert uploaded_name is not None
+                photo_log.debug("photo_uploaded", remote_name=uploaded_name)
+
+                # 2. Poll until processing completes
+                file_status = await ai.get_file_status(uploaded_name)
+                assert file_status is not None
+                while file_status == "PROCESSING":
+                    await asyncio.sleep(2)  # CRITICAL: Yields to event loop, respects ARQ CancelledError
+                    file_status = await ai.get_file_status(uploaded_name)
+                    assert file_status is not None
+
+                assert file_status is not None
+                if file_status == "FAILED":
+                    photo_log.error("photo_processing_failed_on_server")
+                    continue
+
+                # 3. Analyze with backoff protection
+                analysis = await ai.analyze_roof_photo(uploaded_name, photo.filepath.name, job.job_id)
+                analysis.filename = photo.filepath.name
+                job.analyses.append(analysis)
+
+                # Cache the successful result (EPIC 1)
+                await asyncio.to_thread(set_cached_analysis, job.job_id, photo.sha256, analysis)
+
+                photo_log.info(
+                    "photo_analysis_complete",
+                    damage=analysis.damage_detected,
+                    severity=analysis.severity.value,
+                    confidence=analysis.confidence,
+                )
+
+            except RuntimeError as e:
+                # Rate limit exhausted after max retries
+                photo_log.error("photo_analysis_rate_limited", error=str(e))
+                continue
+            except Exception as e:
+                photo_log.error("photo_analysis_unexpected_error", error=str(e))
+                continue
+            finally:
+                # 4. Cleanup: immediately delete from Google's servers
+                if uploaded_name:
+                    try:
+                        await ai.delete_file(uploaded_name)
+                        photo_log.debug("remote_file_deleted", remote_name=uploaded_name)
+                    except Exception as e:
+                        photo_log.warning("remote_file_cleanup_failed", remote_name=uploaded_name, error=str(e))
+                if ai_file_path:
+                    try:
+                        Path(ai_file_path).unlink(missing_ok=True)
+                    except Exception as e:
+                        photo_log.warning("local_temp_cleanup_failed", path=ai_file_path, error=str(e))
 
         log.info(
             "inspection_processing_complete",
