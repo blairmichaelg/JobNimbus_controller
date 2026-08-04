@@ -26,7 +26,7 @@ from app.core.job_costing import compute_job_profitability
 from app.core.database import insert_material_order, insert_schedule, JobStatus, upsert_financials, get_financials, insert_job_document, get_job_document_by_hash, _fetch_job_sync
 from app.core.backup import backup_database
 from app.core.pipeline import run_full_office_pipeline
-from app.api.auth import verify_admin, verify_accounting
+from app.api.auth import verify_admin, verify_accounting, verify_office_role
 from app.core.upload_utils import stream_upload_safely
 from app.services.rate_limit import check_rate_limit
 from app.config import FIELD_DOCS_DIR
