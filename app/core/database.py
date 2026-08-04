@@ -664,6 +664,8 @@ def get_financials(job_id: str) -> Optional[dict]:
                    deductible_cents,
                    acv_payment_cents,
                    recoverable_depreciation_cents,
+                   depreciation_cents,
+                   net_claim_cents,
                    carrier_initial_rcv_cents,
                    carrier_supplemented_rcv_cents,
                    qbo_exported,

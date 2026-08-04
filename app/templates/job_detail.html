@@ -80,6 +80,57 @@
                     </div>
                 </div>
 
+                <!-- Roof Measurements & Geometry Card -->
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mt-6">
+                    <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2 flex items-center justify-between">
+                        <span>📐 Roof Measurements & Geometry</span>
+                        {% if job.ev_total_area_sf %}
+                        <span class="bg-green-900 text-green-300 text-xs font-mono px-2.5 py-1 rounded-full">Hover / EV Parsed</span>
+                        {% else %}
+                        <span class="bg-gray-700 text-gray-400 text-xs font-mono px-2.5 py-1 rounded-full">Pending Upload</span>
+                        {% endif %}
+                    </h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Total Area</p>
+                            <p class="text-lg font-bold text-white">
+                                {% if job.ev_total_area_sf %}
+                                {{ "%.0f"|format(job.ev_total_area_sf) }} sq ft
+                                <span class="text-xs font-normal text-blue-400">({{ "%.1f"|format(job.ev_total_area_sf / 100) }} SQ)</span>
+                                {% else %}
+                                <span class="text-gray-500 font-normal">N/A</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Predominant Pitch</p>
+                            <p class="text-lg font-bold text-white">{{ job.ev_predominant_pitch or 'N/A' }}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Ridge Length</p>
+                            <p class="text-lg font-bold text-white">{% if job.ev_ridge_lf %}{{ "%.1f"|format(job.ev_ridge_lf) }} ft{% else %}<span class="text-gray-500 font-normal">N/A</span>{% endif %}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Hip Length</p>
+                            <p class="text-lg font-bold text-white">{% if job.ev_hip_lf %}{{ "%.1f"|format(job.ev_hip_lf) }} ft{% else %}<span class="text-gray-500 font-normal">N/A</span>{% endif %}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Valley Length</p>
+                            <p class="text-lg font-bold text-white">{% if job.ev_valley_lf %}{{ "%.1f"|format(job.ev_valley_lf) }} ft{% else %}<span class="text-gray-500 font-normal">N/A</span>{% endif %}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Eaves / Rakes</p>
+                            <p class="text-lg font-bold text-white">
+                                {% if job.ev_eaves_lf or job.ev_rakes_lf %}
+                                {{ "%.0f"|format(job.ev_eaves_lf or 0) }}' E / {{ "%.0f"|format(job.ev_rakes_lf or 0) }}' R
+                                {% else %}
+                                <span class="text-gray-500 font-normal">N/A</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 {% if storm_events %}
                 <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mt-6">
                     <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Suggested Dates of Loss</h2>
@@ -228,27 +279,53 @@
                         </h3>
                         
                         {% if job.documents %}
-                        <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden shadow-lg mb-6">
+                        <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden shadow-lg mb-4">
                             <div class="divide-y divide-gray-700">
                                 {% for doc in job.documents %}
+                                {% if role != 'field' or doc.visibility == 'field_safe' or doc.visibility == 'public' %}
                                 <div class="p-3 flex items-center justify-between hover:bg-gray-750 transition">
                                     <div class="flex items-center space-x-3 overflow-hidden">
                                         <span class="text-xl">📄</span>
                                         <div class="truncate">
                                             <p class="text-sm font-semibold text-white truncate">{{ doc.filename }}</p>
-                                            <p class="text-xs text-gray-400">{{ doc.category or 'DOCUMENT' }} &bull; {{ doc.created_at[:16] if doc.created_at else '' }}</p>
+                                            <p class="text-xs text-gray-400">{{ doc.category or doc.file_type or 'DOCUMENT' }} &bull; {{ doc.created_at[:16] if doc.created_at else '' }}</p>
                                         </div>
                                     </div>
                                     <a href="/api/office/jobs/{{ job.id }}/docs/download/{{ doc.id }}" target="_blank" download class="ml-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded transition flex items-center space-x-1 shrink-0">
                                         <span>⬇ Download</span>
                                     </a>
                                 </div>
+                                {% endif %}
                                 {% endfor %}
                             </div>
                         </div>
                         {% else %}
-                        <p class="text-gray-400 text-sm bg-gray-800/50 p-3 rounded border border-gray-700/50 mb-6">No documents stored in vault yet.</p>
+                        <p class="text-gray-400 text-sm bg-gray-800/50 p-3 rounded border border-gray-700/50 mb-4">No documents stored in vault yet.</p>
                         {% endif %}
+
+                        <!-- Document Upload Control -->
+                        <div class="mb-4 bg-gray-800 p-4 rounded-lg border border-gray-700 space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Document Category</label>
+                                <select id="vault_category" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 text-sm">
+                                    <option value="HOVER_REPORT">Hover / Measurement Report (Field Safe)</option>
+                                    <option value="MEASUREMENT_REPORT">Measurement Report (EagleView) (Field Safe)</option>
+                                    <option value="PHOTO">Job Photo (Field Safe)</option>
+                                    <option value="STATEMENT_OF_LOSS">Statement of Loss (Office Only)</option>
+                                    <option value="MATERIAL_ORDER">Material Order (Office Only)</option>
+                                    <option value="FINANCIAL_DOCUMENT">Financial Document (Office Only)</option>
+                                    <option value="INTERNAL_NOTES">Internal Notes (Office Only)</option>
+                                    <option value="OTHER">Other / Miscellaneous (Office Only)</option>
+                                </select>
+                            </div>
+                            <div id="dropZoneVault" class="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center hover:border-blue-500 hover:bg-gray-750 transition cursor-pointer group">
+                                <div class="text-gray-400 group-hover:text-gray-300">
+                                    <p class="font-medium text-sm">📁 Upload Document to Vault</p>
+                                    <p id="vaultFileName" class="text-xs text-blue-400 mt-1">Click or drop PDF, JPEG, PNG</p>
+                                </div>
+                                <input type="file" id="vault_input" accept=".pdf,.jpeg,.jpg,.png" class="hidden">
+                            </div>
+                        </div>
 
                         <h4 class="text-xs font-semibold uppercase text-gray-400 tracking-wider mb-2">On-Demand Actions & Generator Links</h4>
                         <div class="flex flex-col space-y-2">
@@ -503,73 +580,19 @@
                         {% endif %}
                     </div>
                     {% endif %}
-                    <!-- Document Vault Section -->
-                    <div class="mt-6">
-                        <h3 class="text-md font-medium text-gray-300 mb-3">Document Vault</h3>
-                        
-                        <!-- List existing documents -->
-                        {% if job.documents %}
-                        <div class="mb-4 bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-                            <table class="w-full text-sm text-left text-gray-300">
-                                <thead class="text-xs text-gray-400 uppercase bg-gray-900 border-b border-gray-700">
-                                    <tr>
-                                        <th scope="col" class="px-4 py-3">Filename</th>
-                                        <th scope="col" class="px-4 py-3">Type</th>
-                                        <th scope="col" class="px-4 py-3">Date</th>
-                                        <th scope="col" class="px-4 py-3 text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for doc in job.documents %}
-                                    <tr class="border-b border-gray-700 hover:bg-gray-700">
-                                        <td class="px-4 py-3 font-medium text-white">{{ doc.filename }}</td>
-                                        <td class="px-4 py-3">{{ doc.file_type }}</td>
-                                        <td class="px-4 py-3">{{ doc.created_at[:16] }}</td>
-                                        <td class="px-4 py-3 text-right">
-                                            <a href="/api/office/jobs/{{ job.id }}/docs/download/{{ doc.id }}" target="_blank" class="text-blue-400 hover:text-blue-300">Download</a>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        {% endif %}
-
-                        <div class="mb-3">
-                            <label class="block text-sm text-gray-400 mb-1">Document Category</label>
-                            <select id="vault_category" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600">
-                                <option value="HOVER_REPORT">Hover / Measurement Report (Field Safe)</option>
-                                <option value="MEASUREMENT_REPORT">Measurement Report (EagleView or Hover) (Field Safe)</option>
-                                <option value="PHOTO">Job Photo (Field Safe)</option>
-                                <option value="MATERIAL_ORDER">Material Order (Office Only)</option>
-                                <option value="FINANCIAL_DOCUMENT">Financial Document (Office Only)</option>
-                                <option value="INTERNAL_NOTES">Internal Notes (Office Only)</option>
-                                <option value="OTHER">Other / Miscellaneous (Office Only)</option>
-                            </select>
-                        </div>
-
-                        <div id="dropZoneVault" class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 hover:bg-gray-700 transition-colors cursor-pointer group">
-                            <div class="text-gray-400 group-hover:text-gray-300">
-                                <p class="font-medium text-lg mb-1">📁 Upload Any Document</p>
-                                <p id="vaultFileName" class="text-sm text-blue-400 mt-2">Click or drag PDF, JPEG, PNG</p>
-                            </div>
-                            <input type="file" id="vault_input" accept=".pdf,.jpeg,.jpg,.png" class="hidden">
-                        </div>
-                    </div>
-
                     {% if role in ['admin', 'accounting', 'operations'] %}
                     <!-- Financials Section -->
-                    <div class="mt-6">
-                        <h3 class="text-md font-medium text-gray-300 mb-3">Financials</h3>
+                    <div class="mt-6 border-t border-gray-700 pt-6">
+                        <h3 class="text-lg font-bold text-white mb-3">💰 Financial Breakdown</h3>
                         <form id="financialsForm" class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
-                                <div><label class="block text-sm text-gray-400">Revenue</label><input type="number" id="fin_revenue" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
-                                <div><label class="block text-sm text-gray-400">Materials</label><input type="number" id="fin_materials" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
-                                <div><label class="block text-sm text-gray-400">Labor</label><input type="number" id="fin_labor" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
-                                <div><label class="block text-sm text-gray-400">Carrier RCV</label><input type="number" id="fin_carrier_rcv" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
-                                <div><label class="block text-sm text-gray-400">Deductible</label><input type="number" id="fin_deductible" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
-                                <div><label class="block text-sm text-gray-400">ACV Payment</label><input type="number" id="fin_acv_payment" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
-                                <div class="col-span-2"><label class="block text-sm text-gray-400">Recoverable Dep.</label><input type="number" id="fin_recoverable_depreciation" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">Revenue ($)</label><input type="number" id="fin_revenue" value="{{ "%.2f"|format(job.financials.revenue_cents / 100) if job.financials and job.financials.revenue_cents else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">Materials ($)</label><input type="number" id="fin_materials" value="{{ "%.2f"|format(job.financials.material_cost_cents / 100) if job.financials and job.financials.material_cost_cents else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">Labor ($)</label><input type="number" id="fin_labor" value="{{ "%.2f"|format(job.financials.labor_cost_cents / 100) if job.financials and job.financials.labor_cost_cents else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">Carrier RCV ($)</label><input type="number" id="fin_carrier_rcv" value="{{ "%.2f"|format(job.financials.carrier_rcv_cents / 100) if job.financials and job.financials.carrier_rcv_cents else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">Deductible ($)</label><input type="number" id="fin_deductible" value="{{ "%.2f"|format(job.financials.deductible_cents / 100) if job.financials and job.financials.deductible_cents else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">ACV Payment ($)</label><input type="number" id="fin_acv_payment" value="{{ "%.2f"|format(job.financials.acv_payment_cents / 100) if job.financials and job.financials.acv_payment_cents else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div class="col-span-2"><label class="block text-sm text-gray-400">Depreciation / Recoverable Dep. ($)</label><input type="number" id="fin_recoverable_depreciation" value="{{ "%.2f"|format((job.financials.recoverable_depreciation_cents or job.financials.depreciation_cents) / 100) if job.financials and (job.financials.recoverable_depreciation_cents or job.financials.depreciation_cents) else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
                             </div>
                             {% if role in ['admin', 'accounting'] %}
                             <button type="submit" class="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700">Save Financials</button>

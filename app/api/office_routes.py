@@ -325,26 +325,16 @@ async def upload_supplement_docs(
         if isinstance(e, HTTPException): raise
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Deduplication check
-    existing_ev = await asyncio.to_thread(get_job_document_by_hash, job_id, ev_hash)
-    existing_sol = await asyncio.to_thread(get_job_document_by_hash, job_id, sol_hash)
-    
-    if existing_ev and existing_sol:
-        logger.warning("idempotent_upload_prevented", job_id=job_id, sha256=ev_hash)
-        ev_path.unlink(missing_ok=True)
-        sol_path.unlink(missing_ok=True)
-        return {"status": "success", "message": "Duplicate files detected. Skipped enqueue."}
-
     try:
         ev_sha256 = ev_hash   # Already computed by stream_upload_safely
         sol_sha256 = sol_hash # Already computed by stream_upload_safely
         
-        # Insert them right away
+        # Insert or update documents in vault
         ev_doc_id = await asyncio.to_thread(
-            insert_job_document, job_id, ev_path.name, "EAGLEVIEW_PDF", str(ev_path), ev_sha256, "field_safe", "EAGLEVIEW_REPORT"
+            insert_job_document, job_id, ev_path.name, "EAGLEVIEW_PDF", str(ev_path), ev_sha256, "field_safe", "EAGLEVIEW_REPORT", True
         )
         sol_doc_id = await asyncio.to_thread(
-            insert_job_document, job_id, sol_path.name, "SOL_PDF", str(sol_path), sol_sha256, "office_only", "STATEMENT_OF_LOSS"
+            insert_job_document, job_id, sol_path.name, "SOL_PDF", str(sol_path), sol_sha256, "office_only", "STATEMENT_OF_LOSS", True
         )
 
         await request.app.state.redis_pool.enqueue_job(

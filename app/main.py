@@ -535,6 +535,10 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
     documents = await asyncio.to_thread(get_job_documents, job_id)
     job["documents"] = documents
 
+    from app.core.database import get_financials
+    financials = await asyncio.to_thread(get_financials, job_id)
+    job["financials"] = financials
+
     if job.get("damage_signals"):
         import json
         try:

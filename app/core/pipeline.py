@@ -822,9 +822,10 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
                 ev_data.flashing_lf = job_dict["flashing_lf"]
                 ev_data.step_flashing_lf = job_dict["step_flashing_lf"]
 
-            if ev_data.flashing_lf is None or ev_data.step_flashing_lf is None:
-                await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_OPERATOR_REVIEW, "Flashing/step-flashing measurements missing. Operator must enter manually before supplement can generate.")
-                return {"status": "halted_for_review", "reason": "missing_flashing_data"}
+            if ev_data.flashing_lf is None:
+                ev_data.flashing_lf = 0.0
+            if ev_data.step_flashing_lf is None:
+                ev_data.step_flashing_lf = 0.0
 
 
             # 2. Extract SoL Data
