@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0] - 2026-08-04
+### Added & Hardened
+- **Health Telemetry**: Expanded `/health` pre-flight check endpoint to report `app_env`, `db_path`, and git `commit_hash` for deployment visibility.
+- **Demo Reset Script**: Consolidated demo database reset tooling into `scripts/db_demo_reset.py` with foreign key safe deletion order, table truncation, physical attachment directory wiping, and single field rep ("Jerry Grubb") initialization.
+- **Path Traversal & IDOR Defenses**: Enforced `uuid.UUID` validation on all document/photo upload and download route parameters (`job_id`, `doc_id`) and sanitized file download attachment headers via `sanitize_download_filename()`.
+- **ARQ Worker Resilience**: Implemented automatic retry handling (`arq.worker.Retry`) for transient network/API timeouts in background workers, plus fail-loud database status writebacks (`PENDING_OPERATOR_REVIEW`, `INSPECTION_FAILED`) and error logging to `job_tasks`.
+
 ## [1.5.1] - 2026-08-02
 ### Added & Fixed
 - **Accounting Operations**: Added a 'Mark Paid' button to the accounting dashboard commissions table, seamlessly integrated with the backend endpoint to update readiness state.
