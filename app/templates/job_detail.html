@@ -220,15 +220,43 @@
                         </form>
                     </div>
 
-                    <!-- Download Section -->
-                    <div>
-                        <h3 class="text-md font-medium text-gray-300 mb-3">Artifacts</h3>
+                    <!-- Document Vault & Artifacts Section -->
+                    <div class="mt-6 border-t border-gray-700 pt-6">
+                        <h3 class="text-lg font-bold text-white mb-3 flex items-center justify-between">
+                            <span>📁 Document Vault</span>
+                            <span class="bg-blue-900 text-blue-300 text-xs px-2.5 py-1 rounded-full font-mono">{{ job.documents|length }} files</span>
+                        </h3>
+                        
+                        {% if job.documents %}
+                        <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden shadow-lg mb-6">
+                            <div class="divide-y divide-gray-700">
+                                {% for doc in job.documents %}
+                                <div class="p-3 flex items-center justify-between hover:bg-gray-750 transition">
+                                    <div class="flex items-center space-x-3 overflow-hidden">
+                                        <span class="text-xl">📄</span>
+                                        <div class="truncate">
+                                            <p class="text-sm font-semibold text-white truncate">{{ doc.filename }}</p>
+                                            <p class="text-xs text-gray-400">{{ doc.category or 'DOCUMENT' }} &bull; {{ doc.created_at[:16] if doc.created_at else '' }}</p>
+                                        </div>
+                                    </div>
+                                    <a href="/api/office/jobs/{{ job.id }}/docs/download/{{ doc.id }}" target="_blank" download class="ml-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded transition flex items-center space-x-1 shrink-0">
+                                        <span>⬇ Download</span>
+                                    </a>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <p class="text-gray-400 text-sm bg-gray-800/50 p-3 rounded border border-gray-700/50 mb-6">No documents stored in vault yet.</p>
+                        {% endif %}
+
+                        <h4 class="text-xs font-semibold uppercase text-gray-400 tracking-wider mb-2">On-Demand Actions & Generator Links</h4>
                         <div class="flex flex-col space-y-2">
-                            <a href="/api/office/download/INV-{{ job.id[:8].upper() }}_QBO.csv" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Download QBO CSV</a>
-                            <a href="/api/office/jobs/{{ job.id }}/docs/cancellation" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Notice of Cancellation (PDF)</a>
-                            <a href="/api/office/jobs/{{ job.id }}/evidence_grid" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition">Evidence Grid (PDF)</a>
-                            <button type="button" id="inspectionReportBtn" onclick="triggerInspectionReport('{{ job.id }}')" class="text-green-400 hover:text-green-300 border border-green-700 rounded p-2 text-center hover:bg-gray-700 transition font-semibold">
-                                Generate Homeowner Inspection Report
+                            <a href="/api/office/download/INV-{{ job.id[:8].upper() }}_QBO.csv" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition text-sm">Download QBO CSV</a>
+                            <a href="/api/office/jobs/{{ job.id }}/docs/cancellation" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition text-sm">Notice of Cancellation (PDF)</a>
+                            <a href="/api/office/jobs/{{ job.id }}/evidence_grid" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition text-sm">Evidence Grid (PDF)</a>
+                            <button type="button" id="inspectionReportBtn" onclick="triggerInspectionReport('{{ job.id }}')" class="text-green-400 hover:text-green-300 border border-green-700 rounded p-2 text-center hover:bg-gray-700 transition font-semibold text-sm">
+                                ⚡ Generate Homeowner Inspection Report
                             </button>
                         </div>
                     </div>
