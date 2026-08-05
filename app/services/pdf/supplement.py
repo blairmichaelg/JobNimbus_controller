@@ -222,15 +222,42 @@ class SupplementGenerator(PDFEngine):
                     safe_image_buffer = resize_for_pdf(photo_path, max_width=800)
                     img = Image(safe_image_buffer, width=275, height=180, kind='proportional')
 
-                    dmg_det = "Yes" if getattr(analysis, "damage_detected", True) else "No"
-                    dmg_type = str(getattr(analysis, "damage_type", "Storm Damage Observed")).replace("DamageType.", "").capitalize()
-                    severity = str(getattr(analysis, "severity", "Elevated")).replace("Severity.", "").capitalize()
-                    hail = "Yes" if getattr(analysis, "hail_hits_visible", True) else "No"
-                    creases = "Yes" if getattr(analysis, "crease_marks", True) else "No"
-                    granules = "Yes" if getattr(analysis, "granule_loss", True) else "No"
-                    fiberglass = "Yes" if getattr(analysis, "exposed_fiberglass", False) else "No"
-                    conf = getattr(analysis, "confidence", 0.95)
-                    conf_str = f"{conf * 100:.1f}%" if isinstance(conf, (int, float)) else str(conf)
+                    has_ai = analysis is not None and (
+                        getattr(analysis, "damage_type", None) is not None or 
+                        getattr(analysis, "confidence", None) is not None
+                    )
+
+                    if has_ai:
+                        dmg_det = "Yes" if getattr(analysis, "damage_detected", False) else "No"
+                        raw_type = str(getattr(analysis, "damage_type", "Observed")).replace("DamageType.", "").capitalize()
+                        dmg_type = raw_type
+                        raw_sev = str(getattr(analysis, "severity", "Moderate")).replace("Severity.", "").capitalize()
+                        severity = raw_sev
+                        hail = "Yes" if getattr(analysis, "hail_hits_visible", False) else "No"
+                        creases = "Yes" if getattr(analysis, "crease_marks", False) else "No"
+                        granules = "Yes" if getattr(analysis, "granule_loss", False) else "No"
+                        fiberglass = "Yes" if getattr(analysis, "exposed_fiberglass", False) else "No"
+                        conf = getattr(analysis, "confidence", None)
+                        conf_str = f"{conf * 100:.1f}%" if isinstance(conf, (int, float)) else "Verified"
+                        
+                        note_text = (
+                            "<b>Objective Forensic Note:</b> AI Vision analysis detected structural anomaly "
+                            f"({dmg_type}, {severity} severity). Documented for carrier loss adjustment."
+                        )
+                    else:
+                        dmg_det = "Pending Audit"
+                        dmg_type = "Field Inspection Photo"
+                        severity = "Unclassified"
+                        hail = "N/A"
+                        creases = "N/A"
+                        granules = "N/A"
+                        fiberglass = "N/A"
+                        conf_str = "N/A (Recorded)"
+                        
+                        note_text = (
+                            "<b>Objective Forensic Note:</b> Field inspection photo recorded on site during physical property inspection. "
+                            "Ingested into claim file; awaiting automated vision audit."
+                        )
 
                     data_rows = [
                         ["Forensic Metric", "Result / Assessment"],
@@ -258,11 +285,6 @@ class SupplementGenerator(PDFEngine):
                         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
                     ]))
 
-                    note_text = (
-                        "<b>Objective Forensic Note:</b> Photographic evidence verifies localized storm impact "
-                        "consistent with severe weather events. Documented for line-item loss adjustment "
-                        "and IRC building code compliance."
-                    )
                     note_para = Paragraph(note_text, body_style)
                     note_table = Table([[note_para]], colWidths=[235])
                     note_table.setStyle(TableStyle([
