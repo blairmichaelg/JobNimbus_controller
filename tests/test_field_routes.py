@@ -100,8 +100,17 @@ def test_create_new_job_lead_intake():
 
 def test_upload_field_photo():
     """POST /api/field/jobs/{id}/photos should save the photo."""
-    file_content = b"\xFF\xD8\xFFfake_jpeg_content"
+    from app.core.database import get_connection
+    conn = get_connection()
     job_id = "99999999-9999-9999-9999-999999999901"
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (job_id, "Test Homeowner", "123 Test St", "City", "State", "00000", "555-5555")
+    )
+    conn.commit()
+    conn.close()
+
+    file_content = b"\xFF\xD8\xFFfake_jpeg_content"
     
     response = client.post(
         f"/api/field/jobs/{job_id}/photos",

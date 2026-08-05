@@ -218,7 +218,7 @@ async def upload_field_photo(job_id: str, request: Request, file: UploadFile = F
     file_path = job_dir / safe_name
 
     try:
-        await stream_upload_safely(
+        file_hash = await stream_upload_safely(
             file, 
             file_path, 
             max_bytes=15 * 1024 * 1024, 
@@ -226,6 +226,20 @@ async def upload_field_photo(job_id: str, request: Request, file: UploadFile = F
         )
         logger.info("field_photo_uploaded", job_id=job_id, filename=safe_name, size=getattr(file, "size", 0))
         
+        # Register photo in document vault immediately upon upload
+        from app.core.database import insert_job_document
+        await asyncio.to_thread(
+            insert_job_document,
+            job_id,
+            safe_name,
+            file.content_type or "image/jpeg",
+            str(file_path),
+            file_hash,
+            "field_safe",
+            "INSPECTION_PHOTO",
+            False
+        )
+
         # Trigger ARQ background damage analysis (Phase 1)
         redis = getattr(request.app.state, "redis_pool", None)
         if redis:
