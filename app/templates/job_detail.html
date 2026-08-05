@@ -319,33 +319,66 @@
                             </button>
                         </div>
                     </div>
-                    {% if job.status == 'SUPPLEMENT_GENERATED' %}
-                    <div class="mt-6 p-4 bg-blue-950 border border-blue-700
-                                rounded-lg">
-                        <h3 class="text-blue-300 font-bold mb-3">
-                            Supplement Ready for Transmission
-                        </h3>
-                        <p class="text-gray-400 text-sm mb-4">
-                            Download the PDF and send from your email client.
-                            Click below to mark it as sent and start the
-                            carrier follow-up timer.
+                    <!-- Supplement Action Controls (Always accessible to manage workflow) -->
+                    <div class="mt-6 p-5 bg-gray-800 border border-purple-800/60 rounded-xl shadow-xl space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-purple-300 font-bold text-lg flex items-center gap-2">
+                                <span>⚡</span> Supplement & Carrier SLA Orchestration
+                            </h3>
+                            <span class="text-xs bg-purple-900/80 text-purple-200 px-3 py-1 rounded-full font-mono font-semibold">
+                                {{ job.status }}
+                            </span>
+                        </div>
+                        <p class="text-gray-400 text-sm">
+                            Generate the automated AI supplement breakdown, download existing reports, or mark as sent to initiate the 14-day carrier SLA response timer.
                         </p>
-                        <div class="flex gap-3">
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                            <button onclick="triggerSupplementGen('{{ job.id }}')"
+                                    id="genSuppBtn"
+                                    class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow">
+                                <span>⚡</span>
+                                <span>Generate Supplement</span>
+                            </button>
+
                             <a href="/api/office/jobs/{{ job.id }}/supplement/download"
-                               class="flex-1 bg-blue-600 hover:bg-blue-500 text-white
-                                      font-bold py-3 rounded-lg text-center
-                                      transition-colors">
-                                ⬇ Download Supplement PDF
+                               class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow text-center">
+                                <span>⬇</span>
+                                <span>Download PDF</span>
                             </a>
+
                             <button onclick="markSent('{{ job.id }}')"
                                     id="markSentBtn"
-                                    class="flex-1 bg-green-700 hover:bg-green-600
-                                           text-white font-bold py-3 rounded-lg
-                                           transition-colors">
-                                ✓ Mark as Sent → Start Timer
+                                    class="{% if job.supplement_sent_at %}bg-gray-700 text-gray-400 cursor-not-allowed{% else %}bg-emerald-600 hover:bg-emerald-500 text-white{% endif %} font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow"
+                                    {% if job.supplement_sent_at %}disabled{% endif %}>
+                                <span>⏱️</span>
+                                <span>{% if job.supplement_sent_at %}✓ Sent (Timer Active){% else %}Mark Sent → Start Timer{% endif %}</span>
                             </button>
                         </div>
+                        
                         <script>
+                        async function triggerSupplementGen(jobId) {
+                            const btn = document.getElementById('genSuppBtn');
+                            btn.disabled = true;
+                            btn.innerHTML = '⚡ Processing...';
+                            try {
+                                const resp = await fetch(`/api/office/jobs/${jobId}/trigger-supplement`, {method: 'POST'});
+                                if (resp.ok) {
+                                    btn.innerHTML = '✓ Pipeline Queued';
+                                    setTimeout(() => window.location.reload(), 1500);
+                                } else {
+                                    const data = await resp.json();
+                                    alert('Failed to generate supplement: ' + (data.detail || 'Unknown error'));
+                                    btn.disabled = false;
+                                    btn.innerHTML = '⚡ Generate Supplement';
+                                }
+                            } catch (e) {
+                                alert('Network error triggering supplement');
+                                btn.disabled = false;
+                                btn.innerHTML = '⚡ Generate Supplement';
+                            }
+                        }
+
                         async function markSent(jobId) {
                             const btn = document.getElementById('markSentBtn');
                             btn.disabled = true;
@@ -357,8 +390,7 @@
                             if (resp.ok) {
                                 btn.textContent = '✓ Sent — Timer Started';
                                 btn.className =
-                                    'flex-1 bg-gray-700 text-gray-400 font-bold ' +
-                                    'py-3 rounded-lg cursor-not-allowed';
+                                    'bg-gray-700 text-gray-400 font-bold py-3 px-4 rounded-lg cursor-not-allowed flex items-center justify-center gap-2';
                                 setTimeout(() => window.location.reload(), 1200);
                             } else {
                                 btn.disabled = false;
@@ -367,7 +399,6 @@
                         }
                         </script>
                     </div>
-                    {% endif %}
 
                     {% if job.status == 'AWAITING_CARRIER_RESPONSE' %}
                     <div class="mt-4 p-4 bg-gray-800 border border-gray-700

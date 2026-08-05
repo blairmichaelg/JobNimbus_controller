@@ -1116,19 +1116,36 @@ async def admin_triage_resolve(request: Request, job_id: str, payload: dict = Bo
     return {"status": "queued", "job_id": job_id}
 
 @router.post(
+    "/jobs/{job_id}/trigger-supplement",
+    response_class=JSONResponse,
+    dependencies=[Depends(verify_office_role)]
+)
+async def trigger_supplement_route(request: Request, job_id: str, role: str = Depends(verify_office_role)):
+    """Manually trigger or regenerate supplement pipeline for a job."""
+    from app.core.pipeline import run_supplement_pipeline
+    try:
+        if hasattr(request.app.state, "redis_pool") and request.app.state.redis_pool:
+            await request.app.state.redis_pool.enqueue_job(
+                "process_supplement_event",
+                job_id=job_id,
+                resume=True,
+                generate_pdf=True,
+                role=role
+            )
+        else:
+            await asyncio.to_thread(run_supplement_pipeline, job_id, None, None, True, True, role)
+        return {"status": "success", "message": "Supplement processing triggered."}
+    except Exception as e:
+        logger.error("trigger_supplement_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post(
     "/jobs/{job_id}/mark-supplement-sent",
-    response_class=JSONResponse
-, dependencies=[Depends(verify_admin)])
+    response_class=JSONResponse,
+    dependencies=[Depends(verify_office_role)]
+)
 async def mark_supplement_sent_route(job_id: str):
-    """
-    Mark Supplement Sent Route functionality.
-    
-    Args:
-            job_id (str): job_id parameter.
-    
-    Returns:
-        Any: The resulting output.
-    """
+    """Mark Supplement Sent and start carrier SLA timer."""
     from app.core.database import mark_supplement_sent
     mark_supplement_sent(job_id)
     return {"status": "ok", "job_id": job_id}
