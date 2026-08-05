@@ -18,6 +18,7 @@ from datetime import datetime
 from PIL import Image
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Request, BackgroundTasks
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.config import FIELD_DOCS_DIR
@@ -76,6 +77,16 @@ class RetailContractSignaturePayload(BaseModel):
     total_price: float
     deposit_amount: float
     scope_description: str
+
+
+class FieldClaimInfoPayload(BaseModel):
+    claim_number: str | None = None
+    insurer_name: str | None = None
+    loss_date: str | None = None
+    policy_number: str | None = None
+    adjuster_name: str | None = None
+    adjuster_phone: str | None = None
+    adjuster_email: str | None = None
 
 
 class FlagResolutionPayload(BaseModel):
@@ -511,6 +522,71 @@ async def resolve_flag(job_id: str, flag_id: str, payload: FlagResolutionPayload
     await asyncio.to_thread(_sync_resolve_flag, job_id, flag_id, payload)
         
     return {"status": "success", "flag_id": flag_id, "message": "Flag resolved successfully."}
+
+
+@router.patch("/jobs/{job_id}/claim-info", status_code=200)
+async def update_field_claim_info(job_id: str, payload: FieldClaimInfoPayload, claims: dict = Depends(get_current_claims)):
+    """
+    Allow field reps/salesmen to update claim metadata (insurer, claim #, loss date, policy #, etc.)
+    for jobs they own.
+    """
+    assert_field_rep_owns_job(claims, job_id)
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
+    from app.core.database import update_job_claim_info
+    try:
+        res = await asyncio.to_thread(
+            update_job_claim_info,
+            job_id=job_id,
+            claim_number=payload.claim_number,
+            insurer_name=payload.insurer_name,
+            loss_date=payload.loss_date,
+            policy_number=payload.policy_number,
+            adjuster_name=payload.adjuster_name,
+            adjuster_phone=payload.adjuster_phone,
+            adjuster_email=payload.adjuster_email,
+        )
+        return res
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        logger.error("field_claim_info_update_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to update claim metadata")
+
+
+@router.get("/jobs/{job_id}/inspection_report")
+@router.post("/jobs/{job_id}/generate_report")
+async def get_field_inspection_report(job_id: str, claims: dict = Depends(get_current_claims)):
+    """
+    Generate and download the Homeowner Inspection Report directly in the field app/tablet.
+    Can be used by salesmen as a pitch & conversion tool BEFORE signing the contingency agreement.
+    """
+    assert_field_rep_owns_job(claims, job_id)
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
+    try:
+        from app.services.pdf.inspection_report import InspectionReportGenerator
+        summary_job = await get_inspection_summary(job_id)
+        
+        if not summary_job.photos:
+            raise HTTPException(status_code=404, detail="No photos uploaded for this job yet.")
+
+        report_gen = InspectionReportGenerator()
+        pdf_path = await report_gen.generate_homeowner_report(summary_job)
+        
+        filename = Path(pdf_path).name
+        return FileResponse(path=pdf_path, filename=filename, media_type="application/pdf")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("field_inspection_report_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to generate Inspection Report")
 
 
 def _sync_fetch_job_contingency(job_id: str):

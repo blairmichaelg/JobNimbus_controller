@@ -493,3 +493,48 @@ def test_field_access_enforcement():
     response = admin_client.get(f"/api/field/jobs/{job_id_b}/documents")
     assert response.status_code == 200
 
+
+def test_field_claim_info_update():
+    from app.core.database import get_connection
+    from app.main import app
+    from fastapi.testclient import TestClient
+    import uuid
+
+    job_id = str(uuid.uuid4())
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (job_id, "Test Homeowner", "123 Main St", "City", "ST", "12345", "555-0000")
+    )
+    conn.commit()
+    conn.close()
+
+    client = TestClient(app)
+    resp = client.post("/auth/login", data={"pin": "9999", "redirect_url": "/"}, follow_redirects=False)
+    client.cookies.set("auth_token", resp.cookies.get("auth_token"))
+
+    payload = {
+        "claim_number": "CLM-12345",
+        "insurer_name": "State Farm",
+        "loss_date": "2026-05-15",
+        "policy_number": "POL-9999",
+        "adjuster_name": "John Adjuster"
+    }
+
+    res = client.patch(f"/api/field/jobs/{job_id}/claim-info", json=payload)
+    assert res.status_code == 200
+    assert res.json()["status"] == "success"
+
+    conn = get_connection()
+    row = conn.execute("SELECT claim_number, insurer_name, policy_type, adjuster_name FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    assert row["claim_number"] == "CLM-12345"
+    assert row["insurer_name"] == "State Farm"
+    assert row["policy_type"] == "POL-9999"
+    assert row["adjuster_name"] == "John Adjuster"
+
+    sv_row = conn.execute("SELECT loss_date FROM storm_verifications WHERE job_id = ?", (job_id,)).fetchone()
+    assert sv_row is not None
+    assert sv_row["loss_date"] == "2026-05-15"
+    conn.close()
+
+

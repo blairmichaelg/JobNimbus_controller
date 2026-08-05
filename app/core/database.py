@@ -1386,3 +1386,65 @@ def update_field_rep(
         raise ValueError("PIN is already in use.")
     finally:
         conn.close()
+
+
+def update_job_claim_info(
+    job_id: str,
+    claim_number: str | None = None,
+    insurer_name: str | None = None,
+    loss_date: str | None = None,
+    policy_number: str | None = None,
+    adjuster_name: str | None = None,
+    adjuster_phone: str | None = None,
+    adjuster_email: str | None = None,
+) -> dict:
+    """
+    Update insurance claim metadata on a job record.
+    Supports updates at any point by office staff or field reps.
+    """
+    import uuid
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        updates: dict[str, str] = {}
+        if claim_number is not None:
+            updates["claim_number"] = claim_number.strip()
+        if insurer_name is not None:
+            updates["insurer_name"] = insurer_name.strip()
+        if policy_number is not None:
+            updates["policy_type"] = policy_number.strip()
+        if adjuster_name is not None:
+            updates["adjuster_name"] = adjuster_name.strip()
+        if adjuster_phone is not None:
+            updates["adjuster_phone"] = adjuster_phone.strip()
+        if adjuster_email is not None:
+            updates["adjuster_email"] = adjuster_email.strip()
+
+        if updates:
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            values = list(updates.values()) + [job_id]
+            cursor = conn.execute(f"UPDATE jobs SET {set_clause} WHERE id = ?", values)
+            if cursor.rowcount == 0:
+                conn.execute("ROLLBACK")
+                raise ValueError("Job not found")
+
+        if loss_date and loss_date.strip():
+            cursor = conn.execute("SELECT id FROM storm_verifications WHERE job_id = ?", (job_id,))
+            row = cursor.fetchone()
+            if row:
+                conn.execute("UPDATE storm_verifications SET loss_date = ? WHERE job_id = ?", (loss_date.strip(), job_id))
+            else:
+                sv_id = str(uuid.uuid4())
+                conn.execute('''
+                    INSERT INTO storm_verifications (id, job_id, loss_date, event_type, begin_lat, begin_lon, match_confidence)
+                    VALUES (?, ?, ?, 'Unknown', 0.0, 0.0, 'Pending')
+                ''', (sv_id, job_id, loss_date.strip()))
+
+        conn.execute("COMMIT")
+        return {"status": "success", "job_id": job_id}
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.close()
+

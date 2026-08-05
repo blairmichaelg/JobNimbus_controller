@@ -84,6 +84,10 @@ class JobClaimInfoPayload(BaseModel):
     claim_number: str | None = None
     insurer_name: str | None = None
     loss_date: str | None = None  # ISO date string
+    policy_number: str | None = None
+    adjuster_name: str | None = None
+    adjuster_phone: str | None = None
+    adjuster_email: str | None = None
 
 class ManualFlashingPayload(BaseModel):
     """ManualFlashingPayload definition."""
@@ -516,42 +520,63 @@ async def upload_job_document(job_id: str, file_type: str = Form(...), file: Upl
         logger.error("job_document_upload_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to save document")
 
-@router.get("/jobs/{job_id}/docs/inspection_letter", dependencies=[Depends(verify_admin)])
-async def get_inspection_letter(job_id: str):
+@router.patch("/jobs/{job_id}/claim-info", dependencies=[Depends(verify_admin)])
+async def update_claim_info_route(job_id: str, payload: JobClaimInfoPayload):
     """
-    Get Inspection Letter functionality.
-    
-    Args:
-            job_id (str): job_id parameter.
-    
-    Returns:
-        Any: The resulting output.
+    Update insurance claim metadata (insurer, claim #, loss date, policy #, adjuster info)
+    for a job at any point in time.
     """
     try:
         job_id = str(uuid.UUID(job_id))
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid job_id format.")
-    job = await asyncio.to_thread(_fetch_job_sync, job_id)
-    
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
 
-    job_dir = FIELD_DOCS_DIR / job_id
-    ev_pdf = job_dir / "eagleview.pdf"
-    if not ev_pdf.exists():
-        raise HTTPException(400, "EagleView not yet uploaded. Cannot generate letter.")
-        
-    ev_data_obj, _ = await parse_measurement_pdf(ev_pdf)
-    ev_data = ev_data_obj.model_dump() if hasattr(ev_data_obj, 'model_dump') else dict(ev_data_obj)
-
-    inspection_summary = {"damage_count": 0, "predominant_damage_type": "None", "severity": "Low"}
-    if job.get("inspection_notes"):
-        inspection_summary["severity"] = str(job["inspection_notes"])
-    
-    gen = PDFGenerator()
+    from app.core.database import update_job_claim_info
     try:
-        pdf_path = await gen.generate_inspection_letter(job, ev_data, inspection_summary)
-        return FileResponse(path=pdf_path, filename="Inspection_Letter.pdf", media_type="application/pdf")
+        res = await asyncio.to_thread(
+            update_job_claim_info,
+            job_id=job_id,
+            claim_number=payload.claim_number,
+            insurer_name=payload.insurer_name,
+            loss_date=payload.loss_date,
+            policy_number=payload.policy_number,
+            adjuster_name=payload.adjuster_name,
+            adjuster_phone=payload.adjuster_phone,
+            adjuster_email=payload.adjuster_email,
+        )
+        return res
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        logger.error("claim_info_update_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to update claim metadata")
+
+
+@router.get("/jobs/{job_id}/docs/inspection_letter", dependencies=[Depends(verify_admin)])
+async def get_inspection_letter(job_id: str):
+    """
+    Generate and download the Homeowner Inspection Report PDF based on field photo analysis.
+    Does NOT require EagleView measurement data.
+    """
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
+    try:
+        from app.services.pdf.inspection_report import InspectionReportGenerator
+        summary_job = await get_inspection_summary(job_id)
+        
+        if not summary_job.photos:
+            raise HTTPException(status_code=404, detail="No photos uploaded for this job yet.")
+
+        report_gen = InspectionReportGenerator()
+        pdf_path = await report_gen.generate_homeowner_report(summary_job)
+        
+        filename = Path(pdf_path).name
+        return FileResponse(path=pdf_path, filename=filename, media_type="application/pdf")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("inspection_letter_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to generate Inspection Letter")
