@@ -631,7 +631,34 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
                 "SELECT * FROM storm_events WHERE zipcode = ? ORDER BY event_date DESC LIMIT 5",
                 (job["postal_code"],)
             )
-            storm_events = [dict(r) for r in cursor.fetchall()]
+            raw_events = [dict(r) for r in cursor.fetchall()]
+            for e in raw_events:
+                raw_type = str(e.get("event_type", "")).upper()
+                hail = e.get("hail_size_inches") or 0.0
+                wind = e.get("wind_speed_mph") or 0.0
+
+                if "HAIL" in raw_type or hail > 0:
+                    label = "Hail Event"
+                    metric = f"{hail:.2f}\" Hail" if hail > 0 else "Hail Verified"
+                    badge_class = "bg-amber-900/80 text-amber-300 border-amber-600"
+                    category = "HAIL"
+                elif "GST" in raw_type:
+                    label = "Severe Wind Gust"
+                    metric = f"{wind:.0f} mph Gust" if wind > 0 else "Severe Gust"
+                    badge_class = "bg-blue-900/80 text-blue-300 border-blue-600"
+                    category = "WIND_GUST"
+                else:
+                    label = "Thunderstorm Wind Damage"
+                    metric = f"{wind:.0f} mph Wind" if wind > 0 else "Wind Damage"
+                    badge_class = "bg-red-900/80 text-red-300 border-red-600"
+                    category = "WIND_DAMAGE"
+
+                e["display_label"] = label
+                e["display_metric"] = metric
+                e["badge_class"] = badge_class
+                e["category"] = category
+                e["formatted_date"] = str(e.get("event_date", ""))[:10]
+                storm_events.append(e)
         finally:
             conn.close()
 

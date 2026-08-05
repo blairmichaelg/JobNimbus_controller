@@ -827,10 +827,35 @@ async def get_zip_storms(zipcode: str, role: str = Depends(verify_field)):
     conn = get_connection()
     try:
         cursor = conn.execute(
-            "SELECT event_date, event_type, hail_size_inches, wind_speed_mph, severity_score FROM storm_events WHERE zipcode = ? ORDER BY event_date DESC LIMIT 5",
+            "SELECT event_date, event_type, hail_size_inches, wind_speed_mph FROM storm_events WHERE zipcode = ? ORDER BY event_date DESC LIMIT 5",
             (zipcode.strip(),)
         )
-        return [dict(r) for r in cursor.fetchall()]
+        raw_events = [dict(r) for r in cursor.fetchall()]
+        formatted_events = []
+        for e in raw_events:
+            raw_type = str(e.get("event_type", "")).upper()
+            hail = e.get("hail_size_inches") or 0.0
+            wind = e.get("wind_speed_mph") or 0.0
+
+            if "HAIL" in raw_type or hail > 0:
+                label = "Hail Event"
+                metric = f"{hail:.2f}\" Hail" if hail > 0 else "Hail Verified"
+                badge_class = "bg-amber-900/80 text-amber-300 border-amber-600"
+            elif "GST" in raw_type:
+                label = "Severe Wind Gust"
+                metric = f"{wind:.0f} mph Gust" if wind > 0 else "Severe Gust"
+                badge_class = "bg-blue-900/80 text-blue-300 border-blue-600"
+            else:
+                label = "Thunderstorm Wind Damage"
+                metric = f"{wind:.0f} mph Wind" if wind > 0 else "Wind Damage"
+                badge_class = "bg-red-900/80 text-red-300 border-red-600"
+
+            e["display_label"] = label
+            e["display_metric"] = metric
+            e["badge_class"] = badge_class
+            e["formatted_date"] = str(e.get("event_date", ""))[:10]
+            formatted_events.append(e)
+        return formatted_events
     finally:
         conn.close()
 
