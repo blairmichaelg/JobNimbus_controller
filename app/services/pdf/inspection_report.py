@@ -64,41 +64,43 @@ def _find_analysis_for_photo(photo, analyses: list, idx: int):
     return None
 
 
-def _get_contextual_fallback_caption(photo_name: str, fig_num: int) -> str:
+def _get_objective_photo_caption(photo_name: str, fig_num: int) -> str:
     """
-    Generate an accurate, professional fallback caption based on photo filename context.
-    Never asserts localized damage (like split pipe boots) unless filename hints indicate it.
+    Generate a clean, professional, 100% factual photo label for the inspection report.
+    Scraps speculative AI narratives to ensure zero hallucinations and absolute clarity.
+    The chalked physical damage and roof condition speak for themselves during the adjuster walk.
     """
     lower = photo_name.lower()
     if any(k in lower for k in ["boot", "pipe", "vent"]):
-        return f"<b>Fig {fig_num}:</b> Inspection detail of pipe vent boot flashing and rubber seal collar."
+        desc = "Pipe Vent Flashing Detail"
     elif any(k in lower for k in ["valley", "w-valley"]):
-        return f"<b>Fig {fig_num}:</b> Field inspection view of roof valley metal and shingle course overlap."
+        desc = "Roof Valley & Drainage View"
     elif any(k in lower for k in ["eave", "gutter", "drip"]):
-        return f"<b>Fig {fig_num}:</b> Inspection detail along the eave edge and perimeter flashing."
+        desc = "Eave Line & Perimeter Flashing"
     elif any(k in lower for k in ["ridge", "hip", "cap"]):
-        return f"<b>Fig {fig_num}:</b> Ridge cap shingle alignment and capping course detail."
+        desc = "Ridge Cap & Shingle Alignment"
     elif any(k in lower for k in ["elevation", "house", "front", "rear", "left", "right"]):
-        return f"<b>Fig {fig_num}:</b> Overall elevation photo documenting property roof structure."
+        desc = "Property Elevation & Roof Structure"
     elif any(k in lower for k in ["damage", "hail", "wind", "crease", "torn", "missing"]):
-        return f"<b>Fig {fig_num}:</b> Documented shingle surface condition showing localized wear and impact markings."
+        desc = "Documented Shingle Inspection Detail"
     else:
-        return f"<b>Fig {fig_num}:</b> Photographic inspection record documenting roof slope condition."
+        desc = f"Roof Assessment & Photo Record {fig_num:02d}"
+
+    return f"<b>Figure {fig_num}:</b> Field Inspection Photo &bull; {desc}"
 
 
 class InspectionReportGenerator(PDFEngine):
 
     async def generate_homeowner_report(self, job: InspectionJob) -> str:
         """
-        Generate homeowner-facing inspection report PDF.
+        Generate homeowner-facing inspection report PDF with clean, standardized filename.
         Returns the absolute path to the saved PDF file.
         """
         job_id = job.job_id
         out_dir = Path(FIELD_DOCS_DIR) / job_id
         out_dir.mkdir(parents=True, exist_ok=True)
-        filepath = str(out_dir / "inspection_report_homeowner.pdf")
 
-        # Fetch extra details from DB (e.g. homeowner name, inspector name, full address)
+        # Fetch extra details from DB (homeowner name, inspector name, full address)
         homeowner_name = "Homeowner"
         inspector_name = job.inspector_name or "Jerry Grubb"
         full_address = job.property_address
@@ -121,6 +123,25 @@ class InspectionReportGenerator(PDFEngine):
             logger.warning("failed_to_fetch_job_db_info_for_pdf", error=str(err))
         finally:
             conn.close()
+
+        # Generate clean standardized filename: [LastName]_[Street]_Homeowner_Inspection_Report.pdf
+        homeowner_last = ""
+        street_clean = ""
+        if homeowner_name and homeowner_name != "Homeowner":
+            parts = homeowner_name.strip().split()
+            homeowner_last = parts[-1] if parts else ""
+        if full_address:
+            first_part = full_address.split(",")[0].strip()
+            street_clean = "_".join(first_part.replace(".", "").replace(",", "").split()[:3])
+
+        if homeowner_last and street_clean:
+            report_filename = f"{homeowner_last}_{street_clean}_Homeowner_Inspection_Report.pdf"
+        elif homeowner_last:
+            report_filename = f"{homeowner_last}_Homeowner_Inspection_Report.pdf"
+        else:
+            report_filename = f"Homeowner_Inspection_Report_{job_id[:8]}.pdf"
+
+        filepath = str(out_dir / report_filename)
 
         def build_pdf():
             doc = self._get_doc_template(filepath, job_id=job_id, doc_type="HOMEOWNER_INSPECTION_REPORT")
@@ -230,43 +251,29 @@ class InspectionReportGenerator(PDFEngine):
             story.append(Paragraph("1. Introduction & Executive Summary", style_heading))
             intro_p1 = (
                 f"On behalf of Wickham Roofing, an initial roof inspection was performed at {full_address}. "
-                "The purpose of this inspection was to assess the overall condition of the roofing system "
-                "and identify any storm-related damage, component failures, or maintenance concerns that "
-                "may affect the roof's structural integrity and water-shedding capabilities."
+                "The purpose of this inspection was to assess the overall condition of the roofing system, "
+                "document existing roof components, and provide photographic evidence to the homeowner for property records."
             )
             intro_p2 = (
-                f"During the inspection, our field expert, {disp_inspector}, conducted a thorough assessment of all slopes, "
-                "flashings, and roof penetrations. The key observations and photographic evidence are compiled below."
+                f"During the assessment, our field inspector, {disp_inspector}, evaluated all visible roof slopes, "
+                "perimeter flashings, and penetrations. The documented photographic record is compiled below."
             )
             story.append(Paragraph(intro_p1, style_body))
             story.append(Spacer(1, 0.03 * inch))
             story.append(Paragraph(intro_p2, style_body))
             story.append(Spacer(1, 0.05 * inch))
 
-            # ── 4. SECTION 2: DETAILED FINDINGS ──────────────────────────────
-            story.append(Paragraph("2. Detailed Findings", style_heading))
-            story.append(Paragraph("The following specific conditions were documented and photographed during the assessment:", style_body))
+            # ── 4. SECTION 2: SCOPE OF INSPECTION ────────────────────────────
+            story.append(Paragraph("2. Scope of Inspection", style_heading))
+            story.append(Paragraph("The following key areas were visually inspected and documented during the site visit:", style_body))
             story.append(Spacer(1, 0.03 * inch))
 
-            findings = []
-            if job.analyses:
-                has_wind = any(getattr(a, "crease_marks", False) or getattr(a, "damage_type", None) == "wind" for a in job.analyses)
-                has_hail = any(getattr(a, "hail_hits_visible", False) or getattr(a, "granule_loss", False) or getattr(a, "damage_type", None) == "hail" for a in job.analyses)
-                has_boot = any("boot" in getattr(a, "forensic_narrative", "").lower() or "pipe" in getattr(a, "forensic_narrative", "").lower() for a in job.analyses)
-
-                if has_wind:
-                    findings.append(("Wind Damage", "Observed shingle creasing and lifting caused by high-velocity wind uplift across vulnerable slopes."))
-                if has_hail:
-                    findings.append(("Impact & Granule Loss", "Concentrated granule displacement and shingle mat bruising indicative of storm impact."))
-                if has_boot:
-                    findings.append(("Component Failure", "Neoprene pipe boot flashing deterioration presenting immediate bulk water leak risks."))
-
-            if not findings:
-                findings = [
-                    ("Roofing Condition Assessment", "Evaluation of asphalt shingle courses, slope alignment, and weatherproofing integrity."),
-                    ("Component Integrity", "Inspection of perimeter flashings, vent boots, eaves, and drainage valleys."),
-                    ("Weatherization Review", "Audit of granular adhesion, seal strip bonding, and potential moisture intrusion areas."),
-                ]
+            findings = [
+                ("Shingle Courses & Field Slopes", "Visual evaluation of asphalt shingle alignment, surface condition, and weatherproofing integrity across all elevations."),
+                ("Roof Penetrations & Pipe Boots", "Inspection of plumbing vent boots, exhaust caps, and secondary pipe flashing seals."),
+                ("Perimeter & Flashing Details", "Assessment of eave metal, drip edges, sidewall flashings, and valley drainage channels."),
+                ("Photographic Documentation", "High-resolution photo evidence captured for homeowner records and insurance verification."),
+            ]
 
             for title, desc in findings:
                 bullet_item = f"&bull; <b>{title}:</b> {desc}"
@@ -283,8 +290,6 @@ class InspectionReportGenerator(PDFEngine):
             photo_cells = []
 
             for idx, photo in enumerate(job.photos):
-                analysis = _find_analysis_for_photo(photo, job.analyses, idx)
-                
                 # Resize image for PDF
                 try:
                     from app.workers.inspection_processor import resize_for_pdf
@@ -294,13 +299,9 @@ class InspectionReportGenerator(PDFEngine):
                     logger.warning("photo_resize_failed", photo=photo.filepath.name, error=str(e))
                     continue
 
-                # Determine caption text
+                # Objective, non-speculative photo captioning
                 fig_num = idx + 1
-                if analysis and getattr(analysis, "forensic_narrative", None) and len(analysis.forensic_narrative) > 10:
-                    caption_text = f"<b>Fig {fig_num}:</b> {analysis.forensic_narrative}"
-                else:
-                    caption_text = _get_contextual_fallback_caption(photo.filepath.name, fig_num)
-
+                caption_text = _get_objective_photo_caption(photo.filepath.name, fig_num)
                 caption_para = Paragraph(caption_text, style_caption)
 
                 cell_table = Table([[rl_img], [Spacer(1, 4)], [caption_para]], colWidths=[3.2 * inch])

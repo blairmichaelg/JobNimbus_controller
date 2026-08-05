@@ -707,9 +707,9 @@ def standardize_existing_job_documents(job_id: str | None = None):
     conn = get_connection()
     try:
         if job_id:
-            docs = conn.execute("SELECT id, job_id, filename, file_type, category FROM job_documents WHERE job_id = ? ORDER BY created_at ASC", (job_id,)).fetchall()
+            docs = conn.execute("SELECT id, job_id, filename, file_type, category FROM job_documents WHERE job_id = ? ORDER BY created_at ASC, rowid ASC", (job_id,)).fetchall()
         else:
-            docs = conn.execute("SELECT id, job_id, filename, file_type, category FROM job_documents ORDER BY created_at ASC").fetchall()
+            docs = conn.execute("SELECT id, job_id, filename, file_type, category FROM job_documents ORDER BY created_at ASC, rowid ASC").fetchall()
         
         photo_counters = {}
         for d in docs:
@@ -739,7 +739,10 @@ def insert_job_document(job_id: str, filename: str, file_type: str, storage_path
     try:
         conn.execute("BEGIN IMMEDIATE")
         if replace_existing:
-            conn.execute("DELETE FROM job_documents WHERE job_id = ? AND filename = ?", (job_id, filename))
+            if category and category != "UNSPECIFIED":
+                conn.execute("DELETE FROM job_documents WHERE job_id = ? AND (filename = ? OR category = ?)", (job_id, filename, category))
+            else:
+                conn.execute("DELETE FROM job_documents WHERE job_id = ? AND filename = ?", (job_id, filename))
         else:
             # Exact Deduplication Check:
             # 1. If sha256_hash is provided, match identical content for this job

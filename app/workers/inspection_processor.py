@@ -240,12 +240,13 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
                 from app.services.pdf.inspection_report import InspectionReportGenerator
                 hr_gen = InspectionReportGenerator()
                 hr_path = await hr_gen.generate_homeowner_report(job)
+                hr_filename = Path(hr_path).name
                 await asyncio.to_thread(
                     insert_job_document,
-                    job_id, "inspection_report_homeowner.pdf", "application/pdf",
+                    job_id, hr_filename, "application/pdf",
                     hr_path, None, "field_safe", "HOMEOWNER_INSPECTION_REPORT", True  # replace_existing=True
                 )
-                log.info("homeowner_report_generated", path=hr_path)
+                log.info("homeowner_report_generated", path=hr_path, filename=hr_filename)
             except Exception as hr_err:
                 log.error("homeowner_report_generation_failed", error=str(hr_err))
                 # Non-fatal — do not block INSPECTION_COMPLETED transition
