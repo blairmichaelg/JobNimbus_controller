@@ -323,6 +323,6 @@ is field reps/canvassers, who can only see `field_safe` documents.
 
 ---
 
-*This guide reflects the Admin workflow as of version `1.7.0` (commit `2107bb6`). If new
+*This guide reflects the Admin workflow as of version `1.8.0`. If new
 statuses, buttons, or workflows are added in future updates, this guide
 should be reviewed and updated to match.*

@@ -1,0 +1,84 @@
+import uuid
+import pytest
+from pathlib import Path
+
+from app.core.database import update_job_claim_info, get_connection
+from app.services.pdf import PDFGenerator
+from app.api.field_routes import get_inspection_summary
+
+
+@pytest.mark.asyncio
+async def test_generate_evidence_grid_with_photos_on_disk(tmp_path):
+    """Verify evidence grid generates correctly even when job.analyses is empty."""
+    job_id = str(uuid.uuid4())
+    
+    # Create fake job directory with a dummy photo
+    job_photos_dir = Path("data/field_photos") / job_id
+    job_photos_dir.mkdir(parents=True, exist_ok=True)
+    photo_file = job_photos_dir / "test_photo_01.jpg"
+    
+    # Create valid minimal JPEG file
+    photo_file.write_bytes(
+        b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.\' ",#\x1c\x1c(7),01444\x1f\'9=82<.342\xff\xc0\x00\x0b\x08\x00\x10\x00\x10\x01\x01\x11\x00\xff\xc4\x00\x1f\x00\x00\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\xff\xda\x00\x08\x01\x01\x00\x00?\x00\xbf\x00\xff\xd9'
+    )
+    
+    job_data = {
+        "job_id": job_id,
+        "homeowner_name": "Test Homeowner",
+        "property_address": "123 Main St, Valdosta, GA",
+        "inspector_name": "Test Inspector",
+        "photos": [],
+        "analyses": []
+    }
+    
+    pdf_gen = PDFGenerator()
+    out_path = await pdf_gen.generate_evidence_grid(job_data)
+    
+    assert Path(out_path).exists()
+    assert Path(out_path).stat().st_size > 0
+    
+    # Cleanup
+    try:
+        photo_file.unlink(missing_ok=True)
+        job_photos_dir.rmdir()
+        Path(out_path).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def test_update_claim_info_database():
+    """Verify update_job_claim_info updates loss_date and insurer_name cleanly."""
+    job_id = str(uuid.uuid4())
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO jobs (id, homeowner_name, postal_code, address_line1, city, state, phone, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (job_id, "Test Owner", "31602", "123 Main St", "Valdosta", "GA", "555-1234", "owner@test.com")
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    
+    update_job_claim_info(
+        job_id=job_id,
+        insurer_name="State Farm",
+        loss_date="2026-07-29",
+        claim_number="CL-987654",
+        policy_number="POL-123456",
+        adjuster_name="John Adjuster",
+        adjuster_phone="555-0199",
+        adjuster_email="adjuster@statefarm.com"
+    )
+    
+    # Verify in DB
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT insurer_name, claim_number, policy_type FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        assert row["insurer_name"] == "State Farm"
+        assert row["claim_number"] == "CL-987654"
+        assert row["policy_type"] == "POL-123456"
+        
+        storm_row = conn.execute("SELECT loss_date FROM storm_verifications WHERE job_id = ?", (job_id,)).fetchone()
+        assert storm_row["loss_date"] == "2026-07-29"
+    finally:
+        conn.close()
