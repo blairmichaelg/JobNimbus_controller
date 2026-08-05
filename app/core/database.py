@@ -226,6 +226,7 @@ def run_migrations() -> None:
         if current_version < 1:
             seed_default_pricing()
             seed_supplement_rules()
+        seed_core_team_reps()
     except Exception as e:
         conn.execute("ROLLBACK")
         logger.error("migration_failed", error=str(e))
@@ -291,6 +292,30 @@ def seed_supplement_rules() -> None:
         conn.execute("COMMIT")
     except Exception as e:
         logger.error("supplement_rules_seed_failed", error=str(e))
+    finally:
+        conn.close()
+
+def seed_core_team_reps() -> None:
+    """Ensure Michael, Scott, and Debi exist in field_reps."""
+    conn = get_connection()
+    try:
+        core_members = [
+            ("rep-michael", "Michael", "1111"),
+            ("rep-scott", "Scott", "2222"),
+            ("rep-debi", "Debi", "3333"),
+        ]
+        for rep_id, name, default_pin in core_members:
+            row = conn.execute("SELECT id FROM field_reps WHERE name = ?", (name,)).fetchone()
+            if not row:
+                pin_hash = pwd_context.hash(default_pin)
+                conn.execute(
+                    """INSERT OR IGNORE INTO field_reps (id, name, pin_hash, is_active)
+                       VALUES (?, ?, ?, 1)""",
+                    (rep_id, name, pin_hash)
+                )
+        conn.commit()
+    except Exception as e:
+        logger.error("core_team_reps_seed_failed", error=str(e))
     finally:
         conn.close()
 

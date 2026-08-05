@@ -32,7 +32,41 @@
         }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen relative">
+<body class="bg-gray-900 text-gray-100 min-h-screen relative font-sans">
+    <nav class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex flex-wrap justify-between items-center z-30 mb-6">
+        <div class="flex items-center space-x-3">
+            <img src="/static/logo.png" alt="Wickham Roofing Logo" class="w-9 h-9 rounded shadow">
+            <span class="text-white font-bold tracking-wide text-lg hidden sm:inline">Wickham Roofing</span>
+        </div>
+
+        <!-- Dashboard Switcher -->
+        <div class="flex items-center space-x-2 bg-gray-950 p-1.5 rounded-lg border border-gray-800 my-1 sm:my-0">
+            <a href="/admin" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider transition-all flex items-center gap-1.5 text-gray-400 hover:text-white hover:bg-gray-800">
+                <span>👑</span>
+                <span>Admin Board</span>
+            </a>
+            <a href="/accounting" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider transition-all flex items-center gap-1.5 text-gray-400 hover:text-white hover:bg-gray-800">
+                <span>📊</span>
+                <span>Accounting</span>
+            </a>
+            <a href="/api/operations/board" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider transition-all flex items-center gap-1.5 text-gray-400 hover:text-white hover:bg-gray-800">
+                <span>🏗️</span>
+                <span>Production</span>
+            </a>
+            <a href="/field" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider transition-all flex items-center gap-1.5 bg-orange-600 text-white shadow-lg">
+                <span>📱</span>
+                <span>Field Intake</span>
+            </a>
+        </div>
+
+        <!-- Utility Links -->
+        <div class="flex items-center space-x-2">
+            <a href="/admin/reps" class="text-purple-400 hover:text-white px-3 py-1.5 border border-purple-800 hover:border-purple-600 rounded text-xs font-bold transition-all">👥 Reps</a>
+            <a href="/api/office/admin/triage" class="text-yellow-400 hover:text-white px-3 py-1.5 border border-yellow-800 hover:border-yellow-600 rounded text-xs font-bold transition-all">⚠️ Triage</a>
+            <a href="/help" class="text-blue-400 hover:text-white px-3 py-1.5 border border-blue-800 hover:border-blue-600 rounded text-xs font-bold transition-all">❓ Help</a>
+            <a href="/auth/logout" class="text-gray-400 hover:text-white px-3 py-1.5 border border-gray-800 hover:border-gray-600 rounded text-xs transition-all">Logout</a>
+        </div>
+    </nav>
 
     <!-- Toast Container -->
     <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
@@ -48,13 +82,24 @@
                 <img src="/static/logo.png" alt="Wickham Roofing Logo" class="w-10 h-10 mr-3 rounded">
                 <h1 class="text-3xl font-bold text-white">New Lead</h1>
             </div>
-            <div class="flex space-x-2">
-                <a href="/help" class="text-blue-400 hover:text-white px-3 py-1 border border-blue-700 rounded transition-colors font-bold text-sm flex items-center">❓ Help</a>
-                <a href="/auth/logout" class="text-red-400 hover:text-white px-3 py-1 border border-red-700 rounded transition-colors font-bold text-sm flex items-center">Logout</a>
-            </div>
         </div>
         
         <form id="intakeForm" class="space-y-6">
+            <div>
+                <label class="block text-sm font-medium text-purple-400 mb-2 font-bold">👤 Sales Rep / Lead Owner</label>
+                <select id="canvasser_name" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-purple-500 focus:outline-none focus:border-purple-400 text-lg font-bold">
+                    {% if reps %}
+                        {% for rep in reps %}
+                            <option value="{{ rep.name }}" {% if rep.name == 'Michael' %}selected{% endif %}>{{ rep.name }}</option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="Michael" selected>Michael</option>
+                        <option value="Scott">Scott</option>
+                        <option value="Debi">Debi</option>
+                    {% endif %}
+                </select>
+            </div>
+
             <div>
                 <label class="block text-sm font-medium text-gray-400 mb-2">Job Type</label>
                 <select id="job_type" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
@@ -771,6 +816,7 @@
                 loadingProgress.style.width = '20%';
 
                 const payload = {
+                    canvasser_name: document.getElementById('canvasser_name')?.value || null,
                     homeowner_name: document.getElementById('homeowner_name').value,
                     address_line1: document.getElementById('address_line1').value,
                     city: document.getElementById('city').value,

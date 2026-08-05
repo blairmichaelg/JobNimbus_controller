@@ -21,7 +21,7 @@ from app.core.database import (
     get_connection,
 )
 
-from app.api.auth import verify_operations
+from app.api.auth import verify_operations, verify_office_role
 from app.api.office_routes import templates
 
 logger = structlog.get_logger("app.api.operations_routes")
@@ -77,7 +77,7 @@ async def patch_material_flags(job_id: str, body: MaterialFlagUpdate):
 @router.get(
     "/board",
     response_class=HTMLResponse,
-    dependencies=[Depends(verify_operations)]
+    dependencies=[Depends(verify_office_role)]
 )
 async def operations_board(request: Request):
     """
@@ -141,6 +141,7 @@ async def operations_board(request: Request):
             "needs_materials": needs_materials,
             "awaiting_delivery_jobs": awaiting_delivery_jobs,
             "ready_to_build": ready_to_build,
+            "active_page": "operations",
             "auth_token": request.cookies.get("auth_token", "")
         }
     )

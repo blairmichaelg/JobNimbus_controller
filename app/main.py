@@ -359,8 +359,12 @@ async def health_check(request: Request):
 @app.get("/field", tags=["frontend"])
 async def serve_field_app(request: Request, role: str = Depends(verify_field)):
     """Serve the Wickham Roofing Field App."""
+    reps = await asyncio.to_thread(list_field_reps, False)
     return templates.TemplateResponse(request, "field_app.html", {
         "request": request,
+        "reps": reps,
+        "role": role,
+        "active_page": "field",
         "field_token": request.cookies.get("auth_token", "")
     })
 
@@ -463,21 +467,19 @@ async def route_office_dashboard(role: str = Depends(get_current_role)):
     return RedirectResponse(url="/admin", status_code=303)
 
 @app.get("/admin", tags=["frontend"])
-async def serve_admin_dashboard(request: Request, role: str = Depends(verify_admin)):
+async def serve_admin_dashboard(request: Request, role: str = Depends(verify_office_role)):
     """Serve the Admin Kanban Board."""
     jobs = await asyncio.to_thread(_fetch_active_jobs_sync)
     return templates.TemplateResponse(request, "admin_dashboard.html", {
         "request": request, 
         "jobs": jobs,
+        "active_page": "admin",
         "auth_token": request.cookies.get("auth_token", "")
     })
 
 @app.get("/admin/reps", tags=["frontend"])
-async def admin_reps_page(request: Request, role: str = Depends(get_current_role)):
-    """Serve the Field Rep Management page (admin only)."""
-    from fastapi import HTTPException
-    if role != "admin":
-        raise HTTPException(status_code=403, detail="Admins only.")
+async def admin_reps_page(request: Request, role: str = Depends(verify_office_role)):
+    """Serve the Field Rep Management page."""
     reps = await asyncio.to_thread(list_field_reps, True)
     return templates.TemplateResponse(
         request,
@@ -485,14 +487,16 @@ async def admin_reps_page(request: Request, role: str = Depends(get_current_role
         {
             "reps": reps,
             "role": role,
+            "active_page": "admin",
         },
     )
 
 @app.get("/accounting", tags=["frontend"])
-async def serve_accounting_dashboard(request: Request, role: str = Depends(verify_accounting)):
+async def serve_accounting_dashboard(request: Request, role: str = Depends(verify_office_role)):
     """Serve the Accounting Ledger."""
     return templates.TemplateResponse(request, "accounting_dashboard.html", {
         "request": request, 
+        "active_page": "accounting",
         "auth_token": request.cookies.get("auth_token", "")
     })
 
