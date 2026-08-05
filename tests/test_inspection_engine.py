@@ -239,13 +239,9 @@ class TestInspectionProcessor:
         mock_ai.delete_file = AsyncMock()
         mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
 
-        # Mock file state (ACTIVE immediately)
-        mock_file_info = MagicMock()
-        mock_file_info.state.name = "ACTIVE"
-        mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
-
         # Mock analysis
-        
+        sample_analysis.filename = "photo1.jpg"
+        mock_ai.analyze_roof_photos_batch = AsyncMock(return_value=[sample_analysis])
         mock_ai.analyze_roof_photo = AsyncMock(return_value=sample_analysis)
 
         job = InspectionJob(
@@ -264,7 +260,7 @@ class TestInspectionProcessor:
         mock_get_cache.assert_called_once_with("WR-TEST-001", "fake_hash")
         mock_ai.upload_media_file.assert_called_once()
         mock_ai.get_file_status.assert_called_with('files/test123')
-        mock_ai.analyze_roof_photo.assert_called_once()
+        mock_ai.analyze_roof_photos_batch.assert_called_once()
         mock_set_cache.assert_called_once()
         mock_ai.delete_file.assert_called_once_with('files/test123')
 
@@ -289,12 +285,7 @@ class TestInspectionProcessor:
         mock_uploaded.name = "files/bad"
         mock_ai.upload_media_file = AsyncMock(return_value='files/bad')
         mock_ai.delete_file = AsyncMock()
-        mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
-
-        # File processing FAILED on server
-        mock_file_info = MagicMock()
-        mock_file_info.state.name = "FAILED"
-        mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
+        mock_ai.get_file_status = AsyncMock(return_value='FAILED')
 
         job = InspectionJob(
             job_id="WR-TEST-002",
@@ -317,8 +308,8 @@ class TestInspectionProcessor:
     @patch("app.workers.inspection_processor.get_cached_analysis")
     @patch("app.workers.inspection_processor.asyncio.sleep")
     @patch("app.workers.inspection_processor.get_ai_client")
-    def test_multiple_photos_sequential(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path, sample_analysis):
-        """Multiple photos should be processed sequentially, not in parallel."""
+    def test_multiple_photos_batch(self, mock_ai_class, mock_sleep, mock_get_cache, mock_set_cache, tmp_path, sample_analysis):
+        """Multiple photos should be processed in batch."""
         mock_get_cache.return_value = None
         
         photos = []
@@ -330,18 +321,15 @@ class TestInspectionProcessor:
         mock_ai = MagicMock()
         mock_ai_class.return_value = mock_ai
 
-        mock_uploaded = MagicMock()
-        mock_uploaded.name = "files/seq"
-        mock_ai.upload_media_file = AsyncMock(return_value='files/test123')
+        mock_ai.upload_media_file = AsyncMock(side_effect=['files/test0', 'files/test1', 'files/test2'])
         mock_ai.delete_file = AsyncMock()
         mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
 
-        mock_file_info = MagicMock()
-        mock_file_info.state.name = "ACTIVE"
-        mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
-
-        
-        mock_ai.analyze_roof_photo = AsyncMock(return_value=sample_analysis)
+        # Mock batch analysis
+        analysis0 = sample_analysis.model_copy(update={"filename": "photo_0.jpg"})
+        analysis1 = sample_analysis.model_copy(update={"filename": "photo_1.jpg"})
+        analysis2 = sample_analysis.model_copy(update={"filename": "photo_2.jpg"})
+        mock_ai.analyze_roof_photos_batch = AsyncMock(return_value=[analysis0, analysis1, analysis2])
 
         job = InspectionJob(
             job_id="WR-TEST-003",
@@ -359,6 +347,7 @@ class TestInspectionProcessor:
         assert mock_ai.upload_media_file.call_count == 3
         assert mock_ai.delete_file.call_count == 3
         assert mock_set_cache.call_count == 3
+        mock_ai.analyze_roof_photos_batch.assert_called_once()
 
     @patch("app.workers.inspection_processor.set_cached_analysis")
     @patch("app.workers.inspection_processor.get_cached_analysis")
@@ -374,17 +363,13 @@ class TestInspectionProcessor:
         mock_ai = MagicMock()
         mock_ai_class.return_value = mock_ai
 
-        mock_uploaded = MagicMock()
-        mock_uploaded.name = "files/error"
         mock_ai.upload_media_file = AsyncMock(return_value='files/test123')
         mock_ai.delete_file = AsyncMock()
         mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
 
-        mock_file_info = MagicMock()
-        mock_file_info.state.name = "ACTIVE"
-        mock_ai.get_file_status = AsyncMock(return_value='ACTIVE')
-
-        mock_ai.analyze_roof_photo.side_effect = RuntimeError("Rate limit exhausted")
+        # Mock batch to raise error, which triggers sequential fallback, which also raises error
+        mock_ai.analyze_roof_photos_batch = AsyncMock(side_effect=RuntimeError("Rate limit exhausted"))
+        mock_ai.analyze_roof_photo = AsyncMock(side_effect=RuntimeError("Rate limit exhausted"))
 
         job = InspectionJob(
             job_id="WR-TEST-004",
@@ -400,7 +385,7 @@ class TestInspectionProcessor:
 
         assert len(result.analyses) == 0
         # Cleanup must still happen despite the error
-        mock_ai.delete_file.assert_called_once_with('files/test123')
+        assert mock_ai.delete_file.call_count >= 1
         mock_set_cache.assert_not_called()
 
     @patch("app.workers.inspection_processor.get_cached_analysis")

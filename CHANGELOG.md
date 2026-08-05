@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.0] - 2026-08-05
+### Added & Upgraded (AI Inspection Pipeline Overhaul)
+- **Gemini File API Migration**: Completely migrated Statement of Loss (SoL) extraction from fragile legacy PDF parsing (`pdfplumber` and regexes) to the Gemini File API. Standardized extraction directly against structured `StatementOfLoss` Pydantic schemas.
+- **Zero-Shot Chain-of-Thought Visual Forensics**: Refactored image analysis prompting to use Zero-Shot Chain-of-Thought reasoning. Instructed the model to analyze evidence, list structural observations, and outline grounding data before making a classification.
+- **Pydantic Type & Grounding Enforcement**: Updated all inspection and supplement schemas with confidence scoring, alternative explanations, and strict model validators to eliminate hallucinations.
+- **Batch Processing & Fallback Recovery**: Re-engineered background task orchestrators (`inspection_processor.py`) to leverage multi-image context batching via the Gemini File API. Added a robust sequential fallback mechanism to ensure individual processing recovery if batch operations encounter throughput blocks.
+- **Robust Cleanup Management**: Configured clean file/temp file disposal in all successful and error scenarios.
+
 ## [1.7.0] - 2026-08-04
 ### Added & Professionalized
 - **PDF Engine & Executive Branding Overhaul**: Re-architected PDF layout infrastructure in `app/services/pdf/engine.py` (`_universal_letterhead`, metadata grids, warning callout boxes, signature blocks) featuring top-right logo positioning, navy headers (`#1e3a8a`), and crisp slate borders.

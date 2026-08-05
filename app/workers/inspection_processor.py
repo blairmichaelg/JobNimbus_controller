@@ -131,84 +131,159 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
 
         ai = get_ai_client()
 
-        # Iterate in the natively cancellable async loop
+        non_cached_photos = []
         for idx, photo in enumerate(job.photos):
-            photo_log = log.bind(
-                photo=photo.filepath.name,
-                index=idx + 1,
-                total=len(job.photos),
-            )
-
-            # Check cache first (EPIC 1)
             cached = await asyncio.to_thread(get_cached_analysis, job.job_id, photo.sha256)
             if cached:
                 cached.filename = photo.filepath.name
                 job.analyses.append(cached)
-                photo_log.info("photo_analysis_cache_hit", damage=cached.damage_detected)
-                continue
+                log.info("photo_analysis_cache_hit", photo=photo.filepath.name, damage=cached.damage_detected)
+            else:
+                non_cached_photos.append(photo)
 
-            photo_log.info("photo_processing_started")
-
-            uploaded_name = None
-            ai_file_path = None
+        if non_cached_photos:
+            log.info("batch_processing_non_cached_photos", count=len(non_cached_photos))
+            
+            uploaded_names = []
+            ai_file_paths = []
+            uploaded_to_photo = {}
+            photo_to_temp = {}
+            
             try:
-                # 0. Dual-Image Scaling: Create 1600px temporary file for AI
-                photo_log.debug("downscaling_for_ai")
-                ai_file_path = await asyncio.to_thread(resize_for_ai, photo.filepath, max_width=1600)
-
-                # 1. Upload to Gemini File API
-                uploaded_name = await ai.upload_media_file(ai_file_path)
-                assert uploaded_name is not None
-                photo_log.debug("photo_uploaded", remote_name=uploaded_name)
-
-                # 2. Poll until processing completes
-                file_status = await ai.get_file_status(uploaded_name)
-                assert file_status is not None
-                while file_status == "PROCESSING":
-                    await asyncio.sleep(2)  # CRITICAL: Yields to event loop, respects ARQ CancelledError
+                # 1. Rescale and upload each photo
+                for photo in non_cached_photos:
+                    log.debug("downscaling_for_ai", photo=photo.filepath.name)
+                    ai_file_path = await asyncio.to_thread(resize_for_ai, photo.filepath, max_width=1600)
+                    ai_file_paths.append(ai_file_path)
+                    photo_to_temp[photo.sha256] = ai_file_path
+                    
+                    uploaded_name = await ai.upload_media_file(ai_file_path)
+                    assert uploaded_name is not None
+                    uploaded_names.append(uploaded_name)
+                    uploaded_to_photo[uploaded_name] = photo
+                    log.debug("photo_uploaded", photo=photo.filepath.name, remote_name=uploaded_name)
+                    
+                # 2. Poll until all uploads complete processing
+                valid_uploaded_names = []
+                valid_photos = []
+                for uploaded_name in uploaded_names:
+                    photo = uploaded_to_photo[uploaded_name]
                     file_status = await ai.get_file_status(uploaded_name)
-                    assert file_status is not None
+                    while file_status == "PROCESSING":
+                        await asyncio.sleep(2)
+                        file_status = await ai.get_file_status(uploaded_name)
+                    if file_status == "FAILED":
+                        log.error("photo_processing_failed_on_server", photo=photo.filepath.name)
+                        try:
+                            await ai.delete_file(uploaded_name)
+                        except Exception:
+                            pass
+                        if uploaded_name in uploaded_names:
+                            uploaded_names.remove(uploaded_name)
+                        temp_path = photo_to_temp.get(photo.sha256)
+                        if temp_path:
+                            try:
+                                Path(temp_path).unlink(missing_ok=True)
+                            except Exception:
+                                pass
+                    else:
+                        valid_uploaded_names.append(uploaded_name)
+                        valid_photos.append(photo)
 
-                assert file_status is not None
-                if file_status == "FAILED":
-                    photo_log.error("photo_processing_failed_on_server")
-                    continue
+                if not valid_uploaded_names:
+                    log.info("no_valid_photos_to_analyze")
+                    return job
 
-                # 3. Analyze with backoff protection
-                analysis = await ai.analyze_roof_photo(uploaded_name, photo.filepath.name, job.job_id)
-                analysis.filename = photo.filepath.name
-                job.analyses.append(analysis)
-
-                # Cache the successful result (EPIC 1)
-                await asyncio.to_thread(set_cached_analysis, job.job_id, photo.sha256, analysis)
-
-                photo_log.info(
-                    "photo_analysis_complete",
-                    damage=analysis.damage_detected,
-                    severity=analysis.severity.value,
-                    confidence=analysis.confidence,
+                # 3. Call batch analysis
+                log.info("calling_batch_photo_analysis", count=len(valid_uploaded_names))
+                batch_analyses = await ai.analyze_roof_photos_batch(
+                    file_names=valid_uploaded_names,
+                    original_filenames=[p.filepath.name for p in valid_photos],
+                    job_id=job.job_id
                 )
-
-            except RuntimeError as e:
-                # Rate limit exhausted after max retries
-                photo_log.error("photo_analysis_rate_limited", error=str(e))
-                continue
-            except Exception as e:
-                photo_log.error("photo_analysis_unexpected_error", error=str(e))
-                continue
+                
+                # 4. Map results and cache
+                analysis_by_filename = {a.filename: a for a in batch_analyses}
+                for photo in valid_photos:
+                    analysis = analysis_by_filename.get(photo.filepath.name)
+                    if not analysis:
+                        raise ValueError(f"Batch analysis did not return result for {photo.filepath.name}")
+                    
+                    analysis.filename = photo.filepath.name
+                    job.analyses.append(analysis)
+                    await asyncio.to_thread(set_cached_analysis, job.job_id, photo.sha256, analysis)
+                    log.info(
+                        "photo_analysis_complete_batch",
+                        photo=photo.filepath.name,
+                        damage=analysis.damage_detected,
+                        severity=analysis.severity.value,
+                        confidence=analysis.confidence,
+                    )
+                    
+            except Exception as batch_err:
+                log.warning("batch_analysis_failed_falling_back_to_sequential", error=str(batch_err))
+                # Cleanup batch artifacts before sequential fallback if any files uploaded
+                for name in uploaded_names:
+                    try:
+                        await ai.delete_file(name)
+                    except Exception:
+                        pass
+                uploaded_names.clear()
+                uploaded_to_photo.clear()
+                
+                # Sequential Fallback:
+                for photo in non_cached_photos:
+                    photo_log = log.bind(photo=photo.filepath.name)
+                    photo_log.info("sequential_fallback_photo_started")
+                    
+                    uploaded_name = None
+                    ai_file_path = photo_to_temp.get(photo.sha256)
+                    try:
+                        if not ai_file_path:
+                            ai_file_path = await asyncio.to_thread(resize_for_ai, photo.filepath, max_width=1600)
+                            ai_file_paths.append(ai_file_path)
+                            photo_to_temp[photo.sha256] = ai_file_path
+                            
+                        uploaded_name = await ai.upload_media_file(ai_file_path)
+                        file_status = await ai.get_file_status(uploaded_name)
+                        while file_status == "PROCESSING":
+                            await asyncio.sleep(2)
+                            file_status = await ai.get_file_status(uploaded_name)
+                        if file_status == "FAILED":
+                            photo_log.error("photo_processing_failed_on_server")
+                            continue
+                            
+                        analysis = await ai.analyze_roof_photo(uploaded_name, photo.filepath.name, job.job_id)
+                        analysis.filename = photo.filepath.name
+                        job.analyses.append(analysis)
+                        await asyncio.to_thread(set_cached_analysis, job.job_id, photo.sha256, analysis)
+                        
+                        photo_log.info(
+                            "photo_analysis_complete_sequential",
+                            damage=analysis.damage_detected,
+                            severity=analysis.severity.value,
+                            confidence=analysis.confidence,
+                        )
+                    except Exception as seq_err:
+                        photo_log.error("photo_analysis_sequential_error", error=str(seq_err))
+                    finally:
+                        if uploaded_name:
+                            try:
+                                await ai.delete_file(uploaded_name)
+                            except Exception:
+                                pass
             finally:
-                # 4. Cleanup: immediately delete from Google's servers
-                if uploaded_name:
+                # Cleanup remote and local files for the batch path
+                for name in uploaded_names:
                     try:
-                        await ai.delete_file(uploaded_name)
-                        photo_log.debug("remote_file_deleted", remote_name=uploaded_name)
-                    except Exception as e:
-                        photo_log.warning("remote_file_cleanup_failed", remote_name=uploaded_name, error=str(e))
-                if ai_file_path:
+                        await ai.delete_file(name)
+                    except Exception:
+                        pass
+                for path in ai_file_paths:
                     try:
-                        Path(ai_file_path).unlink(missing_ok=True)
-                    except Exception as e:
-                        photo_log.warning("local_temp_cleanup_failed", path=ai_file_path, error=str(e))
+                        Path(path).unlink(missing_ok=True)
+                    except Exception:
+                        pass
 
         log.info(
             "inspection_processing_complete",

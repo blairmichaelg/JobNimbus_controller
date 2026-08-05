@@ -17,11 +17,13 @@ status column. The Wickham Roofing logo appears in the header alongside
 the title.
 
 ### Navigation
+
 - **👥 Field Reps** — manage canvasser/rep records.
 - **⚠ Triage** — jobs stuck waiting for your review.
 - **Logout**
 
 ### Status columns you'll see
+
 `LEAD_CAPTURED` → `CONTINGENCY_SIGNED` → `EV_ORDERED` → `EV_PARSED` →
 `PENDING_OPERATOR_REVIEW` → `SUPPLEMENT_GENERATED` →
 `AWAITING_CARRIER_RESPONSE` → `SUPPLEMENT_APPROVED` → `MATERIAL_ORDERED`
@@ -31,17 +33,18 @@ the title.
 > **Naked Leads** (`LEAD_CAPTURED` with no signature) appear in the first column. These are door-knock contacts captured by field reps who haven't signed yet. They are intentionally separated from signed jobs so they don't clutter the active production pipeline. Click into any `LEAD_CAPTURED` job to see a banner with quick actions: Evidence Grid PDF, downloadable unsigned agreement, and a direct link back to the Field App for the rep to capture the signature.
 
 ### Alerts to watch for
+
 - **Red "PENDING_OPERATOR_REVIEW" cards** — a job is blocked and needs
   your attention in Triage (see Section 2).
 - **Red "SLA EXCEEDED: X Days" badges** — a carrier has gone silent too
   long and the job needs an escalation letter (see Section 4).
 
 ### Clicking into a job
+
 Click any job card to open the **unified job detail view**. This is the
 same full-access view shared by Admin, Operations, and Accounting —
 all three roles see all financials, margins, documents, and actions.
 There is no restriction between these three office roles on job data.
-
 
 ---
 
@@ -54,6 +57,7 @@ defaulting to zero. This is intentional and protects you from bad math
 downstream.
 
 ### How to resolve a stuck job
+
 1. Click **⚠ Triage** from the dashboard.
 2. You'll see **"⚠ Operator Triage — Stuck Jobs"** with a list of every
    job currently blocked, each labeled **"PENDING REVIEW."**
@@ -86,12 +90,14 @@ From a job's detail page, you'll find the **Control Panel** section
 with **"Upload Documents."**
 
 ### Supported measurement report formats
+
 The system automatically detects whether a measurement PDF is an
 **EagleView** or **Hover** report and routes it to the correct parser.
 You do not need to specify the format — just upload the PDF and the
 system handles detection transparently.
 
 ### How to upload
+
 1. Drag and drop the **Measurement Report PDF** (EagleView or Hover)
    and the **Statement of Loss PDF** into their respective drop zones.
    The measurement zone is labeled **"📐 Measurement Report (EagleView
@@ -106,6 +112,7 @@ system handles detection transparently.
    and the drop zones reappear so you can retry.
 
 ### Important current limitation
+
 **Both files are required together every time.** As of this writing,
 you cannot re-upload just a corrected Statement of Loss on its own —
 the system requires both the Measurement Report and SoL PDFs to be
@@ -116,6 +123,7 @@ This is a known workflow limitation the team is aware of and may improve
 in a future update.
 
 ### Common upload errors
+
 - **"Only PDF files are allowed."** — you attached something other than
   a PDF.
 - **"Please upload exactly two PDF files (Measurement Report and
@@ -133,6 +141,7 @@ spot this earlier on the Kanban dashboard as **"SLA EXCEEDED: X Days"**
 on the job card itself.)
 
 ### How to escalate
+
 1. Click **"Generate Escalation Demand Letter."**
 2. You'll be asked to confirm: a dialog box appears before anything
    happens, since this generates a real document tied to the carrier
@@ -149,6 +158,7 @@ make sure escalation is actually warranted before clicking through.
 ## 5. Approving or Denying a Supplement
 
 ### Approving
+
 1. Click **"✓ Mark Supplement Approved."**
 2. You'll be asked to confirm: **"Mark supplement as APPROVED? This
    will alert Scott and Debi."**
@@ -156,6 +166,7 @@ make sure escalation is actually warranted before clicking through.
    pipeline.
 
 ### Denying (triggers AI Rebuttal)
+
 1. Paste the carrier's denial text into the **"Carrier Denial Text
    (paste from email)"** box.
 2. Click **"✗ Mark Denied — Generate AI Rebuttal."**
@@ -181,6 +192,7 @@ complete before confirming.
 ## 6. Reviewing Financials
 
 On the job detail page, under **"Financials,"** you can view and edit:
+
 - Revenue
 - Materials
 - Labor
@@ -201,11 +213,13 @@ Every job has a **Document Vault** for storing artifacts beyond the
 core measurement report/SoL pipeline documents.
 
 ### How to upload
+
 1. Drag a file into the vault drop zone.
 2. On success: **"Document uploaded successfully!"**
 3. On failure: the toast will show the specific error.
 
 ### Downloadable documents available per job
+
 - **⬇ Download QBO CSV**
 - **Notice of Cancellation (PDF)**
 - **Evidence Grid (PDF)**
@@ -214,7 +228,9 @@ core measurement report/SoL pipeline documents.
 - **⬇ Download Rebuttal Letter** (once a denial has been processed)
 
 ### Document visibility
+
 Documents in the system have a visibility level:
+
 - **`field_safe`** — visible to field reps (e.g., measurement reports,
   contingency agreements, photos).
 - **`office_only`** — visible only to Admin, Operations, and Accounting
@@ -234,6 +250,7 @@ when a job is genuinely stuck and cannot be resolved through Triage or
 the normal workflow buttons above.
 
 ### How to use it
+
 1. On the job detail page, scroll to the bottom to the red-bordered
    **"⚠ Admin Override (Emergency Use Only)"** panel and click to expand it.
 2. Read the warning text: *"This forcefully changes the job's status,
@@ -252,17 +269,20 @@ the normal workflow buttons above.
    the page refreshes.
 
 ### Why the reason field matters
+
 Every override is permanently logged with the reason you provide. This
 isn't just a formality — it's your audit trail. If you or anyone else
 ever needs to understand why a job's status doesn't match its normal
 history, this note is the explanation. Always write something specific
 and useful, such as:
+
 - "Carrier confirmed verbal approval by phone; documentation pending. Advancing manually to avoid delay."
 - "Duplicate job created during offline sync error; forcing to CLOSED to remove from active pipeline."
 
 Avoid vague notes like "fixing" or "testing."
 
 ### When to use Override vs. Triage
+
 - **Use Triage** when a job is stuck specifically because of missing
   measurement data from report parsing.
 - **Use Override** only for everything else — genuinely stuck jobs, data
@@ -325,5 +345,4 @@ same unified job detail view with full access to financials, margins,
 and all documents. The only role with restricted document visibility
 is field reps/canvassers, who can only see `field_safe` documents.
 
-*This guide reflects the Admin workflow as of version `1.9.0`. Includes support for non-blocking 'Naked Lead' field intake (`LEAD_CAPTURED`), pre-contract Evidence Grid pitch generation, unsigned contingency agreement PDF download/email, and field-app-based signature resumption flow.*
-
+*This guide reflects the Admin workflow as of version `2.0.0`. Includes support for non-blocking 'Naked Lead' field intake (`LEAD_CAPTURED`), pre-contract Evidence Grid pitch generation, unsigned contingency agreement PDF download/email, and field-app-based signature resumption flow.*

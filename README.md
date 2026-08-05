@@ -5,9 +5,9 @@
 [![SQLite WAL](https://img.shields.io/badge/Database-SQLite%20WAL-003B57.svg)](https://www.sqlite.org/wal.html)
 [![AI Engine: Gemini 2.5 Flash](https://img.shields.io/badge/AI%20Engine-Gemini%202.5%20Flash-8A2BE2.svg)](https://deepmind.google/technologies/gemini/)
 [![Tests: 262 Passing (100%)](https://img.shields.io/badge/Tests-262%20Passed%20(100%25)-brightgreen.svg)](https://pytest.org/)
-[![Version](https://img.shields.io/badge/Version-1.9.0-orange.svg)](https://github.com/blairmichaelg/JobNimbus_controller)
+[![Version](https://img.shields.io/badge/Version-2.0.0-orange.svg)](https://github.com/blairmichaelg/JobNimbus_controller)
 
-The **Wickham Roofing AI Controller (V4 "Wickham Roofing CRM")** is a proprietary, local-first operational platform designed to automate insurance roofing production from field lead intake to financial ledger reconciliation. 
+The **Wickham Roofing AI Controller (V4 "Wickham Roofing CRM")** is a proprietary, local-first operational platform designed to automate insurance roofing production from field lead intake to financial ledger reconciliation.
 
 Engineered to operate entirely offline or via zero-cloud tunneling directly from field office hardware, V4 completely eliminates third-party SaaS dependency by orchestrating deterministic insurance math, forensic AI roof analysis, automated paperwork matrices, and QuickBooks Online (QBO) invoice exporting over a self-healing SQLite state machine.
 
@@ -73,18 +73,23 @@ The system isolates operational data across four distinct user roles, authentica
 ## 🛠️ Key Engine Features
 
 ### 1. Deterministic Math & Anti-Hallucination Claim AST
-To ensure real-world financial accuracy, the pipeline strictly separates mathematical calculations from artificial intelligence reasoning. 
+
+To ensure real-world financial accuracy, the pipeline strictly separates mathematical calculations from artificial intelligence reasoning.
+
 - **`SupplementEngine`**: An isolated pure-Python mathematical kernel that reconciles EagleView physical dimensions against carrier Statements of Loss (SoL) without AI guesswork.
 - **Universal Claim AST**: Pydantic V2 schemas that mathematically prove carrier RCV/ACV totals and enforce strict SHA256 provenance tracking before triggering document synthesis.
 - **Climate Zone Gating**: Automates statutory building code enforcement (e.g., Ice & Water Shield rules in northern climates vs. Georgia municipal codes) using zero-cost RAG databases.
 
 ### 2. Resilient Infrastructure & Security
+
 - **In-Memory Sliding Window Rate Limiter**: Protects computationally expensive ARQ job enqueuing endpoints against accidental or malicious queue flooding.
 - **Self-Healing Realtime WebSockets**: Automated frontend reconnect logic coupled with server-side active background heartbeat loops instantly sweeps dead client sockets.
 - **Path Traversal & IDOR Defense**: All document download endpoints apply rigorous cryptographic hashing and filename sanitization (`sanitize_download_filename`).
 
 ### 3. Non-Blocking "Naked Lead" Sales Workflow (v1.9.0)
+
 Field reps can now capture minimal lead data (name, address, phone) at the door **without requiring an immediate signature or photos**. The system stores the lead as `LEAD_CAPTURED`, keeping it visible to the core team without clogging the active production pipeline.
+
 - **Resume & Sign**: From *My Recent Jobs*, reps tap **✍️ Resume & Sign** to re-open the intake form pre-populated with saved data and walk through the full contingency agreement for on-the-spot or follow-up signing.
 - **Unsigned Agreement PDF**: Reps can download or email the homeowner a printable unsigned contingency agreement directly from the job card — no office visit required.
 - **Evidence Grid Pitch Tool**: The Inspection Evidence Grid PDF (storm findings, hail impacts, weather data) is accessible directly from the job card, enabling reps to present objective storm damage proof before asking for the signature.
@@ -94,10 +99,12 @@ Field reps can now capture minimal lead data (name, address, phone) at the door 
 ## 🚀 Quick Start Guide
 
 ### Hardware Prerequisites
+
 - Windows, macOS, or Linux machine with Python 3.11+ and Git installed.
 - Redis broker (optional for local simulation; automated via Docker/WSL in boot scripts).
 
 ### 1. Repository Setup & Virtual Environment
+
 ```powershell
 # Clone repository
 git clone https://github.com/blairmichaelg/wickham_crm.git
@@ -113,14 +120,18 @@ pip install -r requirements.txt
 ```
 
 ### 2. Environment Configuration
+
 Copy the supplied template and inject your Gemini API credentials:
+
 ```powershell
 cp .env.example .env
 # Open .env and enter your valid GEMINI_API_KEY
 ```
 
 ### 3. Verification & Execution
+
 Validate system stability against the 262-test verification matrix before firing the application engines:
+
 ```powershell
 # Execute comprehensive automated test matrix
 python -m pytest tests/ -v
@@ -130,21 +141,26 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ### 4. Fresh Demo Reset (Recommended Before Live Demos)
+
 If you need the CRM in a completely clean, empty-job state for a presentation, run the built-in reset script before starting the stack:
+
 ```powershell
 python scripts/db_demo_reset.py
 ```
+
 This clears all jobs, resets the demo database to a pristine state, removes uploaded artifacts from the document directories, and restores the default demo field rep `Jerry Grubb` with PIN `1111`.
 
 > [!TIP]
 > **Windows One-Click Automation**: On Windows desktop environments, the server is now configured to boot automatically via **Task Scheduler** on login. Task Scheduler invokes a suite of wrapper scripts (`scripts\services\srv_redis.ps1`, `srv_fastapi.ps1`, `srv_worker.ps1`, `srv_tunnel.ps1`) that handle automated recovery, logging, and port binding.
-> 
+>
 > **Service Health & Restart**: Log files for all background services are located in the `logs\` directory. To manually restart a service, you can terminate its window and re-run the respective `srv_*.ps1` script from the `scripts\services\` directory, or simply use `Restart-Computer` for a clean reboot and auto-recovery. Health can be checked via the `/health` endpoint.
 
 ---
 
 ## 📚 Documentation & Guides
+
 Comprehensive operator manuals and operational runbooks are maintained directly within the `docs/` folder:
+
 - **[Accounting Guide](docs/accounting_guide.md)**: Ledger instruction manual for check tracking, commission adjustments, and QBO invoice exporting.
 - **[Operations Guide](docs/operations_guide.md)**: Schedule and material flag instructions for production dispatchers.
 - **[Canvasser Field Guide](docs/canvasser_field_guide.md)**: Mobile SPA training manual for field personnel.

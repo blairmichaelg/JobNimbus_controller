@@ -46,6 +46,11 @@ class Decision(BaseModel):
     document_data: DocumentData
 
 
+class BatchPhotoAnalysis(BaseModel):
+    """Container for batch analysis of roof photos."""
+    analyses: list[PhotoAnalysis]
+
+
 from abc import ABC, abstractmethod
 
 class AiClient(ABC):
@@ -64,6 +69,9 @@ class AiClient(ABC):
     @abstractmethod
     async def analyze_roof_photo(self, file_name: str, original_filename: str, job_id: str | None = None) -> PhotoAnalysis: ...
     
+    @abstractmethod
+    async def analyze_roof_photos_batch(self, file_names: list[str], original_filenames: list[str], job_id: str | None = None) -> list[PhotoAnalysis]: ...
+
     @abstractmethod
     async def generate_text(self, system_prompt: str, user_prompt: str, job_id: str | None = None, operation_type: str = "generate_text") -> str: ...
 
@@ -315,6 +323,12 @@ Rules:
                 If a quantity, unit of measure, or price is blank or missing, you MUST return null, not guess or hallucinate.
                 DO NOT infer or calculate quantities. Extract the exact numerical value printed in the quantity column.
                 If Overhead and Profit (O&P) is not explicitly listed in the summaries, set overhead_and_profit_included to false.
+                
+                Also extract:
+                - claim_number and carrier_name.
+                - For each line item: trade, code, description, quantity, unit_of_measure, unit_price, tax, claimed_rcv, depreciation, acv, page.
+                - Roof geometry: pitch, total_squares, eaves_lf, valleys_lf, rakes_lf.
+                - Claim financials: gross_rcv, total_depreciation, deductible, net_claim.
                 """
             elif source_system == "symbility":
                 prompt = """
@@ -324,6 +338,12 @@ Rules:
                 If you find a waste percentage in the notes, map that float (e.g., 0.10) to the waste_percent_included field.
                 DO NOT infer or calculate quantities. Extract the exact numerical value printed in the quantity column.
                 If a quantity, unit of measure, or price is blank or missing, you MUST return null.
+                
+                Also extract:
+                - claim_number and carrier_name.
+                - For each line item: trade, code, description, quantity, unit_of_measure, unit_price, tax, claimed_rcv, depreciation, acv, page.
+                - Roof geometry: pitch, total_squares, eaves_lf, valleys_lf, rakes_lf.
+                - Claim financials: gross_rcv, total_depreciation, deductible, net_claim.
                 """
             else:
                 logger.warning("WARNING: Unknown Carrier Format Detected")
@@ -332,6 +352,12 @@ Rules:
                 Extract ONLY the line items related to roof replacement.
                 DO NOT infer or calculate quantities. Extract the exact numerical value printed in the quantity column.
                 If a quantity, unit of measure, or price is blank or missing, you MUST return null.
+                
+                Also extract:
+                - claim_number and carrier_name.
+                - For each line item: trade, code, description, quantity, unit_of_measure, unit_price, tax, claimed_rcv, depreciation, acv, page.
+                - Roof geometry: pitch, total_squares, eaves_lf, valleys_lf, rakes_lf.
+                - Claim financials: gross_rcv, total_depreciation, deductible, net_claim.
                 """
 
             # 5. Generate content with structured output
@@ -448,14 +474,12 @@ Rules:
         prompt = (
             f"You are Wickham Roofing's senior forensic roofing inspector creating photographic documentation for an inspection report. "
             f"Examine this photo (File: {original_filename}) carefully.\n\n"
-            f"Step 1: Identify what is ACTUALLY visible in this photo. Determine whether it shows a roof slope, shingle close-up, "
-            f"pipe vent boot flashing, valley, eave/gutter line, chimney, ridge cap, or an overall property elevation.\n\n"
-            f"Step 2: Inspect for specific conditions or damage:\n"
-            f"- If pipe boots are visible: note whether the rubber collar is cracked/split or intact.\n"
-            f"- If shingles are visible: check for missing tabs, wind creases, chalked hail bruises, granule loss, exposed mat, or normal wear.\n"
-            f"- If organic litter/debris or moss is visible: note the moisture retention risk.\n"
-            f"- If it is an overall slope or elevation shot: describe the general orientation and shingle condition.\n\n"
-            f"Step 3: Write a 1-2 sentence 'forensic_narrative' caption that is 100% ACCURATE to what is visually shown in THIS specific photo. "
+            f"Zero-Shot Chain of Thought analysis:\n"
+            f"Let's think step by step.\n"
+            f"1. First, describe the texture and color of the anomalies in the photo. Identify if it shows a roof slope, shingle close-up, pipe vent boot, valley, etc.\n"
+            f"2. Second, compare those anomalies against standard hail impact signatures (e.g., circular bruising, exposed fiberglass) or wind creasing.\n"
+            f"3. Third, classify the damage type and severity, and estimate your confidence score (0-100) and alternative explanation (if any).\n"
+            f"4. Finally, write a 1-2 sentence 'forensic_narrative' caption that is 100% ACCURATE and grounded solely in visually verifiable data. "
             f"Do NOT invent or hallucinate defects (such as pipe boot leaks or hail hits) if they are not visible in the image. "
             f"If the photo shows a clean slope or normal condition, state that clearly and professionally.\n\n"
             f"For the 'filename' schema field, output exactly: {original_filename}"
@@ -478,6 +502,63 @@ Rules:
             await asyncio.to_thread(log_ai_usage, job_id, usage, self.model_name, "photo_analysis")
 
         return response.parsed  # type: ignore
+
+    async def analyze_roof_photos_batch(
+        self,
+        file_names: list[str],
+        original_filenames: list[str],
+        job_id: str | None = None
+    ) -> list[PhotoAnalysis]:
+        """
+        Multimodal damage analysis of multiple roof photos in a single Gemini 2.5 Flash request.
+        
+        Enforces structured JSON output matching BatchPhotoAnalysis.
+        """
+        log = logger.bind(job_id=job_id, count=len(file_names))
+        log.info("photo_analysis_batch_started")
+        
+        contents = []
+        for file_name in file_names:
+            file_info = await asyncio.to_thread(self._call_with_backoff, self.client.files.get, name=file_name)
+            contents.append(file_info)
+            
+        prompt = (
+            "You are Wickham Roofing's senior forensic roofing inspector creating photographic documentation for an inspection report. "
+            "Here are multiple roof inspection photos from the same job. Analyze all of these photos. "
+            "Synthesize the overall condition based on the context of the entire roof.\n\n"
+            "For each photo, perform a Zero-Shot Chain of Thought analysis:\n"
+            "Let's think step by step.\n"
+            "1. First, describe the texture, color, and location of any visible anomalies in the photo. "
+            "Determine if it shows a roof slope, shingle close-up, valley, vent boot, chimneys, ridge cap, or general slope.\n"
+            "2. Second, compare those anomalies against standard hail impact signatures (e.g. circular bruising, exposed fiberglass, granule loss) or wind crease marks. "
+            "3. Third, classify the primary damage type ('hail', 'wind', 'mechanical', 'aging', 'none') and severity ('none', 'minor', 'moderate', 'severe').\n"
+            "4. Fourth, estimate your confidence score (0-100) and list any alternative explanations for the anomalies (e.g. manufacturer blistering, normal weathering, physical scraping) if confidence is not 100%.\n"
+            "5. Finally, write a 1-2 sentence 'forensic_narrative' caption that is 100% ACCURATE and grounded solely in visually verifiable data. "
+            "Do NOT interpolate, assume, or invent damage (such as leaks or unvisible hits) that is not clearly pictured.\n\n"
+            "You must map each analyzed photo to its correct original filename. The original filenames are:\n"
+            + ", ".join(original_filenames) + "\n\n"
+            "Ensure the output JSON matches the response schema with the array of PhotoAnalysis results."
+        )
+        contents.append(prompt)
+        
+        response = await asyncio.to_thread(
+            self._call_with_backoff,
+            self.client.models.generate_content,
+            model=self.model_name,
+            contents=contents,
+            config=genai_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=BatchPhotoAnalysis,
+                temperature=0.1,
+            ),
+        )
+        
+        usage = getattr(response.usage_metadata, "total_token_count", 0)
+        if usage > 0:
+            await asyncio.to_thread(log_ai_usage, job_id, usage, self.model_name, "photo_analysis_batch")
+            
+        batch_result = response.parsed  # type: ignore
+        return batch_result.analyses
 
     async def generate_text(
         self,

@@ -69,6 +69,7 @@ When you're with a homeowner and ready to start a job, you'll fill out the
   unclear, tap the **✕** on that thumbnail to remove it and retake it.
 
 ### Photo tips
+
 - Capture every roof slope, damage area, flashing, and accessory (vents,
   skylights, chimneys).
 - Shoot in good light. Avoid heavy shadows or backlighting.
@@ -78,15 +79,18 @@ When you're with a homeowner and ready to start a job, you'll fill out the
 
 ## 4. Reviewing the Contingency Agreement & "Naked Lead" Workflow
 
-Field reps can submit a **Naked Lead** (Name, Address, Phone, and optional Date of Loss/Insurer) **without requiring an immediate signature or photos**. 
+Field reps can submit a **Naked Lead** (Name, Address, Phone, and optional Date of Loss/Insurer) **without requiring an immediate signature or photos**.
 
 ### Why Use Naked Leads?
+
 - **Door-Knock Lead Capture**: Quickly store contacts on-the-go after an initial door-knock.
 - **Sales Presentation & Pitching**: Capture property details, return to run NOAA storm searches, and generate the **Inspection Evidence Grid PDF** to present storm damage proof to the homeowner *before* asking them to sign.
 - **Durable Persistence**: All naked leads attach to your rep login and are visible to the core management team without clogging active production columns.
 
 ### When the Homeowner Is Ready to Sign
+
 If the homeowner accepts the terms during intake or during a follow-up visit:
+
 1. Review the **Insurance Contingency Agreement Summary** with the homeowner (including deductible warnings under O.C.G.A. § 33-24-59.27).
 2. Check the acknowledgment box: *"Homeowner accepts terms & conditions"*.
 3. Draw the signature on the canvas and tap **Lock Signature** or **✓ Save E-Signature**.
@@ -104,6 +108,7 @@ If the homeowner accepts the terms during intake or during a follow-up visit:
 ## 6. Submitting and Following Up on Leads
 
 When you tap **Save Lead** / **Submit Lead**, you'll see a progress modal with messages like:
+
 - "Creating Lead..."
 - "Uploading Photo X of Y..." (if photos attached)
 - "Generating Contract..." (if signature attached)
@@ -119,7 +124,9 @@ Below the New Lead form, you'll find a **"My Recent Jobs"** section
 that automatically loads your most recent jobs (up to 50, newest first).
 
 ### What you see
+
 Each job card shows:
+
 - **Homeowner name** and **address**
 - **Status badge** — amber **📝 Naked Lead — Unsigned** or green **✅ CONTINGENCY_SIGNED** etc.
 - Action buttons (see below)
@@ -127,7 +134,7 @@ Each job card shows:
 ### Job Card Action Buttons
 
 | Button | What It Does |
-|---|---|
+| --- | --- |
 | **Docs ↓** | Expands to show all field-safe documents for the job |
 | **📄 Evidence Grid** | Downloads the Evidence Grid storm findings PDF (great for pitching to homeowners) |
 | **✉️ Unsigned PDF** *(Naked Leads only)* | Downloads a printable unsigned Contingency Agreement PDF |
@@ -136,6 +143,7 @@ Each job card shows:
 | **⚡ View Overview →** *(Signed jobs)* | Opens the full job detail in the office portal |
 
 ### Viewing your documents
+
 1. Tap **"Docs ↓"** on any job card.
 2. The card expands to show all **field-safe** documents for that job —
    this includes your uploaded photos, measurement reports (EagleView or
@@ -144,7 +152,9 @@ Each job card shows:
 4. Tap **"Hide Documents ↑"** to collapse the list.
 
 ### What you will NOT see
+
 You will **never** see office-only documents such as:
+
 - Financial calculations or QBO exports
 - Commission statements
 - Internal supplement narratives
@@ -163,6 +173,7 @@ too large, or there's a temporary server issue. This is different from
 having no signal (covered in Section 9).
 
 ### What you'll see
+
 If a photo or the signature upload fails due to a server-side error, the
 app **stops the submission** and shows a message like:
 
@@ -170,6 +181,7 @@ app **stops the submission** and shows a message like:
 > remaining steps."*
 
 ### What to do — and why it's safe and efficient
+
 **Just tap Submit Lead again.** The app is smart about retries:
 
 - It will **not** create a duplicate job — it remembers the lead was
@@ -185,6 +197,7 @@ re-sending things that already worked. The app only retries the exact
 step that failed.
 
 ### If it keeps failing
+
 If retrying doesn't work after 2–3 attempts, note the job address and
 contact the office — there may be an issue with a specific file (for
 example, a corrupted photo) that needs a fresh photo taken instead.
@@ -197,10 +210,12 @@ The app is built to handle bad service in the field, whether you have zero
 signal or a connection that drops partway through a submission.
 
 ### If you're fully offline when you submit
+
 You'll see: **"Offline Mode: Lead, photos, and signature saved locally.
 Will sync automatically when connection returns."**
 
 ### If your connection drops mid-submission
+
 The app saves **everything** — the lead info, all photos, and the
 signature — as one complete package, tied to the job that was already
 created if it got that far. You do not need to worry about photos or
@@ -208,6 +223,7 @@ signatures getting lost, and you will not end up with a duplicate job
 once it syncs.
 
 ### How you know something is still waiting to sync
+
 Look for a small badge in the corner of the screen showing **"X pending
 sync."** This badge stays visible — it does not disappear after a few
 seconds like the offline banner does — so you always know if work is
@@ -221,6 +237,7 @@ still waiting to reach the office.
   office right away** so they can help resolve that specific job.
 
 ### What to do if you see a pending sync badge
+
 - **Yellow:** No action needed beyond getting to a signal area. It syncs
   automatically.
 - **Red:** Note the job/address shown and contact the office immediately
@@ -231,7 +248,7 @@ still waiting to reach the office.
 ## 10. Common Situations & What They Mean
 
 | What you see | What it means | What to do |
-|---|---|---|
+| --- | --- | --- |
 | "✕ Incorrect PIN. Try again." | Wrong PIN entered | Re-enter your PIN carefully |
 | "Failed to reverse geocode." | GPS couldn't find an address | Type the address manually |
 | "Photo X failed: [error] — Tap Submit Lead again to retry" | A server error stopped the submission | Tap Submit Lead again — it's safe, skips completed photos, and won't duplicate the job |
@@ -247,6 +264,7 @@ still waiting to reach the office.
 ## 11. What You Cannot Do (By Design)
 
 For security, the field app strictly limits what canvassers can access:
+
 - You cannot see or open jobs that aren't yours. The system checks your
   identity (via your PIN login) against the job's assigned canvasser on
   every request. Attempting to access another rep's job will result in a
@@ -319,6 +337,7 @@ issue that needs manual review rather than repeated retries.
 
 **Q: Who do I contact if something seems broken?**
 Contact the office/Tech Admin if:
+
 - You see a red "FAILED — contact office" badge.
 - Retrying a failed submission doesn't resolve after a few tries.
 - You believe a job was duplicated.

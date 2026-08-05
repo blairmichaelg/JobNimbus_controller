@@ -3,6 +3,7 @@
 This runbook provides emergency operational procedures for Scott during the first live dry run. If the V4 CRM behaves unexpectedly, execute the diagnostics below before escalating.
 
 ## 1. If the Upload Hangs (Mobile Field App)
+
 - **Symptom**: The mobile browser spins indefinitely after tapping "Submit".
 - **Diagnosis**: The Cloudflare tunnel may have expired or crashed.
 - **Action**:
@@ -11,6 +12,7 @@ This runbook provides emergency operational procedures for Scott during the firs
   3. Send the *new* Cloudflare URL to the canvasser if it changed. Note: The mobile app uses `localStorage` caching, so no field data was lost. They just need to reload with the new URL and tap submit again.
 
 ## 2. If the Margin is Red (Office Dashboard)
+
 - **Symptom**: The Financials Card shows a red warning banner (Margin < 35%).
 - **Diagnosis**: The dynamic math engine triggered a low-margin safety threshold based on your inputs.
 - **Action**:
@@ -19,6 +21,7 @@ This runbook provides emergency operational procedures for Scott during the firs
   3. If the math is correct, the roof is genuinely unprofitable.
 
 ## 3. If the PDF Doesn't Generate
+
 - **Symptom**: Clicking "Download Estimate" or "Supplier PO" returns an error or a broken link.
 - **Diagnosis**: The automated math engine (ReportLab) threw an exception during PDF rendering.
 - **Action**:
@@ -27,22 +30,26 @@ This runbook provides emergency operational procedures for Scott during the firs
   3. This will scan the `structlog` output for exact stack traces and identify the `job_id` that crashed. Send this trace to engineering.
 
 ## 4. If the Database is Locked (State Machine Stuck)
+
 - **Symptom**: The job is stuck in `EV_PARSED` but you know the `MaterialBOM` was calculated.
 - **Diagnosis**: An async task crashed halfway, leaving the claim orphaned from the state machine.
 - **Action**:
   1. Identify the `job_id` from the dashboard URL.
   2. Use the SRE override tool to force the state machine forward:
+
      ```bash
      python scripts/recover_job.py <job_id> SUPPLEMENT_SUBMITTED
      ```
+
   3. Refresh the office dashboard. The job will now be unlocked.
 
 > [!CAUTION]
 > Never manually edit the `data/truck_server.db` SQLite file with external viewers (like DBeaver) while Uvicorn is running. The Write-Ahead Log (WAL) mode requires FastAPI to maintain the file lock. Use `recover_job.py` instead.
 
-## 5. Naked Lead / Resume & Sign Issues (v1.9.0+)
+## 5. Naked Lead / Resume & Sign Issues (v2.0.0+)
 
 ### "Resume & Sign" button doesn't pre-populate the form
+
 - **Symptom**: Tapping **✍️ Resume & Sign** on a Naked Lead card either does nothing or shows an error toast.
 - **Diagnosis**: The `GET /api/field/jobs/{job_id}` endpoint may be returning an auth error or the job ownership check failed.
 - **Action**:
@@ -51,6 +58,7 @@ This runbook provides emergency operational procedures for Scott during the firs
   3. If still failing, pull the server log: `logs\fastapi_*.log` and look for the `job_id` and `assert_field_rep_owns_job` entries.
 
 ### Unsigned Agreement PDF returns error
+
 - **Symptom**: Tapping **✉️ Unsigned PDF** or **✉️ Email Client** returns a 404 or server error.
 - **Diagnosis**: The PDF generator may have failed, or the job_id in the URL is malformed.
 - **Action**:
@@ -59,7 +67,7 @@ This runbook provides emergency operational procedures for Scott during the firs
   3. Check `logs\fastapi_*.log` for `generate_contingency_agreement` errors.
 
 ### "Email Client" button opens but email field is blank
+
 - **Symptom**: The `mailto:` link fires but the To: address is empty.
 - **Diagnosis**: No email address was captured during initial lead intake.
 - **Action**: Open the job detail view, use the **Edit Claim Info** modal to add the homeowner's email, save, then retry the Email Client button.
-

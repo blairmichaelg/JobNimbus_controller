@@ -65,6 +65,13 @@ class LineItem(BaseModel):
     unit_of_measure: str | None = None
     unit_price: float | None = None
     waste_percent_included: float | None = None
+    
+    # Forensic/AST fields
+    tax: float | None = None
+    claimed_rcv: float | None = None
+    depreciation: float | None = None
+    acv: float | None = None
+    page: int | None = None
 
 
 class StatementOfLoss(BaseModel):
@@ -78,6 +85,19 @@ class StatementOfLoss(BaseModel):
     claim_number: str | None = None
     line_items: list[LineItem] = []
     overhead_and_profit_included: bool | None = None
+
+    # Geometry fields
+    pitch: str | None = None
+    total_squares: float | None = None
+    eaves_lf: float | None = None
+    valleys_lf: float | None = None
+    rakes_lf: float | None = None
+
+    # Financial fields
+    gross_rcv: float | None = None
+    total_depreciation: float | None = None
+    deductible: float | None = None
+    net_claim: float | None = None
 
 
 class Discrepancy(BaseModel):

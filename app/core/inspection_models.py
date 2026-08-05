@@ -21,7 +21,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 logger = structlog.get_logger("app.core.inspection_models")
 
@@ -78,9 +78,20 @@ class PhotoAnalysis(BaseModel):
         description="Severity of the detected damage: none, minor, moderate, or severe."
     )
     confidence: float = Field(
+        default=1.0,
         ge=0.0,
         le=1.0,
         description="Model confidence score between 0.0 and 1.0."
+    )
+    confidence_score: float = Field(
+        default=100.0,
+        ge=0.0,
+        le=100.0,
+        description="Model confidence score between 0.0 and 100.0."
+    )
+    alternative_explanation: str | None = Field(
+        default=None,
+        description="Alternative explanation or cause of the visible anomalies if confidence is not 100% (e.g. manufacturing defect, weathering, blistering, mechanical damage)."
     )
 
     # Forensic boolean flags — structured indicators for evidence grid
@@ -107,6 +118,15 @@ class PhotoAnalysis(BaseModel):
             "Written as expert testimony suitable for an insurance adjuster review."
         )
     )
+
+    @model_validator(mode='after')
+    def sync_confidence_scores(self) -> 'PhotoAnalysis':
+        """Synchronize confidence (0-1) and confidence_score (0-100) fields."""
+        if self.confidence == 1.0 and self.confidence_score != 100.0:
+            self.confidence = self.confidence_score / 100.0
+        elif self.confidence_score == 100.0 and self.confidence != 1.0:
+            self.confidence_score = self.confidence * 100.0
+        return self
 
 
 # ── Photo Ingestion Models ────────────────────────────────────────────────────
