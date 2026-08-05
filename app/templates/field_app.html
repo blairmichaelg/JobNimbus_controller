@@ -325,17 +325,31 @@
                             ${statusBadge}
                         </div>
                         <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-gray-700/80">
-                            <div class="flex items-center gap-2">
-                                <button onclick="loadDocuments('${job.id}', this)" class="text-blue-400 text-xs font-semibold hover:text-blue-300 bg-gray-900 px-3 py-1.5 rounded border border-gray-700">
-                                    Documents &darr;
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <button onclick="loadDocuments('${job.id}', this)" class="text-blue-400 text-xs font-semibold hover:text-blue-300 bg-gray-900 px-2.5 py-1.5 rounded border border-gray-700">
+                                    Docs &darr;
                                 </button>
-                                <a href="/api/field/jobs/${job.id}/evidence_grid" target="_blank" class="text-emerald-400 hover:text-emerald-300 text-xs font-bold bg-emerald-950/80 px-3 py-1.5 rounded border border-emerald-700/80 flex items-center gap-1">
-                                    📄 Evidence Grid PDF
+                                <a href="/api/field/jobs/${job.id}/evidence_grid" target="_blank" class="text-emerald-300 hover:text-white text-xs font-bold bg-emerald-950/80 px-2.5 py-1.5 rounded border border-emerald-700/80 flex items-center gap-1">
+                                    📄 Evidence Grid
                                 </a>
+                                ${isNakedLead ? `
+                                <a href="/api/field/jobs/${job.id}/docs/contingency" target="_blank" class="text-blue-300 hover:text-white text-xs font-bold bg-blue-950/80 px-2.5 py-1.5 rounded border border-blue-700/80 flex items-center gap-1">
+                                    ✉️ Unsigned PDF
+                                </a>
+                                <button onclick="emailUnsignedAgreement('${job.id}', '${encodeURIComponent(job.homeowner_name)}', '${encodeURIComponent(job.email || '')}')" class="text-amber-300 hover:text-white text-xs font-bold bg-amber-950/80 px-2.5 py-1.5 rounded border border-amber-700/80 flex items-center gap-1">
+                                    ✉️ Email Client
+                                </button>
+                                ` : ''}
                             </div>
+                            ${isNakedLead ? `
+                            <button onclick="resumeLead('${job.id}')" class="text-purple-200 hover:text-white text-xs font-bold bg-purple-900 hover:bg-purple-800 px-3.5 py-1.5 rounded-lg border border-purple-500 shadow flex items-center gap-1">
+                                ✍️ Resume & Sign &rarr;
+                            </button>
+                            ` : `
                             <a href="/office/jobs/${job.id}" class="text-purple-300 hover:text-white text-xs font-bold bg-purple-950/80 hover:bg-purple-900 px-3 py-1.5 rounded border border-purple-700/80 flex items-center gap-1">
-                                ${isNakedLead ? '⚡ Complete Inspection & Sign &rarr;' : '⚡ View Overview & Storms &rarr;'}
+                                ⚡ View Overview &rarr;
                             </a>
+                            `}
                         </div>
                         <div id="docs-${job.id}" class="hidden mt-2 space-y-2 border-t border-gray-700 pt-3"></div>
                     `;
@@ -344,6 +358,71 @@
             } catch (err) {
                 listEl.innerHTML = '<p class="text-red-400 text-sm">Failed to load jobs.</p>';
             }
+        }
+
+        async function resumeLead(jobId) {
+            try {
+                const res = await fetch(`/api/field/jobs/${jobId}`, { headers: { 'x-internal-token': FIELD_TOKEN } });
+                if (!res.ok) throw new Error('Failed to load job details');
+                const job = await res.json();
+
+                inProgressJobId = job.id;
+                document.getElementById('homeowner_name').value = job.homeowner_name || '';
+                document.getElementById('address_line1').value = job.address_line1 || '';
+                document.getElementById('city').value = job.city || '';
+                document.getElementById('state').value = job.state || '';
+                document.getElementById('postal_code').value = job.postal_code || '';
+                document.getElementById('phone').value = job.phone || '';
+                if (document.getElementById('claim_number')) document.getElementById('claim_number').value = job.claim_number || '';
+                if (document.getElementById('insurer_name')) document.getElementById('insurer_name').value = job.insurer_name || '';
+                if (document.getElementById('job_type')) document.getElementById('job_type').value = job.job_type || 'INSURANCE';
+                if (document.getElementById('loss_date')) document.getElementById('loss_date').value = job.loss_date || '';
+
+                let banner = document.getElementById('resumeNoticeBanner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'resumeNoticeBanner';
+                    banner.className = 'bg-blue-900/90 border border-blue-500 text-blue-100 p-4 rounded-lg flex justify-between items-center mb-6 shadow-lg';
+                    const form = document.getElementById('intakeForm');
+                    form.parentNode.insertBefore(banner, form);
+                }
+                banner.innerHTML = `
+                    <div>
+                        <span class="font-bold text-base text-white">📝 Resuming Saved Lead for ${job.homeowner_name}</span>
+                        <p class="text-xs text-blue-200">Pre-populated saved contact info. Present terms & sign below.</p>
+                    </div>
+                    <button type="button" onclick="cancelResume()" class="text-xs bg-gray-800 hover:bg-gray-700 text-white font-bold px-3 py-1.5 rounded border border-gray-600">
+                        ✕ Cancel / New Lead
+                    </button>
+                `;
+                banner.classList.remove('hidden');
+
+                document.getElementById('submitBtn').innerText = '✓ Update Lead & Submit Agreement';
+                showToast(`Loaded saved lead for ${job.homeowner_name}`, 'success');
+                document.getElementById('intakeForm').scrollIntoView({ behavior: 'smooth' });
+            } catch (e) {
+                showToast('Error resuming lead: ' + e.message, 'error');
+            }
+        }
+
+        function cancelResume() {
+            inProgressJobId = null;
+            document.getElementById('intakeForm').reset();
+            const banner = document.getElementById('resumeNoticeBanner');
+            if (banner) banner.classList.add('hidden');
+            document.getElementById('submitBtn').innerText = 'Save Lead';
+            showToast('Cleared lead form for new intake', 'info');
+        }
+
+        function emailUnsignedAgreement(jobId, homeownerNameEnc, emailEnc) {
+            const homeownerName = decodeURIComponent(homeownerNameEnc);
+            const email = decodeURIComponent(emailEnc);
+            const downloadUrl = `${window.location.origin}/api/field/jobs/${jobId}/docs/contingency`;
+            const subject = encodeURIComponent(`Unsigned Contingency Agreement - Wickham Roofing (${homeownerName})`);
+            const body = encodeURIComponent(`Dear ${homeownerName},\n\nPlease review and sign the attached Insurance Contingency Agreement for your property inspection.\n\nYou can view and print the document directly here:\n${downloadUrl}\n\nThank you,\nWickham Roofing LLC`);
+            
+            const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
+            window.location.href = mailtoUrl;
         }
 
         async function checkZipStorms(zip) {
@@ -1013,6 +1092,15 @@
             uploadedPhotoIndices = new Set();
             signatureUploaded = false;
         }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadMyJobs();
+            const params = new URLSearchParams(window.location.search);
+            const resumeId = params.get('resume_job_id');
+            if (resumeId) {
+                resumeLead(resumeId);
+            }
+        });
     </script>
 </body>
 </html>

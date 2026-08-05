@@ -266,16 +266,33 @@ async def upload_field_photo(job_id: str, request: Request, file: UploadFile = F
 
 @router.get("/jobs")
 async def list_my_jobs(claims: dict = Depends(get_current_claims)):
-    """List jobs belonging to the current field rep."""
+    """List jobs belonging to the current field rep with full intake fields for resumption."""
     rep_name = claims.get("rep_name")
     if not rep_name:
         return []
     conn = get_connection()
     try:
-        cursor = conn.execute("SELECT id, homeowner_name, address_line1, created_at, status FROM jobs WHERE canvasser_name = ? ORDER BY created_at DESC LIMIT 20", (rep_name,))
+        cursor = conn.execute(
+            "SELECT id, homeowner_name, address_line1, city, state, postal_code, phone, email, claim_number, insurer_name, job_type, loss_date, created_at, status FROM jobs WHERE canvasser_name = ? ORDER BY created_at DESC LIMIT 50",
+            (rep_name,)
+        )
         return [dict(r) for r in cursor.fetchall()]
     finally:
         conn.close()
+
+@router.get("/jobs/{job_id}")
+async def get_field_job_details(job_id: str, claims: dict = Depends(get_current_claims)):
+    """Retrieve full details of a specific job for field resumption."""
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+    assert_field_rep_owns_job(claims, job_id)
+    job_dict = await asyncio.to_thread(_sync_fetch_job_contingency, job_id)
+    if not job_dict:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return job_dict
+
 
 @router.get("/jobs/{job_id}/documents")
 async def list_field_documents(job_id: str, claims: dict = Depends(get_current_claims)):
@@ -342,6 +359,29 @@ async def download_field_document(job_id: str, doc_id: str, claims: dict = Depen
         return FileResponse(path, media_type=row["file_type"], filename=sanitize_download_filename(row["filename"]))
     finally:
         conn.close()
+
+
+@router.get("/jobs/{job_id}/docs/contingency")
+async def download_unsigned_contingency(job_id: str, claims: dict = Depends(get_current_claims)):
+    """Dynamically generates and returns an unsigned Insurance Contingency Agreement PDF for printing or emailing to homeowners."""
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
+    assert_field_rep_owns_job(claims, job_id)
+    job_dict = await asyncio.to_thread(_sync_fetch_job_contingency, job_id)
+    if not job_dict:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    from app.services.pdf import PDFGenerator
+    pdf_gen = PDFGenerator()
+    pdf_path = await pdf_gen.generate_contingency_agreement(job_dict)
+
+    from app.services.security import sanitize_download_filename
+    filename = sanitize_download_filename(f"Unsigned_Contingency_Agreement_{job_dict.get('homeowner_name', 'Job').replace(' ', '_')}.pdf")
+    return FileResponse(path=pdf_path, filename=filename, media_type="application/pdf")
+
 
 
 @router.post("/jobs/{job_id}/inspection-report", status_code=202)

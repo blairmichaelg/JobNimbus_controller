@@ -97,7 +97,7 @@ If the homeowner accepts the terms during intake or during a follow-up visit:
 
 - **During Lead Creation**: If you lock a signature during initial intake, the app automatically generates the signed agreement PDF and advances the job to **Agreement Signed** (`CONTINGENCY_SIGNED`).
 - **Naked Lead Follow-Up**: If you save a lead without a signature, it is saved as `LEAD_CAPTURED` with a distinct **📝 Naked Lead — Unsigned** amber badge in your **My Recent Jobs** list.
-- **Signing from Job Overview**: Open your Naked Lead from **My Recent Jobs** or tap **⚡ Complete Inspection & Sign**. The job detail page features a top banner and inline **✍️ Capture Homeowner Signature** module so you or the office team can collect the signature on follow-up.
+- **Signing a Naked Lead Later**: From **My Recent Jobs**, tap the **✍️ Resume & Sign** button. This loads the existing homeowner details directly back into the intake form so you can walk through the full contingency agreement on-screen and capture the signature — exactly the same way as a fresh intake, just pre-populated.
 
 ---
 
@@ -116,17 +116,27 @@ If everything succeeds, you'll see **"Lead Captured"** and
 ## 7. My Recent Jobs & Documents
 
 Below the New Lead form, you'll find a **"My Recent Jobs"** section
-that automatically loads your most recent jobs (up to 20).
+that automatically loads your most recent jobs (up to 50, newest first).
 
 ### What you see
 Each job card shows:
-- **Homeowner name**
-- **Address**
-- **Current status** (e.g., LEAD_CAPTURED, CONTINGENCY_SIGNED)
-- A **"Load Documents ↓"** button
+- **Homeowner name** and **address**
+- **Status badge** — amber **📝 Naked Lead — Unsigned** or green **✅ CONTINGENCY_SIGNED** etc.
+- Action buttons (see below)
+
+### Job Card Action Buttons
+
+| Button | What It Does |
+|---|---|
+| **Docs ↓** | Expands to show all field-safe documents for the job |
+| **📄 Evidence Grid** | Downloads the Evidence Grid storm findings PDF (great for pitching to homeowners) |
+| **✉️ Unsigned PDF** *(Naked Leads only)* | Downloads a printable unsigned Contingency Agreement PDF |
+| **✉️ Email Client** *(Naked Leads only)* | Opens your email client pre-filled with a link to the unsigned agreement |
+| **✍️ Resume & Sign** *(Naked Leads only)* | Pre-populates the intake form with saved data so you can capture the signature |
+| **⚡ View Overview →** *(Signed jobs)* | Opens the full job detail in the office portal |
 
 ### Viewing your documents
-1. Tap **"Load Documents ↓"** on any job card.
+1. Tap **"Docs ↓"** on any job card.
 2. The card expands to show all **field-safe** documents for that job —
    this includes your uploaded photos, measurement reports (EagleView or
    Hover), and the signed contingency agreement PDF.

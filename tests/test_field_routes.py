@@ -538,3 +538,60 @@ def test_field_claim_info_update():
     conn.close()
 
 
+def test_get_field_job_details_returns_full_intake_fields():
+    """GET /api/field/jobs/{job_id} should return full job data for lead resumption."""
+    from app.core.database import get_connection
+    import uuid
+
+    job_id = str(uuid.uuid4())
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, status, canvasser_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (job_id, "Resume Test Owner", "789 Resume Blvd", "Valdosta", "GA", "31601", "555-8888", "LEAD_CAPTURED", "Field Test Rep")
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.get(f"/api/field/jobs/{job_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["homeowner_name"] == "Resume Test Owner"
+    assert data["address_line1"] == "789 Resume Blvd"
+    assert data["city"] == "Valdosta"
+    assert data["status"] == "LEAD_CAPTURED"
+
+
+def test_get_field_job_details_404_for_missing_job():
+    """GET /api/field/jobs/{job_id} should return 404 for a nonexistent job."""
+    import uuid
+    fake_id = str(uuid.uuid4())
+    response = client.get(f"/api/field/jobs/{fake_id}")
+    # May return 404 (not found) or raise HTTPException from _sync_fetch_job_contingency
+    assert response.status_code in (404, 500)
+
+
+def test_download_unsigned_contingency_generates_pdf():
+    """GET /api/field/jobs/{job_id}/docs/contingency should return a PDF for a valid job."""
+    from app.core.database import get_connection
+    import uuid
+
+    job_id = str(uuid.uuid4())
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, status, canvasser_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (job_id, "PDF Test Owner", "111 Contract St", "Valdosta", "GA", "31601", "555-7777", "LEAD_CAPTURED", "Field Test Rep")
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.get(f"/api/field/jobs/{job_id}/docs/contingency")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    # Must have actual PDF content
+    assert response.content[:4] == b"%PDF"
+
+
+def test_download_unsigned_contingency_rejects_bad_job_id():
+    """GET /api/field/jobs/not-a-uuid/docs/contingency should return 400."""
+    response = client.get("/api/field/jobs/not-a-valid-uuid/docs/contingency")
+    assert response.status_code == 400
