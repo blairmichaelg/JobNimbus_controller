@@ -595,7 +595,8 @@ def insert_job_document(job_id: str, filename: str, file_type: str, storage_path
         if replace_existing:
             conn.execute("DELETE FROM job_documents WHERE job_id = ? AND filename = ?", (job_id, filename))
         else:
-            # Exact Deduplication Check: Same job, same content (sha256_hash)
+            # Exact Deduplication Check:
+            # 1. If sha256_hash is provided, match identical content for this job
             if sha256_hash:
                 cursor = conn.execute(
                     "SELECT id FROM job_documents WHERE job_id = ? AND sha256_hash = ?",
@@ -610,6 +611,7 @@ def insert_job_document(job_id: str, filename: str, file_type: str, storage_path
                     conn.execute("COMMIT")
                     return row["id"]
             else:
+                # 2. If sha256_hash is absent, match by exact job_id, filename, category & storage_path
                 cursor = conn.execute(
                     "SELECT id FROM job_documents WHERE job_id = ? AND filename = ? AND category = ? AND storage_path = ?",
                     (job_id, filename, category, storage_path)

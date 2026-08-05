@@ -549,16 +549,36 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
         job["damage_signals"] = []
 
     # Fetch supplement flags for Forensic Summary card
-    def _fetch_supplement_flags(jid: str) -> list:
+    def _fetch_supplement_flags(jid: str) -> list[dict]:
+        LABEL_MAP = {
+            "RFG START": ("Starter Strip Shingles", "Manufacturer High-Wind Installation Spec"),
+            "DMO PU": ("Roof Tear-Off Debris Pickup & Haul-Off", "Debris Tonnage & Disposal Compliance"),
+            "RFG DRIP": ("Drip Edge Metal Flashing", "IRC R905.2.8.5 Building Code"),
+            "RFG IWS": ("Ice & Water Shield Membrane", "IRC R905.1.2 Climate Code"),
+            "MATH": ("Carrier Line-Item Calculation Shortage", "Audit Discrepancy Verification"),
+        }
         _conn = get_connection()
         try:
             _cur = _conn.execute(
-                """SELECT r.required_child_code FROM supplement_flags f
+                """SELECT r.required_child_code, r.citation_text, r.citation_type 
+                   FROM supplement_flags f
                    JOIN supplement_rules r ON r.id = f.rule_id
                    WHERE f.job_id = ? AND f.triggered = 1""",
                 (jid,)
             )
-            return [row[0] for row in _cur.fetchall()]
+            items = []
+            for row in _cur.fetchall():
+                code = row["required_child_code"]
+                citation = row["citation_text"] or ""
+                citation_type = row["citation_type"] or ""
+                title, default_citation = LABEL_MAP.get(code, (code, citation))
+                items.append({
+                    "code": code,
+                    "title": title,
+                    "citation": citation or default_citation,
+                    "citation_type": citation_type,
+                })
+            return items
         except Exception:
             return []
         finally:
