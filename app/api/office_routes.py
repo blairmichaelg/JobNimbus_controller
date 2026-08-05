@@ -266,7 +266,7 @@ async def upload_eagleview(job_id: str, file: UploadFile = File(...)):
     try:
         result = await run_full_office_pipeline(job_id, pdf_path, customer_name=homeowner_name)
         # Register document with hash
-        await asyncio.to_thread(insert_job_document, job_id, "eagleview.pdf", "application/pdf", str(pdf_path), file_hash, "field_safe", "EAGLEVIEW_REPORT")
+        await asyncio.to_thread(insert_job_document, job_id, pdf_path.name, "application/pdf", str(pdf_path), file_hash, "field_safe", "MEASUREMENT_REPORT")
     except Exception as e:
         import traceback
         logger.error("master_pipeline_failed_route", job_id=job_id, error=traceback.format_exc())
@@ -329,9 +329,13 @@ async def upload_supplement_docs(
         ev_sha256 = ev_hash   # Already computed by stream_upload_safely
         sol_sha256 = sol_hash # Already computed by stream_upload_safely
         
+        meas_cat = "HOVER_REPORT" if fmt == "HOVER" else ("EAGLEVIEW_REPORT" if fmt == "EAGLEVIEW" else "MEASUREMENT_REPORT")
+        meas_type = "HOVER_PDF" if fmt == "HOVER" else ("EAGLEVIEW_PDF" if fmt == "EAGLEVIEW" else "MEASUREMENT_PDF")
+        meas_name = ev_file.filename if ev_file.filename else ev_path.name
+
         # Insert or update documents in vault
         ev_doc_id = await asyncio.to_thread(
-            insert_job_document, job_id, ev_path.name, "EAGLEVIEW_PDF", str(ev_path), ev_sha256, "field_safe", "EAGLEVIEW_REPORT", True
+            insert_job_document, job_id, meas_name, meas_type, str(ev_path), ev_sha256, "field_safe", meas_cat, True
         )
         sol_doc_id = await asyncio.to_thread(
             insert_job_document, job_id, sol_path.name, "SOL_PDF", str(sol_path), sol_sha256, "office_only", "STATEMENT_OF_LOSS", True
@@ -346,6 +350,7 @@ async def upload_supplement_docs(
             ev_doc_id=ev_doc_id,
             sol_sha256=sol_sha256,
             sol_doc_id=sol_doc_id,
+            generate_pdf=False,
             role=role
         )
         

@@ -752,7 +752,7 @@ def _writeback_ev_geometry(conn, job_id: str, ev_data) -> None:
     )
     logger.info("ev_geometry_written_back", job_id=job_id, fields=list(updates.keys()))
 
-async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: str, ev_sha256: str, ev_doc_id: str, sol_sha256: str, sol_doc_id: str, resume: bool = False, ctx: dict = {}) -> dict:
+async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: str, ev_sha256: str, ev_doc_id: str, sol_sha256: str, sol_doc_id: str, resume: bool = False, generate_pdf: bool = True, ctx: dict = {}) -> dict:
     """
     ARQ Task to handle the complete supplement request flow.
     If resume=True, it skips parsing and gating, validates flags are resolved,
@@ -949,6 +949,12 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
                 await asyncio.to_thread(update_job_status, job_id, JobStatus.PENDING_OPERATOR_REVIEW, note="Manual flag entry required due to malformed extraction.")
                 log.info("pipeline_halted_for_review")
                 return {"status": "halted_for_review"}
+
+            # If generate_pdf is False (e.g. initial doc upload), stop after doc parsing & flag generation
+            if not generate_pdf:
+                await asyncio.to_thread(update_job_status, job_id, JobStatus.STATEMENT_OF_LOSS_RECEIVED, note="Measurement & Statement of Loss parsed and reconciled successfully.")
+                log.info("documents_parsed_ready_for_operator_action", job_id=job_id)
+                return {"status": "success", "stage": "statement_of_loss_received"}
 
         # 5. Generate Narrative
         ai_service = get_ai_client()

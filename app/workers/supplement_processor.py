@@ -22,6 +22,7 @@ async def process_supplement_event(
     sol_sha256: str = "",
     sol_doc_id: str = "",
     resume: bool = False,
+    generate_pdf: bool = True,
     role: str | None = None,
 ) -> dict:
     job_try = ctx.get('job_try', 1)
@@ -39,7 +40,7 @@ async def process_supplement_event(
 
     try:
         return await run_supplement_pipeline(
-            job_id, ev_pdf_path, sol_pdf_path, ev_sha256, ev_doc_id, sol_sha256, sol_doc_id, resume
+            job_id, ev_pdf_path, sol_pdf_path, ev_sha256, ev_doc_id, sol_sha256, sol_doc_id, resume, generate_pdf
         )
     except Exception as e:
         error_msg = str(e)
