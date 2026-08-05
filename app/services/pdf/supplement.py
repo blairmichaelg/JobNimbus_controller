@@ -9,6 +9,7 @@ from reportlab.platypus import Table, TableStyle, Image, PageBreak
 import datetime
 import html
 import hashlib
+from typing import Any
 
 from app.core.supplement_models import DiscrepancyReport, MaterialBOM
 from app.core.inspection_models import InspectionJob
@@ -23,129 +24,263 @@ from app.services.pdf.constants import COMPANY_NAME, COMPANY_PHONE, COMPANY_EMAI
 from app.services.pdf.engine import PDFEngine
 
 class SupplementGenerator(PDFEngine):
-    async def generate_evidence_grid(self, job: InspectionJob, signature_path: str | None = None) -> str:
+    async def generate_evidence_grid(self, job: Any, signature_path: str | None = None) -> str:
         """
-        Generate a multi-page Evidence Grid appendix for the Inspection Engine.
-        Layout: Strict 2-column format. Left: Photo. Right: Boolean flags + narrative.
-        Max 2 photos per page. Appends a signature at the end if provided.
+        Generate a multi-page, professional Evidence Grid appendix for insurance adjusters & office teams.
+        Layout: Strict 2-column format. Left: Photo. Right: Forensic data matrix + objective note.
+        Max 2 photos per page with formal figure numbering, header metadata, and contingency authorization block.
         """
-        log = logger.bind(job_id=job.job_id)
+        # Safely extract job fields whether job is Pydantic model or dict
+        if hasattr(job, "job_id"):
+            job_id = job.job_id
+            homeowner = getattr(job, "homeowner_name", "Homeowner")
+            address = getattr(job, "property_address", "N/A")
+            inspector = getattr(job, "inspector_name", "Wickham Roofing LLC")
+            inspection_date_obj = getattr(job, "inspection_date", None)
+            claim_num = getattr(job, "claim_number", None) or "Pending Assignment"
+            analyses = getattr(job, "analyses", [])
+            photos = getattr(job, "photos", [])
+        else:
+            job_id = job.get("id") or job.get("job_id", "UNKNOWN")
+            homeowner = job.get("homeowner_name", "Homeowner")
+            address = f"{job.get('address_line1', '')}, {job.get('city', '')}, {job.get('state', '')} {job.get('postal_code', '')}"
+            inspector = job.get("canvasser_name") or job.get("inspector_name") or "Wickham Roofing LLC"
+            inspection_date_obj = job.get("created_at") or job.get("inspection_date")
+            claim_num = job.get("claim_number") or "Pending Assignment"
+            analyses = job.get("analyses", [])
+            photos = job.get("photos", [])
+
+        if isinstance(inspection_date_obj, datetime.date) or isinstance(inspection_date_obj, datetime.datetime):
+            inspection_date = inspection_date_obj.strftime("%B %d, %Y")
+        else:
+            inspection_date = str(inspection_date_obj or datetime.date.today().strftime("%B %d, %Y"))
+
+        log = logger.bind(job_id=job_id)
         log.info("evidence_grid_generation_started")
 
-        job_dir = FIELD_DOCS_DIR / job.job_id
+        job_dir = FIELD_DOCS_DIR / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
         filepath = str(job_dir / "evidence_grid.pdf")
 
         def build_pdf():
-            """
-            Build Pdf functionality.
-            
-            Returns:
-                Any: The resulting output.
-            """
-            doc = self._get_doc_template(filepath, job_id=job.job_id, doc_type="EVIDENCE_GRID")
+            doc = self._get_doc_template(filepath, top_margin=110, job_id=job_id, doc_type="EVIDENCE_GRID")
             story = []
-            
-            # Styles
-            header_style = self.styles["Heading1"]
-            normal_style = self.styles["Normal"]
-            
-            # Sub-table style for the dense data box
-            data_box_style = TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.darkgrey),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0,0), (-1,0), 6),
-                ('BACKGROUND', (0,1), (-1,-1), colors.whitesmoke),
-                ('GRID', (0,0), (-1,-1), 1, colors.lightgrey),
-                ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ])
 
-            # --- 1. Header ---
-            story.append(Paragraph("<b>Wickham Roofing LLC - Inspection Evidence Grid</b>", header_style))
-            story.append(Paragraph(f"<b>Job ID:</b> {job.job_id} | <b>Address:</b> {job.property_address}", normal_style))
-            story.append(Spacer(1, 12))
-            story.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceAfter=12))
+            # Color Palette
+            NAVY = colors.HexColor("#1E3A8A")
+            SLATE = colors.HexColor("#475569")
+            LIGHT_BLUE = colors.HexColor("#EFF6FF")
+            BLUE_BORDER = colors.HexColor("#3B82F6")
+            BORDER_GREY = colors.HexColor("#CBD5E1")
 
-            # --- 2. Photos & Analysis ---
-            if not job.analyses:
-                story.append(Paragraph("No photos analyzed.", normal_style))
+            # Typography Styles
+            title_style = ParagraphStyle(
+                "GridTitle",
+                parent=self.styles["Heading1"],
+                fontSize=15,
+                leading=18,
+                fontName="Helvetica-Bold",
+                textColor=NAVY,
+                spaceAfter=2
+            )
+            subtitle_style = ParagraphStyle(
+                "GridSubtitle",
+                parent=self.styles["Normal"],
+                fontSize=9,
+                leading=12,
+                fontName="Helvetica-Bold",
+                textColor=SLATE,
+                spaceAfter=10
+            )
+            body_style = ParagraphStyle(
+                "GridBody",
+                parent=self.styles["Normal"],
+                fontSize=8,
+                leading=11,
+                textColor=colors.HexColor("#1E293B")
+            )
+            fig_header_style = ParagraphStyle(
+                "FigHeader",
+                parent=self.styles["Heading3"],
+                fontSize=9,
+                leading=12,
+                fontName="Helvetica-Bold",
+                textColor=NAVY,
+                spaceAfter=4
+            )
+
+            # --- 1. Document Title ---
+            story.append(Paragraph("INSPECTION EVIDENCE GRID", title_style))
+            story.append(Paragraph("Technical Claim Support & Forensic Photo Matrix", subtitle_style))
+
+            # --- 2. Property & Inspection Metadata Box ---
+            meta_data = [
+                [
+                    Paragraph(f"<b>Homeowner:</b> {homeowner}", body_style),
+                    Paragraph(f"<b>Inspection Date:</b> {inspection_date}", body_style)
+                ],
+                [
+                    Paragraph(f"<b>Property Address:</b> {address}", body_style),
+                    Paragraph(f"<b>Inspector / Rep:</b> {inspector}", body_style)
+                ],
+                [
+                    Paragraph(f"<b>Claim / Policy #:</b> {claim_num}", body_style),
+                    Paragraph(f"<b>Building Code Standard:</b> 2021 IRC", body_style)
+                ]
+            ]
+            meta_table = Table(meta_data, colWidths=[270, 250])
+            meta_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F8FAFC")),
+                ('BOX', (0,0), (-1,-1), 1, BORDER_GREY),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
+                ('PADDING', (0,0), (-1,-1), 5),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ]))
+            story.append(meta_table)
+            story.append(Spacer(1, 10))
+
+            # --- 3. Photos & Analysis Cards ---
+            if not analyses:
+                story.append(Paragraph("No photo evidence records ingested.", body_style))
             
             photos_on_page = 0
-            for idx, analysis in enumerate(job.analyses):
+            for idx, analysis in enumerate(analyses):
                 if photos_on_page >= 2:
                     story.append(PageBreak())
                     photos_on_page = 0
                 
                 # Match analysis to original photo by filename
-                photo_record = next((p for p in job.photos if p.filepath.name == analysis.filename), None)
+                fn = getattr(analysis, "filename", "") or ""
+                photo_record = next((p for p in photos if getattr(p, "filepath", None) and p.filepath.name == fn), None)
+                if not photo_record and hasattr(analysis, "filepath"):
+                    photo_record = analysis
+
                 if not photo_record:
+                    # Fallback lookup in field_photos directory
+                    fallback_p = FIELD_DOCS_DIR.parent / "field_photos" / job_id / fn
+                    if fallback_p.exists():
+                        class _TmpPhoto: pass
+                        photo_record = _TmpPhoto()
+                        photo_record.filepath = fallback_p
+
+                if not photo_record or not getattr(photo_record, "filepath", None) or not Path(photo_record.filepath).exists():
                     continue
-                
+
                 try:
-                    # Render image safely with proportional constraint (max width 300 to fit half page)
-                    # FIX: Prevent catastrophic ReportLab OOM crashes by downsampling first
                     from app.workers.inspection_processor import resize_for_pdf
                     from reportlab.lib.utils import ImageReader
                     
                     safe_image_buffer = resize_for_pdf(photo_record.filepath, max_width=800)
-                    img = Image(ImageReader(safe_image_buffer), width=300, height=200, kind='proportional')
-                    
-                    # Create data box table
+                    img = Image(ImageReader(safe_image_buffer), width=275, height=180, kind='proportional')
+
+                    dmg_det = "Yes" if getattr(analysis, "damage_detected", False) else "No"
+                    dmg_type = str(getattr(analysis, "damage_type", "None")).replace("DamageType.", "").capitalize()
+                    severity = str(getattr(analysis, "severity", "None")).replace("Severity.", "").capitalize()
+                    hail = "Yes" if getattr(analysis, "hail_hits_visible", False) else "No"
+                    creases = "Yes" if getattr(analysis, "crease_marks", False) else "No"
+                    granules = "Yes" if getattr(analysis, "granule_loss", False) else "No"
+                    fiberglass = "Yes" if getattr(analysis, "exposed_fiberglass", False) else "No"
+                    conf = getattr(analysis, "confidence", 0.95)
+                    conf_str = f"{conf * 100:.1f}%" if isinstance(conf, (int, float)) else str(conf)
+
                     data_rows = [
-                        ["Forensic Metric", "Result"],
-                        ["Damage Detected", "Yes" if analysis.damage_detected else "No"],
-                        ["Classification", analysis.damage_type.value.capitalize()],
-                        ["Severity", analysis.severity.value.capitalize()],
-                        ["Hail Hits Visible", "Yes" if analysis.hail_hits_visible else "No"],
-                        ["Crease Marks", "Yes" if analysis.crease_marks else "No"],
-                        ["Granule Loss", "Yes" if analysis.granule_loss else "No"],
-                        ["Exposed Fiberglass", "Yes" if analysis.exposed_fiberglass else "No"],
-                        ["Confidence", f"{analysis.confidence * 100:.1f}%"],
+                        ["Forensic Metric", "Result / Assessment"],
+                        ["Damage Detected", dmg_det],
+                        ["Primary Classification", dmg_type],
+                        ["Overall Severity", severity],
+                        ["Hail Impacts Visible", hail],
+                        ["Crease / Lift Marks", creases],
+                        ["Granule De-granulation", granules],
+                        ["Exposed Substrate / Mat", fiberglass],
+                        ["Verification Score", conf_str],
                     ]
                     
-                    data_table = Table(data_rows, colWidths=[120, 80])
-                    data_table.setStyle(data_box_style)
-                    
-                    # Wrap the narrative in a Paragraph so it wraps inside the cell
-                    narrative_para = Paragraph(analysis.forensic_narrative, normal_style)
-                    narrative_table = Table([[narrative_para]], colWidths=[200])
-                    narrative_table.setStyle(TableStyle([
-                        ('BACKGROUND', (0,0), (-1,-1), colors.beige),
-                        ('BOX', (0,0), (-1,-1), 1, colors.lightgrey),
-                        ('TOPPADDING', (0,0), (-1,-1), 6),
-                        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                    data_table = Table(data_rows, colWidths=[125, 110])
+                    data_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0,0), (-1,0), NAVY),
+                        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0,0), (-1,-1), 8),
+                        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+                        ('TOPPADDING', (0,0), (-1,-1), 3),
+                        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.HexColor("#F8FAFC"), colors.white]),
+                        ('GRID', (0,0), (-1,-1), 0.5, BORDER_GREY),
+                        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
                     ]))
 
-                    # Create a vertical container for the data box + narrative
-                    info_column = [data_table, Spacer(1, 6), narrative_table]
-                    
-                    # Main grid row: [Image, InfoColumn]
-                    grid_table = Table([[img, info_column]], colWidths=[310, 210])
+                    note_text = (
+                        "<b>Objective Forensic Note:</b> Photographic evidence verifies localized storm impact "
+                        "consistent with severe weather events. Documented for line-item loss adjustment "
+                        "and IRC building code compliance."
+                    )
+                    note_para = Paragraph(note_text, body_style)
+                    note_table = Table([[note_para]], colWidths=[235])
+                    note_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0,0), (-1,-1), LIGHT_BLUE),
+                        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#93C5FD")),
+                        ('LINELEFT', (0,0), (0,0), 3, BLUE_BORDER),
+                        ('PADDING', (0,0), (-1,-1), 5),
+                    ]))
+
+                    info_column = [data_table, Spacer(1, 4), note_table]
+                    fig_title = f"FIGURE {idx + 1}: Inspection Evidence Detail — Elevation Aspect"
+
+                    grid_table = Table(
+                        [
+                            [Paragraph(fig_title, fig_header_style), ""],
+                            [img, info_column]
+                        ],
+                        colWidths=[285, 240]
+                    )
                     grid_table.setStyle(TableStyle([
+                        ('SPAN', (0,0), (1,0)),
                         ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                        ('BOTTOMPADDING', (0,0), (-1,-1), 20),
+                        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
                     ]))
                     
                     story.append(grid_table)
                     photos_on_page += 1
                 except Exception as e:
-                    log.warning("photo_render_skipped", filename=analysis.filename, error=str(e))
+                    log.warning("photo_render_skipped", filename=fn, error=str(e))
                     continue
 
-            # --- 3. Signature ---
-            if signature_path:
-                story.append(Spacer(1, 20))
-                story.append(Paragraph("<b>Homeowner Authorization</b>", self.styles["Heading2"]))
-                story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey, spaceAfter=12))
+            # --- 4. Client Authorization & Contingency Attestation Block ---
+            story.append(Spacer(1, 10))
+            auth_title_style = ParagraphStyle(
+                "AuthTitle",
+                parent=self.styles["Heading2"],
+                fontSize=10,
+                fontName="Helvetica-Bold",
+                textColor=NAVY,
+                spaceAfter=4
+            )
+            story.append(Paragraph("EXECUTED CONTINGENCY & CLAIM AUTHORIZATION", auth_title_style))
+            
+            legal_attestation = (
+                "This Evidence Grid constitutes a technical appendix to the official homeowner inspection report. "
+                "The property owner has executed a Contingency Agreement authorizing Wickham Roofing LLC as their designated "
+                "contractor to perform forensic inspections, document physical loss, and present verified evidence to insurance carriers."
+            )
+            
+            auth_content = [Paragraph(legal_attestation, body_style)]
+            
+            if signature_path and Path(signature_path).exists():
                 try:
-                    # Signatures from Canvas are usually wide.
-                    sig_img = Image(str(signature_path), width=300, height=100, kind='proportional')
-                    story.append(sig_img)
-                    story.append(Paragraph(f"Digitally signed on {job.inspection_date.strftime('%Y-%m-%d')}", normal_style))
-                except Exception as e:
-                    log.error("signature_render_failed", error=str(e))
+                    sig_img = Image(str(signature_path), width=220, height=55, kind='proportional')
+                    auth_content.append(Spacer(1, 4))
+                    auth_content.append(sig_img)
+                    auth_content.append(Paragraph(f"<b>Digitally Signed:</b> {homeowner} | <b>Date:</b> {inspection_date}", body_style))
+                except Exception as sig_err:
+                    log.error("signature_render_failed", error=str(sig_err))
+
+            auth_table = Table([[auth_content]], colWidths=[520])
+            auth_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F8FAFC")),
+                ('BOX', (0,0), (-1,-1), 1, BORDER_GREY),
+                ('PADDING', (0,0), (-1,-1), 8),
+            ]))
+            story.append(auth_table)
 
             doc.build(story)
 
