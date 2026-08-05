@@ -24,7 +24,7 @@ from app.services.pdf.engine import PDFEngine
 
 class DocumentsGenerator(PDFEngine):
     async def generate_contingency_pdf(self, job: dict, signature_path: str, signer_name: str, ip_address: str, timestamp_utc: str = "") -> str:
-        """Generate a basic Legal Contingency document with embedded signature and legal footer."""
+        """Generate a complete Legal Contingency document with embedded signature, legal clauses, and 1-Year Workmanship Warranty."""
         job_id = job.get("id", "UNKNOWN")
         log = logger.bind(job_id=job_id)
         log.info("contingency_pdf_generation_started")
@@ -34,44 +34,69 @@ class DocumentsGenerator(PDFEngine):
         filepath = str(job_dir / "contingency_agreement_signed.pdf")
 
         def build_pdf() -> None:
-            """
-            Build Pdf functionality.
-            
-            Returns:
-                Any: The resulting output.
-            """
-            doc = self._get_doc_template(filepath, job_id=job_id, doc_type="CONTINGENCY_SIGNED")
+            doc = self._get_doc_template(filepath, top_margin=120, job_id=job_id, doc_type="CONTINGENCY_SIGNED")
             story = []
             
-            story.append(Paragraph("INSURANCE CONTINGENCY AGREEMENT", self.custom_styles["Title"]))
-            story.append(Spacer(1, 20))
+            story.append(Paragraph("INSURANCE CONTINGENCY & SCOPE AGREEMENT", self.custom_styles["Title"]))
+            story.append(Spacer(1, 14))
             
             # --- Metadata Table ---
             story.append(self._build_metadata_table(job))
-            story.append(Spacer(1, 15))
+            story.append(Spacer(1, 14))
             
-            story.append(Paragraph("Scope of Work & Payment", self.custom_styles["SectionHeading"]))
-            scope_text = "Contractor agrees to repair or replace the roof at the above address. The final scope of work and price shall be strictly determined by the insurance carrier's approved estimate. Any additional work or upgrades require a signed change order."
+            # --- Section 1: Scope of Work ---
+            story.append(Paragraph("1. Scope of Work & Insurance Authorization", self.custom_styles["SectionHeading"]))
+            scope_text = (
+                "Contractor (Wickham Roofing LLC) agrees to perform complete roof and exterior restoration services at the property listed above. "
+                "The final scope of work, specifications, and contract price shall be strictly determined by the insurance carrier's approved estimate, "
+                "plus any Homeowner-requested upgrades or signed change orders. Homeowner hereby authorizes Contractor to inspect property, document storm damage, "
+                "verify technical line-item quantities, and communicate directly with insurance adjusters on construction scope and building code compliance matters."
+            )
             story.append(Paragraph(scope_text, self.custom_styles["BodyText"]))
             story.append(Spacer(1, 10))
             
-            warning_text = "WARNING: It is a violation of Georgia law (O.C.G.A. § 33-24-59.27) for a contractor to pay, waive, rebate, or promise to pay or rebate all or part of an insurance deductible. The homeowner is strictly responsible for the payment of the deductible."
-            story.append(self._box_warning("HB 423 Deductible & Inducement Clause", warning_text, colors.darkred))
-            story.append(Spacer(1, 20))
+            # --- Section 2: 1-Year Workmanship Warranty ---
+            warranty_text = (
+                "Wickham Roofing LLC provides an explicit <b>ONE (1) YEAR WORKMANSHIP WARRANTY</b> on all labor and installation craft quality from the date "
+                "of final project completion. Contractor agrees to repair any installation defects free of charge during the warranty period. "
+                "All manufacturer material warranties (shingles, synthetic underlayment, ventilation) are transferred directly to Homeowner upon full payment."
+            )
+            story.append(self._box_warning("1-YEAR WORKMANSHIP WARRANTY GUARANTEE", warranty_text, colors.HexColor("#1e3a8a")))
+            story.append(Spacer(1, 10))
+            
+            # --- Section 3: HB 423 Georgia Law Deductible Disclosure ---
+            warning_text = (
+                "WARNING: It is a violation of Georgia law (O.C.G.A. § 33-24-59.27) for a contractor to pay, waive, rebate, or promise to pay or rebate "
+                "all or any portion of an insurance deductible. Homeowner is strictly responsible for payment of the insurance deductible in full."
+            )
+            story.append(self._box_warning("HB 423 Deductible Compliance Disclosure (O.C.G.A. § 33-24-59.27)", warning_text, colors.darkred))
+            story.append(Spacer(1, 10))
+            
+            # --- Section 4: Terms, Representation & Cancellation Rights ---
+            story.append(Paragraph("2. Terms, Representation & Statutory Cancellation Right", self.custom_styles["SectionHeading"]))
+            terms_text = (
+                "<b>Public Adjuster Disclosure:</b> Contractor is not acting as a licensed public adjuster and does not represent or negotiate legal claims on behalf of Homeowner.<br/><br/>"
+                "<b>Statutory Right to Cancel (O.C.G.A. § 43-14-14):</b> Homeowner has the statutory right to cancel this contract without penalty at any time before midnight "
+                "on the fifth (5th) business day after receiving written notification from the insurer that all or any part of the claim is not a covered loss under the policy.<br/><br/>"
+                "<b>Default & Liquidated Overhead:</b> If Homeowner breaches this contract after insurance approval without statutory cause, Homeowner agrees to pay liquidated damages "
+                "equal to 15% of the approved claim total to reimburse Contractor for administrative, technical, and pre-construction expenses."
+            )
+            story.append(Paragraph(terms_text, self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 16))
             
             # --- Signature ---
-            story.append(Paragraph("<b>Homeowner Authorization</b>", self.styles["Heading2"]))
-            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey, spaceAfter=12))
+            story.append(Paragraph("<b>Homeowner Authorization & Digital Execution</b>", self.styles["Heading2"]))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey, spaceAfter=10))
             
             try:
-                sig_img = Image(str(signature_path), width=300, height=100, kind='proportional')
+                sig_img = Image(str(signature_path), width=280, height=80, kind='proportional')
                 story.append(sig_img)
             except Exception as e:
                 log.error("signature_render_failed", error=str(e))
                 
-            story.append(Spacer(1, 10))
+            story.append(Spacer(1, 8))
             time_str = f" on {timestamp_utc}" if timestamp_utc else ""
-            story.append(Paragraph(f"Digitally signed by {signer_name} from IP {ip_address}{time_str}", self.custom_styles["FinePrint"]))
+            story.append(Paragraph(f"Digitally signed & verified by <b>{signer_name}</b> from IP address <b>{ip_address}</b>{time_str}", self.custom_styles["FinePrint"]))
             
             doc.build(story)
 
@@ -357,7 +382,7 @@ class DocumentsGenerator(PDFEngine):
 
 
     async def generate_contingency_agreement(self, job: dict) -> str:
-        """Generate a Georgia Insurance Contingency Agreement.
+        """Generate a complete Georgia Insurance Contingency Agreement.
         
         Args:
             job (dict): Job dictionary containing homeowner_name, address_line1, etc.
@@ -367,42 +392,58 @@ class DocumentsGenerator(PDFEngine):
         filepath = str(job_dir / "contingency_agreement.pdf")
 
         def build_pdf() -> None:
-            """
-            Build Pdf functionality.
-            
-            Returns:
-                Any: The resulting output.
-            """
-            doc = self._get_doc_template(filepath, job_id=job["id"], doc_type="CONTINGENCY")
+            doc = self._get_doc_template(filepath, top_margin=120, job_id=job["id"], doc_type="CONTINGENCY")
             story = []
             
-            story.append(Paragraph("INSURANCE CONTINGENCY AGREEMENT", self.custom_styles["Title"]))
-            story.append(Spacer(1, 20))
+            story.append(Paragraph("INSURANCE CONTINGENCY & SCOPE AGREEMENT", self.custom_styles["Title"]))
+            story.append(Spacer(1, 14))
             
             # --- Metadata Table ---
             story.append(self._build_metadata_table(job))
-            story.append(Spacer(1, 15))
+            story.append(Spacer(1, 14))
             
-            story.append(Paragraph("Scope of Work & Payment", self.custom_styles["SectionHeading"]))
-            scope_text = "Contractor agrees to repair or replace the roof at the above address. The final scope of work and price shall be strictly determined by the insurance carrier's approved estimate. Any additional work or upgrades require a signed change order."
+            # --- Section 1: Scope of Work ---
+            story.append(Paragraph("1. Scope of Work & Insurance Authorization", self.custom_styles["SectionHeading"]))
+            scope_text = (
+                "Contractor (Wickham Roofing LLC) agrees to perform complete roof and exterior restoration services at the property listed above. "
+                "The final scope of work, specifications, and contract price shall be strictly determined by the insurance carrier's approved estimate, "
+                "plus any Homeowner-requested upgrades or signed change orders. Homeowner hereby authorizes Contractor to inspect property, document storm damage, "
+                "verify technical line-item quantities, and communicate directly with insurance adjusters on construction scope and building code compliance matters."
+            )
             story.append(Paragraph(scope_text, self.custom_styles["BodyText"]))
             story.append(Spacer(1, 10))
             
-            # --- Boxed Warnings ---
-            warning_text = "WARNING: It is a violation of Georgia law (O.C.G.A. § 33-24-59.27) for a contractor to pay, waive, rebate, or promise to pay or rebate all or part of an insurance deductible. The homeowner is strictly responsible for the payment of the deductible."
-            story.append(self._box_warning("HB 423 Deductible & Inducement Clause", warning_text, colors.darkred))
+            # --- Section 2: 1-Year Workmanship Warranty ---
+            warranty_text = (
+                "Wickham Roofing LLC provides an explicit <b>ONE (1) YEAR WORKMANSHIP WARRANTY</b> on all labor and installation craft quality from the date "
+                "of final project completion. Contractor agrees to repair any installation defects free of charge during the warranty period. "
+                "All manufacturer material warranties (shingles, synthetic underlayment, ventilation) are transferred directly to Homeowner upon full payment."
+            )
+            story.append(self._box_warning("1-YEAR WORKMANSHIP WARRANTY GUARANTEE", warranty_text, colors.HexColor("#1e3a8a")))
             story.append(Spacer(1, 10))
             
-            story.append(Paragraph("Public Adjuster Restriction", self.custom_styles["SectionHeading"]))
-            pa_text = "The contractor is not a public adjuster and does not represent or negotiate on behalf of the owner for the insurance claim."
-            story.append(Paragraph(pa_text, self.custom_styles["BodyText"]))
+            # --- Section 3: HB 423 Georgia Law Deductible Disclosure ---
+            warning_text = (
+                "WARNING: It is a violation of Georgia law (O.C.G.A. § 33-24-59.27) for a contractor to pay, waive, rebate, or promise to pay or rebate "
+                "all or any portion of an insurance deductible. Homeowner is strictly responsible for payment of the insurance deductible in full."
+            )
+            story.append(self._box_warning("HB 423 Deductible Compliance Disclosure (O.C.G.A. § 33-24-59.27)", warning_text, colors.darkred))
             story.append(Spacer(1, 10))
             
-            cancel_text = "You may cancel this contract within five (5) business days after you receive written notice from your insurer that all or any part of your claim is not a covered loss under your insurance policy."
-            story.append(self._box_warning("Statutory Cancellation Disclosure", cancel_text, colors.darkred))
+            # --- Section 4: Terms, Representation & Cancellation Rights ---
+            story.append(Paragraph("2. Terms, Representation & Statutory Cancellation Right", self.custom_styles["SectionHeading"]))
+            terms_text = (
+                "<b>Public Adjuster Disclosure:</b> Contractor is not acting as a licensed public adjuster and does not represent or negotiate legal claims on behalf of Homeowner.<br/><br/>"
+                "<b>Statutory Right to Cancel (O.C.G.A. § 43-14-14):</b> Homeowner has the statutory right to cancel this contract without penalty at any time before midnight "
+                "on the fifth (5th) business day after receiving written notification from the insurer that all or any part of the claim is not a covered loss under the policy.<br/><br/>"
+                "<b>Default & Liquidated Overhead:</b> If Homeowner breaches this contract after insurance approval without statutory cause, Homeowner agrees to pay liquidated damages "
+                "equal to 15% of the approved claim total to reimburse Contractor for administrative, technical, and pre-construction expenses."
+            )
+            story.append(Paragraph(terms_text, self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 16))
             
             # Signature block
-            story.append(self._build_signature_block())
+            story.append(self._build_signature_block(title1="Homeowner Signature", title2="Wickham Roofing LLC Representative"))
             
             doc.build(story)
 

@@ -110,11 +110,11 @@ class InvoiceGenerator(PDFEngine):
                 self.custom_styles["SectionHeading"]
             ))
             included = [
-                "Complete tear-off and disposal of existing roofing",
-                "New synthetic underlayment and drip edge",
-                "Re-flashing of all penetrations and valleys",
-                "Wickham Roofing CRM provides a 1-year workmanship warranty on all full roof replacements. Material warranties are provided directly by the manufacturer.",
-                "Haul-away and job site cleanup",
+                "Complete tear-off and disposal of existing roofing materials",
+                "New synthetic underlayment and heavy-duty drip edge installation",
+                "Re-flashing of all roof penetrations, pipe boots, and valleys",
+                "Explicit 1-Year Workmanship Warranty on all labor and craft quality",
+                "Complete haul-away and magnet sweep job site cleanup",
             ]
             for item in included:
                 story.append(Paragraph(
@@ -472,6 +472,8 @@ class InvoiceGenerator(PDFEngine):
                 "<b>Scope of Work:</b> This estimate covers explicitly listed materials and applications. "
                 "Any hidden structural rot, decking damage, or code upgrades discovered during tear-off "
                 "will be handled via a supplemental change order.<br/><br/>"
+                "<b>Workmanship Warranty:</b> Wickham Roofing LLC provides an explicit <b>1-Year Workmanship Warranty</b> "
+                "on all labor and installation from project completion. Material warranties are provided directly by the manufacturer.<br/><br/>"
                 "<b>Payment Terms:</b> All balances are due upon job completion. Unpaid invoices past 30 days "
                 "are subject to standard financing interest rates as specified by corporate policy."
             )

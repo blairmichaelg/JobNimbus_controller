@@ -461,7 +461,7 @@ class SupplementGenerator(PDFEngine):
 
     async def generate_supplement_pdf(self, report: DiscrepancyReport, narrative: str, job: dict, db_context: dict) -> str:
         """
-        Generate a Supplement Request PDF including the discrepancy summary and AI narrative.
+        Generate an official Insurance Supplement Request PDF including discrepancy breakdown, building code citations, AI narrative, and carrier SLA notice.
         Returns the absolute filepath to the temporary PDF.
         """
         job_id = job.get("id", "UNKNOWN")
@@ -473,74 +473,89 @@ class SupplementGenerator(PDFEngine):
         filepath = str(job_dir / "Supplement_Request.pdf")
 
         def build_pdf():
-            """
-            Build Pdf functionality.
-            
-            Returns:
-                Any: The resulting output.
-            """
-            doc = self._get_doc_template(filepath, job_id=job_id, doc_type="SUPPLEMENT")
+            doc = self._get_doc_template(filepath, top_margin=120, job_id=job_id, doc_type="SUPPLEMENT")
             story = []
             
             # Styles
-            normal_style = self.styles["Normal"]
+            normal_style = self.custom_styles["BodyText"]
+            section_style = self.custom_styles["SectionHeading"]
             narrative_style = ParagraphStyle(
-                name="Narrative",
+                name="SupplementNarrative",
                 parent=normal_style,
-                spaceBefore=6,
-                spaceAfter=6,
+                fontSize=9.5,
+                leading=13.5,
+                spaceBefore=4,
+                spaceAfter=4,
             )
             legal_style = ParagraphStyle(
                 name="LegalDisclaimer",
                 parent=normal_style,
                 fontSize=8,
                 leading=10,
-                textColor=colors.dimgrey,
+                textColor=colors.HexColor("#4b5563"),
             )
             
-            # --- 1. Title ---
-            story.append(Paragraph("<b>SUPPLEMENT REQUEST</b>", self.styles["Heading2"]))
-            story.append(Spacer(1, 12))
+            # --- 1. Title & Header ---
+            story.append(Paragraph("OFFICIAL INSURANCE SUPPLEMENT REQUEST", self.custom_styles["Title"]))
+            story.append(Paragraph("TECHNICAL LINE-ITEM & BUILDING CODE DISCREPANCY REPORT", ParagraphStyle("SubTitle", parent=self.styles["Normal"], fontSize=9, fontName="Helvetica-Bold", alignment=1, textColor=colors.HexColor("#1e3a8a"))))
+            story.append(Spacer(1, 14))
             
             # --- 2. Metadata ---
             story.append(self._build_metadata_table(job))
             story.append(Spacer(1, 12))
             
-            # --- 3. Discrepancy Table ---
-            story.append(Paragraph("<b>Summary of Mathematical Variances:</b>", normal_style))
-            story.append(Spacer(1, 6))
+            # --- 3. Executive Summary ---
+            story.append(Paragraph("Executive Supplement Summary", section_style))
+            exec_summary_text = (
+                "This document presents an official insurance supplement request submitted by Wickham Roofing LLC on behalf of the insured property owner. "
+                "The itemized breakdown below outlines quantity, structural, and International Residential Code (IRC) variances between the carrier's initial estimate "
+                "and the actual scope of work required to perform a complete, code-compliant restoration to pre-loss condition."
+            )
+            story.append(Paragraph(exec_summary_text, normal_style))
+            story.append(Spacer(1, 12))
             
-            table_data = [["Category", "EV Value", "SoL Value", "Variance", "Xactimate"]]
+            # --- 4. Discrepancy Table ---
+            story.append(Paragraph("Summary of Mathematical & Quantity Variances", section_style))
+            story.append(Spacer(1, 4))
+            
+            table_data = [["Category / Item", "EV Measurement", "Carrier Est. (SoL)", "Variance", "Xactimate Code"]]
             for d in report.discrepancies:
+                ev_str = f"{d.ev_value:.2f}" if isinstance(d.ev_value, (int, float)) else str(d.ev_value) if d.ev_value is not None else "N/A"
+                sol_str = f"{d.sol_value:.2f}" if isinstance(d.sol_value, (int, float)) else str(d.sol_value) if d.sol_value is not None else "N/A"
+                var_str = f"{d.variance:.2f}" if isinstance(d.variance, (int, float)) else str(d.variance) if d.variance is not None else "N/A"
                 table_data.append([
                     d.category,
-                    f"{d.ev_value:.2f}" if isinstance(d.ev_value, (int, float)) else str(d.ev_value) if d.ev_value is not None else "N/A",
-                    f"{d.sol_value:.2f}" if isinstance(d.sol_value, (int, float)) else str(d.sol_value) if d.sol_value is not None else "N/A",
-                    f"{d.variance:.2f}" if isinstance(d.variance, (int, float)) else str(d.variance) if d.variance is not None else "N/A",
+                    ev_str,
+                    sol_str,
+                    var_str,
                     d.xactimate_code if d.xactimate_code else "N/A",
                 ])
                 
             if len(table_data) > 1:
-                t = Table(table_data, colWidths=[130, 70, 70, 80, 100])
+                t = Table(table_data, colWidths=[140, 90, 100, 80, 90])
                 t.setStyle(TableStyle([
-                    ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1e3a8a")),
                     ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                    ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                    ('ALIGN', (0,0), (0,-1), 'LEFT'),
+                    ('ALIGN', (1,0), (-2,-1), 'RIGHT'),
+                    ('ALIGN', (-1,0), (-1,-1), 'CENTER'),
                     ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                    ('BOTTOMPADDING', (0,0), (-1,0), 12),
-                    ('BACKGROUND', (0,1), (-1,-1), colors.beige),
-                    ('GRID', (0,0), (-1,-1), 1, colors.black),
+                    ('FONTSIZE', (0,0), (-1,0), 9),
+                    ('BOTTOMPADDING', (0,0), (-1,0), 7),
+                    ('TOPPADDING', (0,0), (-1,0), 7),
+                    ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.HexColor("#f8fafc"), colors.white]),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+                    ('PADDING', (0,0), (-1,-1), 5),
                 ]))
                 story.append(t)
             else:
-                story.append(Paragraph("No discrepancies found.", normal_style))
-            story.append(Spacer(1, 18))
+                story.append(Paragraph("No line-item variances recorded.", normal_style))
+            story.append(Spacer(1, 14))
             
-            # --- 4. Narrative & Code Requirements ---
-            story.append(Paragraph("<b>Defensive Summary & Code Requirements:</b>", normal_style))
-            story.append(Spacer(1, 6))
+            # --- 5. Building Code & Manufacturer Specifications ---
+            story.append(Paragraph("Building Code & Manufacturer Mandates", section_style))
+            story.append(Spacer(1, 4))
             
-            # Fetch rules and citations from DB context
             try:
                 ice_barrier_required = db_context.get("ice_barrier_required", False)
                 jurisdiction = db_context.get("jurisdiction_code_version", "2021_IRC")
@@ -551,34 +566,46 @@ class SupplementGenerator(PDFEngine):
                     ctext = r["citation_text"]
                     climate_dependent = bool(r["climate_dependent"])
                     
-                    # CLIMATE GATE: Defensive second layer. If the rule is marked climate_dependent 
-                    # and the job's ice_barrier_required is False/None, block it from PDF.
                     if climate_dependent and not ice_barrier_required:
                         continue
                     
                     if ctype == "IRC":
-                        framed = f"Pursuant to {jurisdiction.replace('_', ' ')} Section: {ctext}"
+                        framed = f"<b>Pursuant to {jurisdiction.replace('_', ' ')}:</b> {ctext}"
                     elif ctype == "MFG_SPEC":
-                        framed = f"Per Manufacturer Installation Warranty Requirements: {ctext}"
+                        framed = f"<b>Per Manufacturer Installation Warranty Requirements:</b> {ctext}"
                     else:
-                        framed = f"Policy Note: {ctext}"
-                    story.append(Paragraph(f"• <i>{framed}</i>", narrative_style))
+                        framed = f"<b>Policy Standard:</b> {ctext}"
+                    story.append(Paragraph(f"&bull; {framed}", narrative_style))
                 
                 weather = db_context.get("weather")
                 if weather:
-                    story.append(Spacer(1, 6))
-                    story.append(Paragraph(f"<b>Weather Exhibit:</b> {weather['magnitude']}in {weather['event_type']} on {weather['loss_date'][:10]}", normal_style))
-                    story.append(Paragraph("<i>Source: NOAA NCEI Database (Pending Live Ingestion)</i>", legal_style))
+                    story.append(Spacer(1, 4))
+                    story.append(Paragraph(f"<b>NOAA Weather Event Verification:</b> {weather['magnitude']} in {weather['event_type']} documented on {weather['loss_date'][:10]}", legal_style))
                     
             except Exception as e:
                 log.error("pdf_db_context_read_failed", error=str(e))
 
-            story.append(Spacer(1, 6))
-            # Split narrative by newlines into separate paragraphs
+            story.append(Spacer(1, 8))
+            
+            # --- 6. Technical AI Narrative ---
+            story.append(Paragraph("Technical Justification Narrative", section_style))
             for p in narrative.split("\n"):
                 if p.strip():
                     story.append(Paragraph(html.escape(p.strip()), narrative_style))
-            story.append(Spacer(1, 24))
+            story.append(Spacer(1, 14))
+            
+            # --- 7. SLA Warning & 1-Year Workmanship Warranty ---
+            sla_warranty_text = (
+                "<b>14-DAY CARRIER RESPONSE NOTICE:</b> Prompt processing of this supplemental request is required under Georgia Insurance Regulations. "
+                "Failure to approve essential structural building code components exposes the property to secondary moisture intrusion.<br/><br/>"
+                "<b>WORKMANSHIP GUARANTEE:</b> All supplemental scope items executed by Wickham Roofing LLC are backed by our explicit "
+                "<b>1-Year Workmanship Warranty</b> upon final project completion."
+            )
+            story.append(self._box_warning("CARRIER NOTICE & WORKMANSHIP WARRANTY", sla_warranty_text, colors.HexColor("#1e3a8a")))
+            story.append(Spacer(1, 18))
+            
+            # --- 8. Signature ---
+            story.append(self._build_signature_block(title1="Authorized Contractor Representative — Wickham Roofing LLC", title2="Date"))
             
             doc.build(story)
 
