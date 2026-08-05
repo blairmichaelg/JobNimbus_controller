@@ -27,6 +27,9 @@ the title.
 `AWAITING_CARRIER_RESPONSE` → `SUPPLEMENT_APPROVED` → `MATERIAL_ORDERED`
 → `INSTALL_SCHEDULED` → `FINAL_INSPECTION` → `INVOICED`
 
+> [!NOTE]
+> **Naked Leads** (`LEAD_CAPTURED` with no signature) appear in the first column. These are door-knock contacts captured by field reps who haven't signed yet. They are intentionally separated from signed jobs so they don't clutter the active production pipeline. Click into any `LEAD_CAPTURED` job to see a banner with quick actions: Evidence Grid PDF, downloadable unsigned agreement, and a direct link back to the Field App for the rep to capture the signature.
+
 ### Alerts to watch for
 - **Red "PENDING_OPERATOR_REVIEW" cards** — a job is blocked and needs
   your attention in Triage (see Section 2).
@@ -38,6 +41,7 @@ Click any job card to open the **unified job detail view**. This is the
 same full-access view shared by Admin, Operations, and Accounting —
 all three roles see all financials, margins, documents, and actions.
 There is no restriction between these three office roles on job data.
+
 
 ---
 
@@ -321,5 +325,5 @@ same unified job detail view with full access to financials, margins,
 and all documents. The only role with restricted document visibility
 is field reps/canvassers, who can only see `field_safe` documents.
 
-*This guide reflects the Admin workflow as of version `1.9.0`. Includes support for non-blocking 'Naked Lead' field intake, pre-contract Evidence Grid pitch generation, and inline detail page agreement signing.*
+*This guide reflects the Admin workflow as of version `1.9.0`. Includes support for non-blocking 'Naked Lead' field intake (`LEAD_CAPTURED`), pre-contract Evidence Grid pitch generation, unsigned contingency agreement PDF download/email, and field-app-based signature resumption flow.*
 

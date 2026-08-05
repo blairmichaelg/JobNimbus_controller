@@ -39,3 +39,27 @@ This runbook provides emergency operational procedures for Scott during the firs
 
 > [!CAUTION]
 > Never manually edit the `data/truck_server.db` SQLite file with external viewers (like DBeaver) while Uvicorn is running. The Write-Ahead Log (WAL) mode requires FastAPI to maintain the file lock. Use `recover_job.py` instead.
+
+## 5. Naked Lead / Resume & Sign Issues (v1.9.0+)
+
+### "Resume & Sign" button doesn't pre-populate the form
+- **Symptom**: Tapping **✍️ Resume & Sign** on a Naked Lead card either does nothing or shows an error toast.
+- **Diagnosis**: The `GET /api/field/jobs/{job_id}` endpoint may be returning an auth error or the job ownership check failed.
+- **Action**:
+  1. Confirm the rep is still logged in (check for the PIN login screen on refresh).
+  2. Verify the job's `canvasser_name` in the DB matches the rep's registered name (check via admin dashboard → Field Reps).
+  3. If still failing, pull the server log: `logs\fastapi_*.log` and look for the `job_id` and `assert_field_rep_owns_job` entries.
+
+### Unsigned Agreement PDF returns error
+- **Symptom**: Tapping **✉️ Unsigned PDF** or **✉️ Email Client** returns a 404 or server error.
+- **Diagnosis**: The PDF generator may have failed, or the job_id in the URL is malformed.
+- **Action**:
+  1. Confirm the job is in `LEAD_CAPTURED` status (admin dashboard).
+  2. Try the admin equivalent route: `/api/office/jobs/{job_id}/docs/contingency` — if that works, the issue is the field-rep ownership assertion.
+  3. Check `logs\fastapi_*.log` for `generate_contingency_agreement` errors.
+
+### "Email Client" button opens but email field is blank
+- **Symptom**: The `mailto:` link fires but the To: address is empty.
+- **Diagnosis**: No email address was captured during initial lead intake.
+- **Action**: Open the job detail view, use the **Edit Claim Info** modal to add the homeowner's email, save, then retry the Email Client button.
+
