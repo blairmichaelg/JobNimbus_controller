@@ -26,7 +26,7 @@ from app.core.job_costing import compute_job_profitability
 from app.core.database import insert_material_order, insert_schedule, JobStatus, upsert_financials, get_financials, insert_job_document, get_job_document_by_hash, _fetch_job_sync
 from app.core.backup import backup_database
 from app.core.pipeline import run_full_office_pipeline
-from app.api.auth import verify_admin, verify_accounting, verify_office_role
+from app.api.auth import verify_admin, verify_accounting, verify_office_role, verify_field
 from app.core.upload_utils import stream_upload_safely
 from app.services.rate_limit import check_rate_limit
 from app.config import FIELD_DOCS_DIR
@@ -1194,6 +1194,27 @@ async def mark_supplement_sent_route(job_id: str):
     from app.core.database import mark_supplement_sent
     mark_supplement_sent(job_id)
     return {"status": "ok", "job_id": job_id}
+
+@router.get("/jobs/{job_id}/supplement/download")
+async def download_supplement_pdf_route(job_id: str, role: str = Depends(verify_field), claims: dict = Depends(get_current_claims)):
+    """Download the generated Supplement Request PDF."""
+    from app.config import FIELD_DOCS_DIR
+    pdf_path = Path(FIELD_DOCS_DIR) / job_id / "Supplement_Request.pdf"
+    if not pdf_path.exists():
+        conn = get_connection()
+        try:
+            cursor = conn.execute("SELECT storage_path FROM job_documents WHERE job_id = ? AND (category = 'SUPPLEMENT_REPORT' OR filename LIKE '%Supplement%')", (job_id,))
+            row = cursor.fetchone()
+            if row and Path(row["storage_path"]).exists():
+                pdf_path = Path(row["storage_path"])
+            else:
+                raise HTTPException(status_code=404, detail="Supplement PDF not found. Please click Generate Supplement first.")
+        finally:
+            conn.close()
+
+    from app.services.security import sanitize_download_filename
+    filename = sanitize_download_filename(f"Supplement_Request_{job_id[:8]}.pdf")
+    return FileResponse(path=pdf_path, media_type="application/pdf", filename=filename)
 
 
 
