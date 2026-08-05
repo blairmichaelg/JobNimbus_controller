@@ -362,6 +362,7 @@ async def serve_field_app(request: Request, role: str = Depends(verify_field)):
     reps = await asyncio.to_thread(list_field_reps, False)
     token = request.cookies.get("auth_token", "")
     current_rep_name = None
+    claims = {}
     if token:
         try:
             from app.api.auth import decode_token
@@ -369,11 +370,14 @@ async def serve_field_app(request: Request, role: str = Depends(verify_field)):
             current_rep_name = claims.get("rep_name")
         except Exception:
             pass
+    from app.api.auth import is_core_user
+    is_core = is_core_user(claims)
 
     return templates.TemplateResponse(request, "field_app.html", {
         "request": request,
         "reps": reps,
         "role": role,
+        "is_core": is_core,
         "current_rep_name": current_rep_name,
         "active_page": "field",
         "field_token": token
@@ -550,7 +554,19 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
         
+    from app.api.auth import decode_token, is_core_user
+    token = request.cookies.get("auth_token", "")
+    claims = {}
+    if token:
+        try:
+            claims = decode_token(token)
+        except Exception:
+            pass
+    is_core = is_core_user(claims)
+
     documents = await asyncio.to_thread(get_job_documents, job_id)
+    if not is_core:
+        documents = [d for d in documents if d.get("visibility") == "field_safe"]
     job["documents"] = documents
 
     from app.core.database import get_financials
@@ -621,6 +637,7 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
         "job": job,
         "storm_events": storm_events,
         "role": role,
+        "is_core": is_core,
         "auth_token": request.cookies.get("auth_token", ""),
         "office_token": request.cookies.get("auth_token", "")
     })

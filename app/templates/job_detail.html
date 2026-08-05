@@ -17,6 +17,7 @@
 
         <!-- Dashboard Switcher -->
         <div class="flex items-center space-x-2 bg-gray-950 p-1.5 rounded-lg border border-gray-800 my-1 sm:my-0">
+            {% if is_core %}
             <a href="/admin" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider transition-all flex items-center gap-1.5 text-gray-400 hover:text-white hover:bg-gray-800">
                 <span>👑</span>
                 <span>Admin Board</span>
@@ -29,6 +30,7 @@
                 <span>🏗️</span>
                 <span>Production</span>
             </a>
+            {% endif %}
             <a href="/field" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider transition-all flex items-center gap-1.5 text-gray-400 hover:text-white hover:bg-gray-800">
                 <span>📱</span>
                 <span>Field Intake</span>
@@ -37,7 +39,7 @@
 
         <!-- Utility Links -->
         <div class="flex items-center space-x-2">
-            {% if role == 'admin' %}
+            {% if is_core %}
                 <a href="/admin/reps" class="text-purple-400 hover:text-white px-3 py-1.5 border border-purple-800 hover:border-purple-600 rounded text-xs font-bold transition-all">👥 Reps</a>
                 <a href="/api/office/admin/triage" class="text-yellow-400 hover:text-white px-3 py-1.5 border border-yellow-800 hover:border-yellow-600 rounded text-xs font-bold transition-all">⚠️ Triage</a>
             {% endif %}
@@ -402,7 +404,9 @@
 
                         <h4 class="text-xs font-semibold uppercase text-gray-400 tracking-wider mb-2">On-Demand Actions & Generator Links</h4>
                         <div class="flex flex-col space-y-2">
-                            <a href="/api/office/download/INV-{{ job.id[:8].upper() }}_QBO.csv" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition text-sm">Download QBO CSV</a>
+                            {% if is_core %}
+                                <a href="/api/office/download/INV-{{ job.id[:8].upper() }}_QBO.csv" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition text-sm">Download QBO CSV</a>
+                            {% endif %}
                             <a href="/api/office/jobs/{{ job.id }}/docs/cancellation" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition text-sm">Notice of Cancellation (PDF)</a>
                             <a href="/api/office/jobs/{{ job.id }}/evidence_grid" class="text-indigo-400 hover:text-indigo-300 border border-gray-700 rounded p-2 text-center hover:bg-gray-700 transition text-sm">Evidence Grid (PDF)</a>
                             <button type="button" id="inspectionReportBtn" onclick="triggerInspectionReport('{{ job.id }}')" class="text-green-400 hover:text-green-300 border border-green-700 rounded p-2 text-center hover:bg-gray-700 transition font-semibold text-sm">
