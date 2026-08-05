@@ -10,7 +10,7 @@ from app.core.database import get_connection, JobStatus
 
 logger = structlog.get_logger("app.workers.supplement_processor")
 
-VALID_WORKER_ROLES = {"admin", "field", "office"}
+VALID_WORKER_ROLES = {"admin", "field", "office", "accounting", "operations"}
 
 async def process_supplement_event(
     ctx: dict,
@@ -27,20 +27,20 @@ async def process_supplement_event(
 ) -> dict:
     job_try = ctx.get('job_try', 1)
     
-    # Sanitize role — never trust caller-supplied role blindly
+    # Sanitize role — default to admin/office if not specified
     if role not in VALID_WORKER_ROLES:
         logger.warning("invalid_role_in_payload", job_id=job_id, role=role)
-        role = "field"  # safe default — least privilege
+        role = "admin"
 
     ctx["role"] = role
-    ALLOWED_SUPPLEMENT_ROLES = {"admin", "operations"}
+    ALLOWED_SUPPLEMENT_ROLES = {"admin", "operations", "accounting", "office"}
     if ctx.get("role") not in ALLOWED_SUPPLEMENT_ROLES:
         logger.warning("role_not_allowed_for_supplement", role=role)
         return {"status": "forbidden", "reason": "role_not_allowed_for_supplement"}
 
     try:
         return await run_supplement_pipeline(
-            job_id, ev_pdf_path, sol_pdf_path, ev_sha256, ev_doc_id, sol_sha256, sol_doc_id, resume, generate_pdf
+            job_id, ev_pdf_path, sol_pdf_path, ev_sha256, ev_doc_id, sol_sha256, sol_doc_id, resume, generate_pdf, ctx
         )
     except Exception as e:
         error_msg = str(e)

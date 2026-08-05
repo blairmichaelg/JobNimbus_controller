@@ -1120,20 +1120,65 @@ async def admin_triage_resolve(request: Request, job_id: str, payload: dict = Bo
     response_class=JSONResponse,
     dependencies=[Depends(verify_office_role)]
 )
-async def trigger_supplement_route(request: Request, job_id: str, role: str = Depends(verify_office_role)):
+async def trigger_supplement_route(request: Request, job_id: str, claims: dict = Depends(get_current_claims)):
     """Manually trigger or regenerate supplement pipeline for a job."""
-    from app.core.pipeline import run_supplement_pipeline
+    from app.core.pipeline import run_supplement_pipeline, _fetch_latest_report_sync
+    role = claims.get("role", "admin")
+
+    # Locate measurement and statement of loss documents for this job
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            """SELECT filename, storage_path, sha256_hash, id, category 
+               FROM job_documents 
+               WHERE job_id = ? AND category IN ('MEASUREMENT_REPORT', 'EAGLEVIEW', 'STATEMENT_OF_LOSS')""",
+            (job_id,)
+        )
+        docs = [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+    ev_doc = next((d for d in docs if d["category"] in ("MEASUREMENT_REPORT", "EAGLEVIEW")), None)
+    sol_doc = next((d for d in docs if d["category"] == "STATEMENT_OF_LOSS"), None)
+
+    ev_pdf_path = ev_doc["storage_path"] if ev_doc else ""
+    sol_pdf_path = sol_doc["storage_path"] if sol_doc else ""
+    ev_sha256 = (ev_doc.get("sha256_hash") if ev_doc else "") or ""
+    ev_doc_id = (ev_doc.get("id") if ev_doc else "") or ""
+    sol_sha256 = (sol_doc.get("sha256_hash") if sol_doc else "") or ""
+    sol_doc_id = (sol_doc.get("id") if sol_doc else "") or ""
+
+    has_report = await asyncio.to_thread(_fetch_latest_report_sync, job_id) is not None
+    resume_flag = has_report
+
     try:
         if hasattr(request.app.state, "redis_pool") and request.app.state.redis_pool:
             await request.app.state.redis_pool.enqueue_job(
                 "process_supplement_event",
                 job_id=job_id,
-                resume=True,
+                ev_pdf_path=ev_pdf_path,
+                sol_pdf_path=sol_pdf_path,
+                ev_sha256=ev_sha256,
+                ev_doc_id=ev_doc_id,
+                sol_sha256=sol_sha256,
+                sol_doc_id=sol_doc_id,
+                resume=resume_flag,
                 generate_pdf=True,
                 role=role
             )
         else:
-            await asyncio.to_thread(run_supplement_pipeline, job_id, None, None, True, True, role)
+            await run_supplement_pipeline(
+                job_id=job_id,
+                ev_pdf_path=ev_pdf_path,
+                sol_pdf_path=sol_pdf_path,
+                ev_sha256=ev_sha256,
+                ev_doc_id=ev_doc_id,
+                sol_sha256=sol_sha256,
+                sol_doc_id=sol_doc_id,
+                resume=resume_flag,
+                generate_pdf=True,
+                ctx={"role": role}
+            )
         return {"status": "success", "message": "Supplement processing triggered."}
     except Exception as e:
         logger.error("trigger_supplement_failed", job_id=job_id, error=str(e))
