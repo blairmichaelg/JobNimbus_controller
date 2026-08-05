@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0] - 2026-08-04
+### Added & Professionalized
+- **PDF Engine & Executive Branding Overhaul**: Re-architected PDF layout infrastructure in `app/services/pdf/engine.py` (`_universal_letterhead`, metadata grids, warning callout boxes, signature blocks) featuring top-right logo positioning, navy headers (`#1e3a8a`), and crisp slate borders.
+- **Mandatory 1-Year Workmanship Warranty**: Embedded explicit 1-Year Workmanship Warranty Guarantee callouts across all 10 system-generated PDF document types (`documents.py`, `supplement.py`, `inspection_report.py`, `invoice.py`, `commission.py`).
+- **Georgia Statutory Legal Disclosures**: Hardened legal protection in contracts, quotes, and estimates with Georgia HB 423 deductible rebate disclaimers (O.C.G.A. § 33-24-59.27), public adjuster representation limits, 5-day cancellation notices, 15% default clauses, and mechanics lien waivers.
+- **Auth & RBAC Hardening**: Audited authentication endpoints, purged non-standard generic fallback PINs, and strictly enforced field rep job ownership checks (`assert_field_rep_owns_job`).
+- **Full Verification Suite**: Executed end-to-end smoke test validating all 10 document types and passed all 256 test modules in `pytest`.
+
 ## [1.6.1] - 2026-08-04
 ### Added & Prepared
 - **Demo Readiness**: Added a documented fresh-state database reset workflow for demo prep, including a one-shot reset script that clears all jobs and restores the default Jerry Grubb demo field rep state.

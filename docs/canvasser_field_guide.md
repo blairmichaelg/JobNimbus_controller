@@ -348,6 +348,6 @@ Contact the office/Tech Admin if:
 
 ---
 
-*This guide reflects the field app as of commit `da9b80b`. If the app's
+*This guide reflects the field app as of version `1.7.0` (commit `2107bb6`). If the app's
 screens, buttons, or error messages change in a future update, this
 guide should be reviewed and updated to match.*

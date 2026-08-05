@@ -30,6 +30,7 @@ def reset_demo_db():
     tables_to_clear = [
         "ai_usage_logs",
         "storm_verifications",
+        "supplement_flags",
         "supplement_reports",
         "job_tasks",
         "job_documents",
@@ -50,16 +51,20 @@ def reset_demo_db():
         conn.commit()
         print(f"Successfully cleared tables: {', '.join(tables_to_clear)}")
         
-        # Create Jerry Grubb as the only field rep with PIN 1111
-        # The create_field_rep function automatically handles bcrypt hashing
-        create_field_rep("Jerry Grubb", "1111")
-        print("Successfully created demo field rep 'Jerry Grubb' with PIN 1111.")
-        
     except Exception as e:
         print(f"Error resetting demo database: {e}")
         conn.rollback()
     finally:
         conn.close()
+
+    # Re-seed core team reps (Michael, Scott, Debi) and demo rep Jerry Grubb
+    from app.core.database import seed_core_team_reps
+    seed_core_team_reps()
+    try:
+        create_field_rep("Jerry Grubb", "1111")
+        print("Successfully created demo field rep 'Jerry Grubb' with PIN 1111.")
+    except Exception as e:
+        print(f"Demo field rep 'Jerry Grubb' creation note: {e}")
 
     # Wipe contents of document/upload directories
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
