@@ -42,8 +42,10 @@
 
         <!-- Utility Links -->
         <div class="flex items-center space-x-2">
-            <a href="/admin/reps" class="text-purple-400 hover:text-white px-3 py-1.5 border border-purple-800 hover:border-purple-600 rounded text-xs font-bold transition-all">👥 Reps</a>
-            <a href="/api/office/admin/triage" class="text-yellow-400 hover:text-white px-3 py-1.5 border border-yellow-800 hover:border-yellow-600 rounded text-xs font-bold transition-all">⚠️ Triage</a>
+            {% if role == 'admin' %}
+                <a href="/admin/reps" class="text-purple-400 hover:text-white px-3 py-1.5 border border-purple-800 hover:border-purple-600 rounded text-xs font-bold transition-all">👥 Reps</a>
+                <a href="/api/office/admin/triage" class="text-yellow-400 hover:text-white px-3 py-1.5 border border-yellow-800 hover:border-yellow-600 rounded text-xs font-bold transition-all">⚠️ Triage</a>
+            {% endif %}
             <a href="/help" class="text-blue-400 hover:text-white px-3 py-1.5 border border-blue-800 hover:border-blue-600 rounded text-xs font-bold transition-all">❓ Help</a>
             <a href="/auth/logout" class="text-gray-400 hover:text-white px-3 py-1.5 border border-gray-800 hover:border-gray-600 rounded text-xs transition-all">Logout</a>
         </div>
