@@ -309,26 +309,35 @@
                 }
                 listEl.innerHTML = '';
                 for (const job of jobs) {
+                    const isNakedLead = job.status === 'LEAD_CAPTURED';
+                    const statusBadge = isNakedLead 
+                        ? `<span class="px-2.5 py-1 bg-amber-600/80 text-amber-100 border border-amber-500 text-xs font-bold rounded-full flex items-center gap-1">📝 Naked Lead — Unsigned</span>`
+                        : `<span class="px-2.5 py-1 bg-green-700/80 text-green-100 border border-green-500 text-xs font-bold rounded-full flex items-center gap-1">✅ ${job.status}</span>`;
+
                     const card = document.createElement('div');
-                    card.className = "bg-gray-800 border border-gray-700 p-4 rounded-lg";
+                    card.className = `bg-gray-800 border ${isNakedLead ? 'border-amber-600/60' : 'border-gray-700'} p-4 rounded-lg shadow-md space-y-3`;
                     card.innerHTML = `
-                        <div class="flex justify-between items-start mb-2">
+                        <div class="flex justify-between items-start">
                             <div>
                                 <h3 class="text-white font-bold text-lg">${job.homeowner_name}</h3>
                                 <p class="text-gray-400 text-sm">${job.address_line1}</p>
                             </div>
-                            <span class="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded-full">${job.status}</span>
+                            ${statusBadge}
                         </div>
-                        <div class="flex items-center gap-4 mt-2">
-                            <button onclick="loadDocuments('${job.id}', this)" class="text-blue-400 text-xs font-semibold hover:text-blue-300">
-                                Load Documents &darr;
-                            </button>
-                            <a href="/office/jobs/${job.id}" class="text-purple-400 hover:text-purple-300 text-xs font-bold flex items-center gap-1">
-                                ⚡ View Job Overview & Recent Storms &rarr;
+                        <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-gray-700/80">
+                            <div class="flex items-center gap-2">
+                                <button onclick="loadDocuments('${job.id}', this)" class="text-blue-400 text-xs font-semibold hover:text-blue-300 bg-gray-900 px-3 py-1.5 rounded border border-gray-700">
+                                    Documents &darr;
+                                </button>
+                                <a href="/api/field/jobs/${job.id}/evidence_grid" target="_blank" class="text-emerald-400 hover:text-emerald-300 text-xs font-bold bg-emerald-950/80 px-3 py-1.5 rounded border border-emerald-700/80 flex items-center gap-1">
+                                    📄 Evidence Grid PDF
+                                </a>
+                            </div>
+                            <a href="/office/jobs/${job.id}" class="text-purple-300 hover:text-white text-xs font-bold bg-purple-950/80 hover:bg-purple-900 px-3 py-1.5 rounded border border-purple-700/80 flex items-center gap-1">
+                                ${isNakedLead ? '⚡ Complete Inspection & Sign &rarr;' : '⚡ View Overview & Storms &rarr;'}
                             </a>
                         </div>
-                        <div id="docs-${job.id}" class="hidden mt-4 space-y-2 border-t border-gray-700 pt-3">
-                        </div>
+                        <div id="docs-${job.id}" class="hidden mt-2 space-y-2 border-t border-gray-700 pt-3"></div>
                     `;
                     listEl.appendChild(card);
                 }
@@ -842,10 +851,6 @@
             submitBtn.disabled = true;
 
             try {
-                if (document.getElementById('job_type').value === 'INSURANCE' && !isSignatureLocked) {
-                    throw new Error('Please lock the signature before submitting.');
-                }
-
                 const loadingModal = document.getElementById('loadingModal');
                 const loadingTitle = document.getElementById('loadingTitle');
                 const loadingProgress = document.getElementById('loadingProgress');
@@ -871,7 +876,7 @@
 
                 let signatureBase64 = null;
                 let signerName = null;
-                if (document.getElementById('job_type').value === 'INSURANCE') {
+                if (isSignatureLocked) {
                     signatureBase64 = canvas.toDataURL('image/png');
                     signerName = document.getElementById('homeowner_name').value;
                 }

@@ -321,8 +321,5 @@ same unified job detail view with full access to financials, margins,
 and all documents. The only role with restricted document visibility
 is field reps/canvassers, who can only see `field_safe` documents.
 
----
+*This guide reflects the Admin workflow as of version `1.9.0`. Includes support for non-blocking 'Naked Lead' field intake, pre-contract Evidence Grid pitch generation, and inline detail page agreement signing.*
 
-*This guide reflects the Admin workflow as of version `1.8.0`. If new
-statuses, buttons, or workflows are added in future updates, this guide
-should be reviewed and updated to match.*

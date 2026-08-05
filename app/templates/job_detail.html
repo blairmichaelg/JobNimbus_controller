@@ -152,6 +152,53 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             <!-- Left Column: Details & Measurements -->
             <div class="space-y-6">
+                {% if job.status == 'LEAD_CAPTURED' %}
+                <!-- Naked Lead Top Banner & Signature Capture Card -->
+                <div class="bg-amber-950/80 border border-amber-600/80 p-5 rounded-xl shadow-lg space-y-4">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                            <div class="flex items-center gap-2 text-amber-300 font-bold text-lg">
+                                <span>📝</span> Naked Lead — Contingency Agreement Unsigned
+                            </div>
+                            <p class="text-xs text-amber-200/80 mt-1">
+                                Saved lead record. You can present storm findings to the homeowner using the Evidence Grid PDF, or capture their signature below.
+                            </p>
+                        </div>
+                        <a href="/api/field/jobs/{{ job.id }}/evidence_grid" target="_blank" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg border border-emerald-400 shadow transition-all flex items-center gap-1">
+                            📄 Evidence Grid PDF Report
+                        </a>
+                    </div>
+
+                    <!-- E-Signature Section -->
+                    <div class="bg-gray-900 border border-amber-700/60 p-4 rounded-lg space-y-3">
+                        <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                            <span>✍️</span> Capture Homeowner Signature (Contingency Agreement)
+                        </h3>
+                        
+                        <div class="bg-gray-800 border border-gray-700 rounded p-3 text-xs text-gray-300 max-h-32 overflow-y-auto font-sans leading-relaxed">
+                            <p class="font-bold text-white mb-1">INSURANCE CONTINGENCY AGREEMENT SUMMARY</p>
+                            <p>Contractor agrees to repair or replace the roof at the provided address. Final scope and pricing strictly determined by insurance carrier estimate. Homeowner responsible for insurance deductible under O.C.G.A. § 33-24-59.27.</p>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <input id="detail_agree_ack" type="checkbox" class="w-4 h-4 bg-gray-800 border-gray-600 rounded">
+                            <label for="detail_agree_ack" class="text-xs text-gray-300 font-medium">Homeowner accepts terms & conditions</label>
+                        </div>
+
+                        <div class="bg-white rounded p-1 border border-gray-600">
+                            <canvas id="detailSigCanvas" width="360" height="130" class="w-full touch-none bg-white rounded"></canvas>
+                        </div>
+
+                        <div class="flex justify-between items-center text-xs">
+                            <button type="button" onclick="clearDetailSig()" class="text-red-400 hover:text-red-300 font-bold px-3 py-1 bg-gray-800 rounded border border-gray-700">Clear</button>
+                            <button type="button" onclick="submitDetailSig('{{ job.id }}')" id="submitSigBtn" class="bg-green-600 hover:bg-green-500 text-white font-bold px-4 py-2 rounded shadow transition-all">
+                                ✓ Save E-Signature & Advance Job
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- Client Details -->
                 <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
                     <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Client Details</h2>
@@ -1155,6 +1202,93 @@
             }
         } catch (err) {
             alert('Network error applying Date of Loss');
+        }
+    }
+
+    let detailCtx = null;
+    let detailDrawing = false;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const c = document.getElementById('detailSigCanvas');
+        if (c) {
+            detailCtx = c.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = c.getBoundingClientRect();
+            c.width = rect.width * dpr;
+            c.height = rect.height * dpr;
+            detailCtx.scale(dpr, dpr);
+            detailCtx.lineWidth = 2;
+            detailCtx.lineCap = 'round';
+            detailCtx.strokeStyle = '#000';
+
+            const getPos = (e) => {
+                const r = c.getBoundingClientRect();
+                const cx = e.touches ? e.touches[0].clientX : e.clientX;
+                const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: cx - r.left, y: cy - r.top };
+            };
+
+            const start = (e) => { detailDrawing = true; const p = getPos(e); detailCtx.beginPath(); detailCtx.moveTo(p.x, p.y); e.preventDefault(); };
+            const move = (e) => { if (!detailDrawing) return; const p = getPos(e); detailCtx.lineTo(p.x, p.y); detailCtx.stroke(); e.preventDefault(); };
+            const stop = () => { detailDrawing = false; };
+
+            c.addEventListener('mousedown', start);
+            c.addEventListener('mousemove', move);
+            c.addEventListener('mouseup', stop);
+            c.addEventListener('mouseleave', stop);
+            c.addEventListener('touchstart', start, {passive: false});
+            c.addEventListener('touchmove', move, {passive: false});
+            c.addEventListener('touchend', stop);
+        }
+    });
+
+    function clearDetailSig() {
+        const c = document.getElementById('detailSigCanvas');
+        if (c && detailCtx) detailCtx.clearRect(0, 0, c.width, c.height);
+    }
+
+    async function submitDetailSig(jobId) {
+        const ack = document.getElementById('detail_agree_ack');
+        if (!ack || !ack.checked) {
+            alert('Please acknowledge terms before saving signature.');
+            return;
+        }
+        const c = document.getElementById('detailSigCanvas');
+        const pixelData = detailCtx.getImageData(0, 0, c.width, c.height).data;
+        const hasInk = pixelData.some((v, i) => i % 4 === 3 && v > 0);
+        if (!hasInk) {
+            alert('Please draw a signature before submitting.');
+            return;
+        }
+
+        const btn = document.getElementById('submitSigBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving Signature...';
+
+        const sigData = c.toDataURL('image/png');
+        const payload = {
+            signature_base64: sigData,
+            signer_name: "{{ job.homeowner_name }}"
+        };
+
+        try {
+            const res = await fetch(`/api/field/jobs/${jobId}/contingency-sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                alert('Error saving signature: ' + (err.detail || 'Failed'));
+                btn.disabled = false;
+                btn.textContent = '✓ Save E-Signature & Advance Job';
+            }
+        } catch (e) {
+            alert('Network error saving signature.');
+            btn.disabled = false;
+            btn.textContent = '✓ Save E-Signature & Advance Job';
         }
     }
     </script>

@@ -2,7 +2,7 @@ import uuid
 import pytest
 from pathlib import Path
 
-from app.core.database import update_job_claim_info, get_connection
+from app.core.database import update_job_claim_info, get_connection, update_job_status
 from app.services.pdf import PDFGenerator
 from app.api.field_routes import get_inspection_summary
 
@@ -82,3 +82,28 @@ def test_update_claim_info_database():
         assert storm_row["loss_date"] == "2026-07-29"
     finally:
         conn.close()
+
+
+def test_naked_lead_lifecycle_and_conversion():
+    """Verify a naked lead is created as LEAD_CAPTURED and converts to CONTINGENCY_SIGNED upon signature."""
+    job_id = str(uuid.uuid4())
+    conn = get_connection()
+    try:
+        # 1. Create Naked Lead (No Signature)
+        conn.execute(
+            "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, status, canvasser_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (job_id, "Naked Lead Owner", "456 Oak St", "Valdosta", "GA", "31602", "555-9999", "LEAD_CAPTURED", "Sales Rep John")
+        )
+        conn.commit()
+        
+        row = conn.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        assert row["status"] == "LEAD_CAPTURED"
+        
+        # 2. Advance job via signature update
+        update_job_status(job_id, "CONTINGENCY_SIGNED", "Contingency signed by Naked Lead Owner")
+        
+        row_signed = conn.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        assert row_signed["status"] == "CONTINGENCY_SIGNED"
+    finally:
+        conn.close()
+

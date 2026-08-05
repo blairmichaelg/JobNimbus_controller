@@ -76,68 +76,37 @@ When you're with a homeowner and ready to start a job, you'll fill out the
 
 ---
 
-## 4. Reviewing the Contingency Agreement (Insurance Jobs)
+## 4. Reviewing the Contingency Agreement & "Naked Lead" Workflow
 
-If the job type is **Insurance Restoration**, the homeowner must review
-and acknowledge the contingency agreement before signing.
+Field reps can submit a **Naked Lead** (Name, Address, Phone, and optional Date of Loss/Insurer) **without requiring an immediate signature or photos**. 
 
-### What the homeowner sees
-Before the signature canvas, the app displays the **full legal text** of
-the Insurance Contingency Agreement in a scrollable box. This includes:
+### Why Use Naked Leads?
+- **Door-Knock Lead Capture**: Quickly store contacts on-the-go after an initial door-knock.
+- **Sales Presentation & Pitching**: Capture property details, return to run NOAA storm searches, and generate the **Inspection Evidence Grid PDF** to present storm damage proof to the homeowner *before* asking them to sign.
+- **Durable Persistence**: All naked leads attach to your rep login and are visible to the core management team without clogging active production columns.
 
-- **Scope of Work & Payment** — explaining that the final scope and price
-  are determined by the insurance carrier's approved estimate.
-- **Georgia Deductible Law Warning** (O.C.G.A. § 33-24-59.27) — a
-  prominent red warning that it is illegal for a contractor to waive or
-  rebate the deductible.
-- **Public Adjuster Restriction** — clarifying that the contractor does
-  not represent the homeowner in insurance negotiations.
-- **Statutory Cancellation Rights** — a red notice that the homeowner
-  may cancel within five business days if their insurer denies coverage.
-
-### Required acknowledgment
-Below the agreement text, there is a **required checkbox**:
-
-> *"I have presented this agreement to the homeowner and they accept
-> the terms."*
-
-This checkbox **must** be checked before the form can be submitted. The
-app will not allow submission without it.
+### When the Homeowner Is Ready to Sign
+If the homeowner accepts the terms during intake or during a follow-up visit:
+1. Review the **Insurance Contingency Agreement Summary** with the homeowner (including deductible warnings under O.C.G.A. § 33-24-59.27).
+2. Check the acknowledgment box: *"Homeowner accepts terms & conditions"*.
+3. Draw the signature on the canvas and tap **Lock Signature** or **✓ Save E-Signature**.
 
 ---
 
-## 5. Capturing the Signature (Insurance Jobs)
+## 5. Capturing Signatures (Initial Intake or Follow-Up)
 
-If the job type is **Insurance Restoration**, a signature is **required**
-before you can submit — the app will block submission with **"Please lock
-the signature before submitting"** if you skip it.
-
-### How to sign
-1. Have the homeowner draw their signature on the canvas under
-   **"Homeowner Signature (Contingency Agreement)."**
-2. If you make a mistake before locking, tap **Clear Signature** to
-   wipe the canvas and start over.
-3. If nothing is drawn, tapping the lock button shows
-   **"Please draw a signature before locking."**
-4. Once a signature is drawn, tap **Lock Signature**.
-   - The button changes to **✏️ Edit Signature**, and the standalone
-     **Clear Signature** button disappears — you don't need it anymore
-     once locked.
-   - If you or the homeowner need to redo it, tap **✏️ Edit Signature**.
-     This automatically **clears the canvas** so you get a fresh, blank
-     space to redraw — no overlapping ink, no extra button needed.
-5. When you're satisfied, tap **Submit Lead**.
-
-**Retail Cash jobs** do not require a signature at this stage.
+- **During Lead Creation**: If you lock a signature during initial intake, the app automatically generates the signed agreement PDF and advances the job to **Agreement Signed** (`CONTINGENCY_SIGNED`).
+- **Naked Lead Follow-Up**: If you save a lead without a signature, it is saved as `LEAD_CAPTURED` with a distinct **📝 Naked Lead — Unsigned** amber badge in your **My Recent Jobs** list.
+- **Signing from Job Overview**: Open your Naked Lead from **My Recent Jobs** or tap **⚡ Complete Inspection & Sign**. The job detail page features a top banner and inline **✍️ Capture Homeowner Signature** module so you or the office team can collect the signature on follow-up.
 
 ---
 
-## 6. Submitting the Lead
+## 6. Submitting and Following Up on Leads
 
-When you tap **Submit Lead**, you'll see a progress modal with messages like:
+When you tap **Save Lead** / **Submit Lead**, you'll see a progress modal with messages like:
 - "Creating Lead..."
-- "Uploading Photo X of Y..."
-- "Generating Contract..." *(this is the final step you'll see before completion)*
+- "Uploading Photo X of Y..." (if photos attached)
+- "Generating Contract..." (if signature attached)
 
 If everything succeeds, you'll see **"Lead Captured"** and
 **"The office has been notified."** — the job is now live in the system.
