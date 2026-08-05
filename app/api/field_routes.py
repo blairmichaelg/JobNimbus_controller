@@ -834,3 +834,72 @@ async def get_zip_storms(zipcode: str, role: str = Depends(verify_field)):
     finally:
         conn.close()
 
+
+@router.get("/jobs/{job_id}/documents")
+async def get_field_job_documents(job_id: str, claims: dict = Depends(get_current_claims)):
+    """
+    Fetch list of field-safe documents for a job owned by the field representative.
+    """
+    try:
+        uuid_obj = uuid.UUID(job_id)
+        job_id = str(uuid_obj)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format. Must be a valid UUID.")
+
+    assert_field_rep_owns_job(claims, job_id)
+
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            """SELECT id, job_id, filename, file_type, category, visibility, created_at
+               FROM job_documents
+               WHERE job_id = ? AND visibility = 'field_safe'
+               ORDER BY created_at DESC""",
+            (job_id,)
+        )
+        return [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+@router.get("/jobs/{job_id}/documents/{doc_id}/download")
+async def download_field_job_document(job_id: str, doc_id: str, claims: dict = Depends(get_current_claims)):
+    """
+    Download a field-safe document from the Document Vault.
+    Strictly checks job ownership and field_safe visibility.
+    """
+    try:
+        job_id = str(uuid.UUID(job_id))
+        doc_id = str(uuid.UUID(doc_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id or doc_id format. Must be a valid UUID.")
+
+    assert_field_rep_owns_job(claims, job_id)
+
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "SELECT storage_path, filename, file_type, visibility FROM job_documents WHERE id = ? AND job_id = ?",
+            (doc_id, job_id)
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Document not found.")
+
+        if row["visibility"] != "field_safe":
+            raise HTTPException(status_code=403, detail="Not authorized to view this document.")
+
+        path = Path(row["storage_path"])
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="File is missing from disk.")
+
+        from app.services.security import sanitize_download_filename
+        return FileResponse(
+            path,
+            media_type=row["file_type"] or "application/octet-stream",
+            filename=sanitize_download_filename(row["filename"])
+        )
+    finally:
+        conn.close()
+
+
