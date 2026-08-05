@@ -35,24 +35,55 @@ from app.core.database import get_connection
 
 logger = structlog.get_logger("app.services.pdf.inspection_report")
 
-# Standard forensic captions for photos when AI vision API calls are pending or un-cached
-FALLBACK_CAPTIONS = [
-    "Clearly identifiable wind-damaged shingle, exhibiting a broken and missing tab, marked for adjuster review.",
-    "Missing shingle material along the edge/valley area, leaving the underlayment highly vulnerable to water intrusion.",
-    "Chalked section highlighting isolated physical damage/mat tearing on the shingle surface.",
-    "Close-up of deep granular loss and surface bruising indicative of heavy storm impact.",
-    "Completely split neoprene pipe boot flashing. This is an active leak hazard requiring immediate mitigation.",
-    "Secondary angle of the failed pipe boot, showing the split rubber collar around the vent pipe.",
-    "Significant accumulation of organic debris trapping moisture and promoting moss growth on the slope.",
-    "General view of the rake/eave edge showing condition of the overlapping courses.",
-    "Primary slope view showing localized shingle lifting and seal strip failure.",
-    "Exposed underlayment section requiring immediate storm damage remediation.",
-    "Granule displacement and surface mat bruising under chalked reference.",
-    "Pipe boot rubber collar deterioration showing split membrane.",
-    "Eave edge detail with displaced courses and organic litter accumulation.",
-    "Mid-slope shingle creasing caused by high-velocity wind uplift.",
-    "Overall elevation assessment of the primary roof slope."
-]
+def _find_analysis_for_photo(photo, analyses: list, idx: int):
+    """
+    Robust multi-layered lookup to match a photo to its Gemini analysis result.
+    Tries exact filename -> case-insensitive / stem match -> index position match.
+    """
+    if not analyses:
+        return None
+    name = photo.filepath.name
+    stem = photo.filepath.stem.lower()
+
+    # 1. Direct filename match
+    for a in analyses:
+        if a.filename == name or Path(a.filename).name == name:
+            return a
+
+    # 2. Case-insensitive / stem match
+    for a in analyses:
+        a_name = Path(a.filename).name.lower()
+        a_stem = Path(a.filename).stem.lower()
+        if a_name == name.lower() or a_stem == stem or stem.startswith(a_stem) or a_stem.startswith(stem):
+            return a
+
+    # 3. Index position match (if batch sizes align)
+    if idx < len(analyses):
+        return analyses[idx]
+
+    return None
+
+
+def _get_contextual_fallback_caption(photo_name: str, fig_num: int) -> str:
+    """
+    Generate an accurate, professional fallback caption based on photo filename context.
+    Never asserts localized damage (like split pipe boots) unless filename hints indicate it.
+    """
+    lower = photo_name.lower()
+    if any(k in lower for k in ["boot", "pipe", "vent"]):
+        return f"<b>Fig {fig_num}:</b> Inspection detail of pipe vent boot flashing and rubber seal collar."
+    elif any(k in lower for k in ["valley", "w-valley"]):
+        return f"<b>Fig {fig_num}:</b> Field inspection view of roof valley metal and shingle course overlap."
+    elif any(k in lower for k in ["eave", "gutter", "drip"]):
+        return f"<b>Fig {fig_num}:</b> Inspection detail along the eave edge and perimeter flashing."
+    elif any(k in lower for k in ["ridge", "hip", "cap"]):
+        return f"<b>Fig {fig_num}:</b> Ridge cap shingle alignment and capping course detail."
+    elif any(k in lower for k in ["elevation", "house", "front", "rear", "left", "right"]):
+        return f"<b>Fig {fig_num}:</b> Overall elevation photo documenting property roof structure."
+    elif any(k in lower for k in ["damage", "hail", "wind", "crease", "torn", "missing"]):
+        return f"<b>Fig {fig_num}:</b> Documented shingle surface condition showing localized wear and impact markings."
+    else:
+        return f"<b>Fig {fig_num}:</b> Photographic inspection record documenting roof slope condition."
 
 
 class InspectionReportGenerator(PDFEngine):
@@ -204,10 +235,8 @@ class InspectionReportGenerator(PDFEngine):
                 "may affect the roof's structural integrity and water-shedding capabilities."
             )
             intro_p2 = (
-                f"During the inspection, our field expert, {disp_inspector}, identified multiple areas of concern. "
-                "These include direct physical damage to the asphalt shingles (missing tabs, creasing, and "
-                "localized impact markings), severe deterioration of plumbing vent boots causing immediate leak risks, "
-                "and excessive accumulation of organic debris leading to moss growth on the slopes."
+                f"During the inspection, our field expert, {disp_inspector}, conducted a thorough assessment of all slopes, "
+                "flashings, and roof penetrations. The key observations and photographic evidence are compiled below."
             )
             story.append(Paragraph(intro_p1, style_body))
             story.append(Spacer(1, 0.03 * inch))
@@ -216,15 +245,28 @@ class InspectionReportGenerator(PDFEngine):
 
             # ── 4. SECTION 2: DETAILED FINDINGS ──────────────────────────────
             story.append(Paragraph("2. Detailed Findings", style_heading))
-            story.append(Paragraph("The following specific issues were documented and photographed during the assessment:", style_body))
+            story.append(Paragraph("The following specific conditions were documented and photographed during the assessment:", style_body))
             story.append(Spacer(1, 0.03 * inch))
 
-            findings = [
-                ("Wind Damage", "Several shingles exhibit clear signs of wind damage, including completely missing shingle tabs and creased shingles along the eaves and field, exposing the underlying roofing materials."),
-                ("Impact & Granule Loss", "Specific marked areas show concentrated granule loss and mat bruising, compromising the shingle's weatherproofing layer."),
-                ("Component Failure", "The neoprene rubber pipe boot flashings have severely cracked and failed. This structural failure provides a direct entry point for bulk water intrusion into the attic and interior living spaces."),
-                ("Debris & Organic Growth", "Heavy leaf litter and tree debris are present across the roof slopes. This trapped moisture has promoted moss and algae growth, which degrades the asphalt shingle granular adhesion over time."),
-            ]
+            findings = []
+            if job.analyses:
+                has_wind = any(getattr(a, "crease_marks", False) or getattr(a, "damage_type", None) == "wind" for a in job.analyses)
+                has_hail = any(getattr(a, "hail_hits_visible", False) or getattr(a, "granule_loss", False) or getattr(a, "damage_type", None) == "hail" for a in job.analyses)
+                has_boot = any("boot" in getattr(a, "forensic_narrative", "").lower() or "pipe" in getattr(a, "forensic_narrative", "").lower() for a in job.analyses)
+
+                if has_wind:
+                    findings.append(("Wind Damage", "Observed shingle creasing and lifting caused by high-velocity wind uplift across vulnerable slopes."))
+                if has_hail:
+                    findings.append(("Impact & Granule Loss", "Concentrated granule displacement and shingle mat bruising indicative of storm impact."))
+                if has_boot:
+                    findings.append(("Component Failure", "Neoprene pipe boot flashing deterioration presenting immediate bulk water leak risks."))
+
+            if not findings:
+                findings = [
+                    ("Roofing Condition Assessment", "Evaluation of asphalt shingle courses, slope alignment, and weatherproofing integrity."),
+                    ("Component Integrity", "Inspection of perimeter flashings, vent boots, eaves, and drainage valleys."),
+                    ("Weatherization Review", "Audit of granular adhesion, seal strip bonding, and potential moisture intrusion areas."),
+                ]
 
             for title, desc in findings:
                 bullet_item = f"&bull; <b>{title}:</b> {desc}"
@@ -238,11 +280,10 @@ class InspectionReportGenerator(PDFEngine):
             story.append(Paragraph("3. Photographic Documentation", style_heading))
             story.append(Spacer(1, 0.1 * inch))
 
-            analysis_map = {a.filename: a for a in job.analyses}
             photo_cells = []
 
             for idx, photo in enumerate(job.photos):
-                analysis = analysis_map.get(photo.filepath.name)
+                analysis = _find_analysis_for_photo(photo, job.analyses, idx)
                 
                 # Resize image for PDF
                 try:
@@ -255,11 +296,10 @@ class InspectionReportGenerator(PDFEngine):
 
                 # Determine caption text
                 fig_num = idx + 1
-                if analysis and hasattr(analysis, "forensic_narrative") and len(analysis.forensic_narrative) > 10:
+                if analysis and getattr(analysis, "forensic_narrative", None) and len(analysis.forensic_narrative) > 10:
                     caption_text = f"<b>Fig {fig_num}:</b> {analysis.forensic_narrative}"
                 else:
-                    fb_idx = idx % len(FALLBACK_CAPTIONS)
-                    caption_text = f"<b>Fig {fig_num}:</b> {FALLBACK_CAPTIONS[fb_idx]}"
+                    caption_text = _get_contextual_fallback_caption(photo.filepath.name, fig_num)
 
                 caption_para = Paragraph(caption_text, style_caption)
 

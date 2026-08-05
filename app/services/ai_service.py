@@ -446,12 +446,18 @@ Rules:
             PhotoAnalysis: Validated forensic damage assessment.
         """
         prompt = (
-            f"You are Wickham Roofing's senior forensic inspector. "
-            f"Analyze this roof photo (File: {original_filename}) for hail impact bruises, wind crease lines, "
-            f"granule loss, and exposed fiberglass mat. "
-            f"Output the exact damage classifications and a highly technical, "
-            f"2-3 sentence forensic narrative designed to definitively prove "
-            f"storm damage to an insurance adjuster. "
+            f"You are Wickham Roofing's senior forensic roofing inspector creating photographic documentation for an inspection report. "
+            f"Examine this photo (File: {original_filename}) carefully.\n\n"
+            f"Step 1: Identify what is ACTUALLY visible in this photo. Determine whether it shows a roof slope, shingle close-up, "
+            f"pipe vent boot flashing, valley, eave/gutter line, chimney, ridge cap, or an overall property elevation.\n\n"
+            f"Step 2: Inspect for specific conditions or damage:\n"
+            f"- If pipe boots are visible: note whether the rubber collar is cracked/split or intact.\n"
+            f"- If shingles are visible: check for missing tabs, wind creases, chalked hail bruises, granule loss, exposed mat, or normal wear.\n"
+            f"- If organic litter/debris or moss is visible: note the moisture retention risk.\n"
+            f"- If it is an overall slope or elevation shot: describe the general orientation and shingle condition.\n\n"
+            f"Step 3: Write a 1-2 sentence 'forensic_narrative' caption that is 100% ACCURATE to what is visually shown in THIS specific photo. "
+            f"Do NOT invent or hallucinate defects (such as pipe boot leaks or hail hits) if they are not visible in the image. "
+            f"If the photo shows a clean slope or normal condition, state that clearly and professionally.\n\n"
             f"For the 'filename' schema field, output exactly: {original_filename}"
         )
 
