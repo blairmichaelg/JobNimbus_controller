@@ -12,25 +12,6 @@
         ::-webkit-scrollbar-track { background: #1f2937; }
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
     </style>
-    <style>
-        /* Mobile Responsiveness Reflow */
-        @media (max-width: 768px) {
-            body.flex { flex-direction: column !important; overflow-y: auto !important; height: auto !important; display: block !important; }
-            .w-64 { width: 100% !important; height: auto !important; border-right: none !important; border-bottom: 1px solid #374151 !important; }
-            .flex-1 { flex: none !important; overflow: visible !important; }
-            .grid { display: flex !important; flex-direction: column !important; gap: 1rem !important; }
-            .grid-cols-2, .grid-cols-3, .grid-cols-4 { grid-template-columns: 1fr !important; }
-            /* Tables */
-            table { min-width: 500px !important; }
-            .overflow-hidden { overflow: visible !important; }
-            .bg-gray-800.overflow-hidden { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
-            /* Button touch targets */
-            button, a, select, input { min-height: 44px; }
-            /* Fix absolute positioning on mobile if any */
-            .relative { position: static !important; }
-            .h-screen { height: auto !important; min-height: 100vh !important; }
-        }
-    </style>
 </head>
 <body class="bg-gray-900 text-gray-100 h-screen flex flex-col overflow-hidden font-sans">
     <nav class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex flex-wrap justify-between items-center z-30">
