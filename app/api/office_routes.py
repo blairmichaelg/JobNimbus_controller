@@ -366,22 +366,29 @@ async def upload_supplement_docs(
     return {"status": "success", "message": "Supplement generation enqueued."}
 
 
-@router.get("/jobs/{job_id}/evidence_grid", dependencies=[Depends(verify_admin)])
+@router.get("/jobs/{job_id}/evidence_grid", dependencies=[Depends(verify_field)])
 async def download_evidence_grid(job_id: str):
     """
-    Builds the InspectionJob from the local filesystem and cache,
+    Builds the InspectionJob from local filesystem and cache,
     generates the ReportLab PDF Evidence Grid, and returns the file download.
+    Accessible to core team and field reps.
     """
     try:
         job_id = str(uuid.UUID(job_id))
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid job_id format.")
     try:
+        # Fetch job record for clean naming & summary
+        conn = get_connection()
+        try:
+            row = conn.execute("SELECT homeowner_name, address_line1 FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            homeowner_name = row["homeowner_name"] if row and row["homeowner_name"] else "Inspection"
+            address_line1 = row["address_line1"] if row and row["address_line1"] else ""
+        finally:
+            conn.close()
+
         # Construct the InspectionJob using the field_routes helper
         job = await get_inspection_summary(job_id)
-        
-        if not job.photos:
-            raise HTTPException(status_code=404, detail="No photos found for this job.")
 
         # Look for signature
         sig_path_c = FIELD_DOCS_DIR / job_id / f"{job_id}_contingency_sig.png"
@@ -396,10 +403,20 @@ async def download_evidence_grid(job_id: str):
         # Generate PDF
         pdf_gen = PDFGenerator()
         pdf_path = await pdf_gen.generate_evidence_grid(job, signature_to_pass)
+
+        # Human-readable filename
+        h_clean = "".join(c for c in homeowner_name if c.isalnum() or c in (" ", "_")).strip().replace(" ", "_")
+        a_clean = "".join(c for c in address_line1 if c.isalnum() or c in (" ", "_")).strip().replace(" ", "_")
+        if h_clean and a_clean:
+            out_name = f"{h_clean}_{a_clean}_Inspection_Evidence_Grid.pdf"
+        elif h_clean:
+            out_name = f"{h_clean}_Inspection_Evidence_Grid.pdf"
+        else:
+            out_name = f"Evidence_Grid_{job_id[:8]}.pdf"
         
         return FileResponse(
             path=pdf_path,
-            filename=f"Evidence_Grid_{job_id[:8]}.pdf",
+            filename=out_name,
             media_type="application/pdf"
         )
     except HTTPException:
