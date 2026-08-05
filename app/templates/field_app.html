@@ -123,12 +123,20 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-2">Zip</label>
-                    <input type="text" id="postal_code" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
+                    <input type="text" id="postal_code" onblur="checkZipStorms(this.value)" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-2">Phone</label>
                     <input type="tel" id="phone" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-lg" required>
                 </div>
+            </div>
+
+            <!-- Zip Storm Notice Banner -->
+            <div id="zipStormNotice" class="hidden bg-purple-950/80 border border-purple-700/80 p-3 rounded-lg text-xs text-purple-200 mt-2 space-y-1">
+                <p class="font-bold text-purple-300 flex items-center gap-1">
+                    <span>⚡</span> Recent Storms in Zip Code <span id="zipStormCode"></span>:
+                </p>
+                <div id="zipStormList" class="space-y-1 pt-1 font-mono"></div>
             </div>
             
             <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-700">
@@ -294,9 +302,14 @@
                             </div>
                             <span class="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded-full">${job.status}</span>
                         </div>
-                        <button onclick="loadDocuments('${job.id}', this)" class="mt-2 text-blue-400 text-sm font-semibold hover:text-blue-300">
-                            Load Documents &darr;
-                        </button>
+                        <div class="flex items-center gap-4 mt-2">
+                            <button onclick="loadDocuments('${job.id}', this)" class="text-blue-400 text-xs font-semibold hover:text-blue-300">
+                                Load Documents &darr;
+                            </button>
+                            <a href="/office/jobs/${job.id}" class="text-purple-400 hover:text-purple-300 text-xs font-bold flex items-center gap-1">
+                                ⚡ View Job Overview & Recent Storms &rarr;
+                            </a>
+                        </div>
                         <div id="docs-${job.id}" class="hidden mt-4 space-y-2 border-t border-gray-700 pt-3">
                         </div>
                     `;
@@ -304,6 +317,34 @@
                 }
             } catch (err) {
                 listEl.innerHTML = '<p class="text-red-400 text-sm">Failed to load jobs.</p>';
+            }
+        }
+
+        async function checkZipStorms(zip) {
+            if (!zip || zip.trim().length < 5) return;
+            const container = document.getElementById('zipStormNotice');
+            const codeEl = document.getElementById('zipStormCode');
+            const listEl = document.getElementById('zipStormList');
+            try {
+                const res = await fetch(`/api/field/storms/${encodeURIComponent(zip.trim())}`, {
+                    headers: { 'x-internal-token': FIELD_TOKEN }
+                });
+                if (!res.ok) return;
+                const storms = await res.json();
+                if (storms && storms.length > 0) {
+                    codeEl.textContent = zip.trim();
+                    listEl.innerHTML = storms.map(s => {
+                        let detail = s.event_type;
+                        if (s.hail_size_inches) detail += ` ${s.hail_size_inches}" Hail`;
+                        if (s.wind_speed_mph) detail += ` ${s.wind_speed_mph} mph Wind`;
+                        return `<div class="flex justify-between items-center bg-purple-900/60 px-2.5 py-1 rounded"><span>🌩️ ${detail}</span><span class="text-purple-300 font-bold">${s.event_date ? s.event_date.substring(0, 10) : ''}</span></div>`;
+                    }).join('');
+                    container.classList.remove('hidden');
+                } else {
+                    container.classList.add('hidden');
+                }
+            } catch (e) {
+                container.classList.add('hidden');
             }
         }
 

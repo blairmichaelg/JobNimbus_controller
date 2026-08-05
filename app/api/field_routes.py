@@ -729,3 +729,18 @@ async def sign_retail_contract(job_id: str, payload: RetailContractSignaturePayl
     except Exception as e:
         logger.error("retail_contract_sign_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to process retail contract signature")
+
+
+@router.get("/storms/{zipcode}")
+async def get_zip_storms(zipcode: str, role: str = Depends(verify_field)):
+    """Fetch recent storm events for a given zip code for field sales reps."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "SELECT event_date, event_type, hail_size_inches, wind_speed_mph, severity_score FROM storm_events WHERE zipcode = ? ORDER BY event_date DESC LIMIT 5",
+            (zipcode.strip(),)
+        )
+        return [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+

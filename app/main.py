@@ -532,7 +532,7 @@ async def serve_canvassing(request: Request, role: str = Depends(verify_office_r
     })
 
 @app.get("/office/jobs/{job_id}", tags=["frontend"])
-async def serve_job_detail(request: Request, job_id: str, role: str = Depends(verify_office_role)):
+async def serve_job_detail(request: Request, job_id: str, role: str = Depends(verify_field)):
     """Serve the unified Job Overview dashboard (for Admin, Operations, Accounting)."""
     from fastapi import HTTPException
     job = await asyncio.to_thread(_fetch_job_sync, job_id)
