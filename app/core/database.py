@@ -612,8 +612,129 @@ def insert_schedule(job_id: str, crew_name: str, install_date: str, delivery_dat
         conn.close()
 
 
+def standardize_vault_filename(job_id: str, filename: str, category: str = "UNSPECIFIED", file_type: str = "", photo_index: Optional[int] = None) -> str:
+    """
+    Format raw filenames into clean, standardized, professional titles for the Document Vault.
+    Converts generic names like 'inspection_report_homeowner.pdf' or 'IMG_20260721_182205.jpg'
+    into structured names like 'Young_520_Fontaine_Dr_Inspection_Report.pdf' or 'Inspection_Photo_01.jpg'.
+    """
+    if not filename:
+        return filename
+    
+    ext = Path(filename).suffix.lower()
+    base_name = Path(filename).stem
+
+    # Fetch Homeowner & Street details from DB if available
+    prefix = ""
+    try:
+        conn = get_connection()
+        row = conn.execute("SELECT homeowner_name, address_line1 FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        conn.close()
+        if row:
+            last_name = ""
+            if row["homeowner_name"]:
+                parts = row["homeowner_name"].strip().split()
+                last_name = parts[-1] if parts else ""
+            
+            street = ""
+            if row["address_line1"]:
+                street = row["address_line1"].strip().replace(".", "").replace(",", "")
+                street_parts = street.split()[:3]
+                street = "_".join(street_parts)
+            
+            if last_name and street:
+                prefix = f"{last_name}_{street}_"
+            elif last_name:
+                prefix = f"{last_name}_"
+    except Exception:
+        pass
+
+    cat_upper = (category or "").upper()
+    ft_upper = (file_type or "").upper()
+    fn_lower = filename.lower()
+
+    # Standardize PDF Documents
+    if ext == ".pdf":
+        if "INSPECTION_REPORT" in cat_upper or "HOMEOWNER" in ft_upper or "inspection_report_homeowner" in fn_lower:
+            return f"{prefix}Inspection_Report{ext}"
+        elif "EVIDENCE" in fn_lower or "grid" in fn_lower:
+            return f"{prefix}Inspection_Evidence_Grid{ext}"
+        elif "CONTINGENCY" in cat_upper or "contingency" in fn_lower:
+            return f"{prefix}Contingency_Agreement{ext}"
+        elif "RETAIL" in cat_upper or "retail" in fn_lower:
+            return f"{prefix}Retail_Contract{ext}"
+        elif "SUPPLEMENT" in cat_upper or "supplement" in fn_lower:
+            return f"{prefix}Supplement_Request{ext}"
+        elif "INVOICE" in cat_upper or "invoice" in fn_lower:
+            return f"{prefix}Invoice{ext}"
+        elif "MATERIAL" in cat_upper or "po" in fn_lower or "material_order" in fn_lower:
+            return f"{prefix}Material_Order{ext}"
+        elif "CANCELLATION" in cat_upper or "cancellation" in fn_lower:
+            return f"{prefix}Notice_of_Cancellation{ext}"
+        elif "EAGLEVIEW" in cat_upper or "hover" in cat_upper or "measurement" in cat_upper:
+            return f"{prefix}Measurement_Report{ext}"
+        elif "STATEMENT_OF_LOSS" in cat_upper or "sol" in fn_lower:
+            return f"{prefix}Statement_of_Loss{ext}"
+
+    # Standardize Image / Photo Files
+    if ext in [".jpg", ".jpeg", ".png", ".heic", ".webp"] or "PHOTO" in cat_upper:
+        if photo_index is not None:
+            return f"Inspection_Photo_{photo_index:02d}{ext}"
+        
+        # If already formatted as Inspection_Photo_XX.jpg, preserve it
+        if base_name.startswith("Inspection_Photo_") or base_name.startswith("Photo_"):
+            return filename
+
+        try:
+            conn = get_connection()
+            count_row = conn.execute(
+                "SELECT COUNT(*) as c FROM job_documents WHERE job_id = ? AND (category IN ('INSPECTION_PHOTO', 'PHOTO') OR file_type LIKE 'image/%')",
+                (job_id,)
+            ).fetchone()
+            conn.close()
+            idx = (count_row["c"] + 1) if count_row else 1
+            return f"Inspection_Photo_{idx:02d}{ext}"
+        except Exception:
+            return f"Inspection_Photo_{base_name[-4:]}{ext}"
+
+    return filename
+
+
+def standardize_existing_job_documents(job_id: str | None = None):
+    """
+    Update existing records in job_documents to use clean, standardized filenames.
+    """
+    conn = get_connection()
+    try:
+        if job_id:
+            docs = conn.execute("SELECT id, job_id, filename, file_type, category FROM job_documents WHERE job_id = ? ORDER BY created_at ASC", (job_id,)).fetchall()
+        else:
+            docs = conn.execute("SELECT id, job_id, filename, file_type, category FROM job_documents ORDER BY created_at ASC").fetchall()
+        
+        photo_counters = {}
+        for d in docs:
+            j_id = d["job_id"]
+            cat = (d["category"] or "").upper()
+            ext = Path(d["filename"]).suffix.lower()
+            
+            p_idx = None
+            if ext in [".jpg", ".jpeg", ".png", ".heic", ".webp"] or "PHOTO" in cat:
+                photo_counters[j_id] = photo_counters.get(j_id, 0) + 1
+                p_idx = photo_counters[j_id]
+
+            new_fn = standardize_vault_filename(j_id, d["filename"], d["category"], d["file_type"], photo_index=p_idx)
+            if new_fn != d["filename"]:
+                conn.execute("UPDATE job_documents SET filename = ? WHERE id = ?", (new_fn, d["id"]))
+        conn.commit()
+    except Exception as err:
+        logger.warning("standardize_existing_docs_failed", error=str(err))
+    finally:
+        conn.close()
+
+
 def insert_job_document(job_id: str, filename: str, file_type: str, storage_path: str, sha256_hash: str | None = None, visibility: str = "office_only", category: str = "UNSPECIFIED", replace_existing: bool = False) -> str:
     """Register a generated or uploaded file in the universal document vault."""
+    filename = standardize_vault_filename(job_id, filename, category, file_type)
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -653,7 +774,7 @@ def insert_job_document(job_id: str, filename: str, file_type: str, storage_path
             (doc_id, job_id, filename, file_type, storage_path, sha256_hash, visibility, category)
         )
         conn.execute("COMMIT")
-        logger.info("job_document_registered", doc_id=doc_id, job_id=job_id, file_type=file_type, visibility=visibility, category=category)
+        logger.info("job_document_registered", doc_id=doc_id, job_id=job_id, filename=filename, file_type=file_type, visibility=visibility, category=category)
         return doc_id
     except Exception as e:
         logger.error("job_document_registration_failed", error=str(e))
