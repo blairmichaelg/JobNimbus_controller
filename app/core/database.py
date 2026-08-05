@@ -300,9 +300,9 @@ def seed_core_team_reps() -> None:
     conn = get_connection()
     try:
         core_members = [
-            ("rep-michael", "Michael", "1111"),
-            ("rep-scott", "Scott", "2222"),
-            ("rep-debi", "Debi", "3333"),
+            ("rep-michael", "Michael", "7194"),
+            ("rep-scott", "Scott", "4826"),
+            ("rep-debi", "Debi", "6315"),
         ]
         for rep_id, name, default_pin in core_members:
             row = conn.execute("SELECT id FROM field_reps WHERE name = ?", (name,)).fetchone()

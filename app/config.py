@@ -34,19 +34,19 @@ class Settings(BaseSettings):
         description="Secret key for signing JWTs.",
     )
     admin_pin: str = Field(
-        default="9999",
+        default="8471",
         description="Access PIN for the Admin persona.",
     )
     accounting_pin: str = Field(
-        default="1111",
+        default="5392",
         description="Access PIN for the Accounting persona.",
     )
     operations_pin: str = Field(
-        default="2222",
+        default="2648",
         description="Access PIN for the Operations persona.",
     )
     field_pin: str = Field(
-        default="3333",
+        default="",
         description="Access PIN for Field Salesmen. Retired Phase 9. Use field_reps table via Admin UI instead.",
     )
 
