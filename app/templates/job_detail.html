@@ -61,8 +61,92 @@
             <a href="/admin" class="text-slate-400 hover:text-white text-sm font-medium transition-all flex items-center gap-1">&larr; Back to Admin Board</a>
         </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Left Column: Job Info -->
+        <!-- Supplement & Carrier SLA Orchestration Hub (Full-Width Header Hub) -->
+        <div class="w-full bg-slate-900 border border-purple-500/50 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-purple-800/40 pb-3">
+                <h2 class="text-purple-300 font-bold text-xl flex items-center gap-2 tracking-wide">
+                    <span>⚡</span> Supplement & Carrier SLA Orchestration
+                </h2>
+                <span class="text-xs bg-purple-900/90 text-purple-200 border border-purple-600/50 px-3 py-1.5 rounded-full font-mono font-bold tracking-wider uppercase">
+                    {{ job.status }}
+                </span>
+            </div>
+            <p class="text-slate-300 text-sm leading-relaxed">
+                Generate the automated AI supplement breakdown, download existing reports, or mark as sent to initiate the 14-day carrier SLA response timer.
+            </p>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                <button onclick="triggerSupplementGen('{{ job.id }}')"
+                        id="genSuppBtn"
+                        class="w-full min-h-[48px] px-5 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg transition-all flex items-center justify-center gap-2">
+                    <span>⚡</span>
+                    <span class="whitespace-nowrap">Generate Supplement</span>
+                </button>
+
+                <a href="/api/office/jobs/{{ job.id }}/supplement/download"
+                   class="w-full min-h-[48px] px-5 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg transition-all flex items-center justify-center gap-2 text-center">
+                    <span>⬇</span>
+                    <span class="whitespace-nowrap">Download PDF</span>
+                </a>
+
+                <button onclick="markSent('{{ job.id }}')"
+                        id="markSentBtn"
+                        class="w-full min-h-[48px] px-5 py-3 rounded-xl font-bold text-sm {% if job.supplement_sent_at %}bg-slate-800 text-slate-400 cursor-not-allowed border border-slate-700{% else %}bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg{% endif %} transition-all flex items-center justify-center gap-2"
+                        {% if job.supplement_sent_at %}disabled{% endif %}>
+                    <span>⏱️</span>
+                    <span class="whitespace-nowrap">{% if job.supplement_sent_at %}✓ Sent (Timer Active){% else %}Mark Sent → Start Timer{% endif %}</span>
+                </button>
+            </div>
+            
+            <script>
+            async function triggerSupplementGen(jobId) {
+                const btn = document.getElementById('genSuppBtn');
+                btn.disabled = true;
+                btn.innerHTML = '⚡ Processing...';
+                try {
+                    const resp = await fetch(`/api/office/jobs/${jobId}/trigger-supplement`, {method: 'POST'});
+                    if (resp.ok) {
+                        btn.innerHTML = '✓ Pipeline Queued';
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        const data = await resp.json();
+                        alert('Failed to generate supplement: ' + (data.detail || 'Unknown error'));
+                        btn.disabled = false;
+                        btn.innerHTML = '⚡ Generate Supplement';
+                    }
+                } catch (e) {
+                    alert('Network error triggering supplement');
+                    btn.disabled = false;
+                    btn.innerHTML = '⚡ Generate Supplement';
+                }
+            }
+
+            async function markSent(jobId) {
+                const btn = document.getElementById('markSentBtn');
+                btn.disabled = true;
+                btn.textContent = 'Saving...';
+                const resp = await fetch(
+                    `/api/office/jobs/${jobId}/mark-supplement-sent`,
+                    {method: 'POST'}
+                );
+                if (resp.ok) {
+                    btn.textContent = '✓ Sent — Timer Started';
+                    btn.className =
+                        'bg-gray-700 text-gray-400 font-bold py-3 px-4 rounded-lg cursor-not-allowed flex items-center justify-center gap-2';
+                    setTimeout(() => window.location.reload(), 1200);
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'Error — Try Again';
+                }
+            }
+            </script>
+        </div>
+
+        <!-- 2-Column Responsive Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <!-- Left Column: Details & Measurements -->
+            <div class="space-y-6">
+                <!-- Client Details -->
                 <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
                     <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Client Details</h2>
                     <div class="space-y-4">
@@ -85,7 +169,7 @@
                 </div>
 
                 <!-- Roof Measurements & Geometry Card -->
-                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mt-6">
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
                     <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2 flex items-center justify-between">
                         <span>📐 Roof Measurements & Geometry</span>
                         {% if job.ev_total_area_sf %}
@@ -136,7 +220,7 @@
                 </div>
 
                 {% if storm_events %}
-                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mt-6">
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
                     <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Suggested Dates of Loss</h2>
                     <div class="space-y-3">
                         {% for event in storm_events %}
@@ -160,7 +244,7 @@
                 {% endif %}
                 
                 {% if job.damage_signals %}
-                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mt-6">
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
                     <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">AI Damage Signals (Field Photos)</h2>
                     <div class="space-y-3">
                         {% for sig in job.damage_signals %}
@@ -184,10 +268,8 @@
                 </div>
                 {% endif %}
 
-
-
                 {% if job.supplement_flags %}
-                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mt-6">
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
                     <h2 class="text-xl font-semibold mb-3 text-green-400 border-b border-gray-700 pb-2 flex items-center">
                         <svg class="w-6 h-6 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         Forensic Summary (Missed Carrier Items)
@@ -213,8 +295,11 @@
                     </div>
                 </div>
                 {% endif %}
+            </div>
 
-                <!-- Right Column: Control Panel -->
+            <!-- Right Column: Control Panel, Vault & Financials -->
+            <div class="space-y-6">
+                <!-- Control Panel -->
                 <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
                     <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2">Control Panel</h2>
                     
@@ -323,90 +408,9 @@
                             </button>
                         </div>
                     </div>
-                    <!-- Supplement Action Controls (Always accessible to manage workflow) -->
-                    <div class="mt-6 p-6 bg-slate-900/90 border border-purple-500/40 rounded-2xl shadow-2xl backdrop-blur space-y-4">
-                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-purple-800/40 pb-3">
-                            <h3 class="text-purple-300 font-bold text-lg flex items-center gap-2 tracking-wide">
-                                <span>⚡</span> Supplement & Carrier SLA Orchestration
-                            </h3>
-                            <span class="text-xs bg-purple-900/80 text-purple-200 border border-purple-600/50 px-3 py-1 rounded-full font-mono font-bold tracking-wider uppercase">
-                                {{ job.status }}
-                            </span>
-                        </div>
-                        <p class="text-slate-300 text-sm leading-relaxed">
-                            Generate the automated AI supplement breakdown, download existing reports, or mark as sent to initiate the 14-day carrier SLA response timer.
-                        </p>
-                        
-                        <div class="flex flex-col sm:flex-row items-stretch gap-3 pt-2">
-                            <button onclick="triggerSupplementGen('{{ job.id }}')"
-                                    id="genSuppBtn"
-                                    class="flex-1 min-h-[46px] px-5 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg transition-all flex items-center justify-center gap-2">
-                                <span>⚡</span>
-                                <span class="whitespace-nowrap">Generate Supplement</span>
-                            </button>
-
-                            <a href="/api/office/jobs/{{ job.id }}/supplement/download"
-                               class="flex-1 min-h-[46px] px-5 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg transition-all flex items-center justify-center gap-2 text-center">
-                                <span>⬇</span>
-                                <span class="whitespace-nowrap">Download PDF</span>
-                            </a>
-
-                            <button onclick="markSent('{{ job.id }}')"
-                                    id="markSentBtn"
-                                    class="flex-1 min-h-[46px] px-5 py-3 rounded-xl font-bold text-sm {% if job.supplement_sent_at %}bg-slate-800 text-slate-400 cursor-not-allowed border border-slate-700{% else %}bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg{% endif %} transition-all flex items-center justify-center gap-2"
-                                    {% if job.supplement_sent_at %}disabled{% endif %}>
-                                <span>⏱️</span>
-                                <span class="whitespace-nowrap">{% if job.supplement_sent_at %}✓ Sent (Timer Active){% else %}Mark Sent → Start Timer{% endif %}</span>
-                            </button>
-                        </div>
-                        
-                        <script>
-                        async function triggerSupplementGen(jobId) {
-                            const btn = document.getElementById('genSuppBtn');
-                            btn.disabled = true;
-                            btn.innerHTML = '⚡ Processing...';
-                            try {
-                                const resp = await fetch(`/api/office/jobs/${jobId}/trigger-supplement`, {method: 'POST'});
-                                if (resp.ok) {
-                                    btn.innerHTML = '✓ Pipeline Queued';
-                                    setTimeout(() => window.location.reload(), 1500);
-                                } else {
-                                    const data = await resp.json();
-                                    alert('Failed to generate supplement: ' + (data.detail || 'Unknown error'));
-                                    btn.disabled = false;
-                                    btn.innerHTML = '⚡ Generate Supplement';
-                                }
-                            } catch (e) {
-                                alert('Network error triggering supplement');
-                                btn.disabled = false;
-                                btn.innerHTML = '⚡ Generate Supplement';
-                            }
-                        }
-
-                        async function markSent(jobId) {
-                            const btn = document.getElementById('markSentBtn');
-                            btn.disabled = true;
-                            btn.textContent = 'Saving...';
-                            const resp = await fetch(
-                                `/api/office/jobs/${jobId}/mark-supplement-sent`,
-                                {method: 'POST'}
-                            );
-                            if (resp.ok) {
-                                btn.textContent = '✓ Sent — Timer Started';
-                                btn.className =
-                                    'bg-gray-700 text-gray-400 font-bold py-3 px-4 rounded-lg cursor-not-allowed flex items-center justify-center gap-2';
-                                setTimeout(() => window.location.reload(), 1200);
-                            } else {
-                                btn.disabled = false;
-                                btn.textContent = 'Error — Try Again';
-                            }
-                        }
-                        </script>
-                    </div>
 
                     {% if job.status == 'AWAITING_CARRIER_RESPONSE' %}
-                    <div class="mt-4 p-4 bg-gray-800 border border-gray-700
-                                rounded-lg space-y-4">
+                    <div class="mt-4 p-4 bg-gray-800 border border-gray-700 rounded-lg space-y-4">
                         {% if job.supplement_sent_at and job.supplement_sent_at|days_since >= (job.carrier_sla_days or 14) %}
                             <div class="bg-red-900 border border-red-700 p-4 rounded-lg mb-4">
                                 <h4 class="text-red-200 font-bold mb-2">⚠ Carrier SLA Exceeded ({{ job.supplement_sent_at|days_since }} Days)</h4>
@@ -425,9 +429,7 @@
                         <h3 class="text-white font-bold">Carrier Decision</h3>
 
                         <button onclick="approveSupp('{{ job.id }}')"
-                                class="w-full bg-green-700 hover:bg-green-600
-                                       text-white font-bold py-3 rounded-lg
-                                       transition-colors">
+                                class="w-full bg-green-700 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors">
                             ✓ Mark Supplement Approved
                         </button>
 
@@ -438,14 +440,9 @@
                             <textarea id="denialText"
                                       rows="4"
                                       placeholder="Paste the adjuster's denial reason here..."
-                                      class="w-full bg-gray-700 text-white rounded-lg
-                                             p-3 border border-gray-600
-                                             focus:border-red-500 focus:outline-none
-                                             text-sm"></textarea>
+                                      class="w-full bg-gray-700 text-white rounded-lg p-3 border border-gray-600 focus:border-red-500 focus:outline-none text-sm"></textarea>
                             <button onclick="denySupp('{{ job.id }}')"
-                                    class="mt-2 w-full bg-red-800 hover:bg-red-700
-                                           text-white font-bold py-3 rounded-lg
-                                           transition-colors">
+                                    class="mt-2 w-full bg-red-800 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-colors">
                                 ✗ Mark Denied — Generate AI Rebuttal
                             </button>
                         </div>
@@ -453,8 +450,7 @@
 
                     <script>
                     async function approveSupp(jobId) {
-                        if (!confirm('Mark supplement as APPROVED? '
-                                     + 'This will alert Scott and Debi.'))
+                        if (!confirm('Mark supplement as APPROVED? This will alert Scott and Debi.'))
                             return;
                         const r = await fetch(
                             `/api/office/jobs/${jobId}/approve-supplement`,
@@ -467,8 +463,7 @@
                     }
 
                     async function denySupp(jobId) {
-                        const text = document.getElementById('denialText').value
-                                             .trim();
+                        const text = document.getElementById('denialText').value.trim();
                         if (!text) {
                             showToast('Please paste the carrier denial text first.', 'error');
                             return;
@@ -534,28 +529,12 @@
                     {% endif %}
 
                     {% if job.status == 'SUPPLEMENT_SUBMITTED' %}
-                    <div class="mt-6 p-4 bg-purple-950 border border-purple-700
-                                rounded-lg">
-                        <h3 class="text-purple-300 font-bold mb-2">
-                            AI Rebuttal Ready for Review
-                        </h3>
-                        <p class="text-gray-400 text-sm mb-4">
-                            Download, review, and send from your email client.
-                            Then click below to restart the carrier timer.
-                        </p>
+                    <div class="mt-6 p-4 bg-purple-950 border border-purple-700 rounded-lg">
+                        <h3 class="text-purple-300 font-bold mb-2">AI Rebuttal Ready for Review</h3>
+                        <p class="text-gray-400 text-sm mb-4">Download, review, and send from your email client. Then click below to restart the carrier timer.</p>
                         <div class="flex gap-3">
-                            <a href="/api/office/jobs/{{ job.id }}/docs/rebuttal"
-                               class="flex-1 bg-purple-700 hover:bg-purple-600
-                                      text-white font-bold py-3 rounded-lg
-                                      text-center transition-colors">
-                                ⬇ Download Rebuttal Letter
-                            </a>
-                            <button onclick="resubmitSupp('{{ job.id }}')"
-                                    class="flex-1 bg-yellow-700 hover:bg-yellow-600
-                                           text-white font-bold py-3 rounded-lg
-                                           transition-colors">
-                                ✓ Mark Rebuttal Sent → Restart Timer
-                            </button>
+                            <a href="/api/office/jobs/{{ job.id }}/docs/rebuttal" class="flex-1 bg-purple-700 hover:bg-purple-600 text-white font-bold py-3 rounded-lg text-center transition-colors">⬇ Download Rebuttal Letter</a>
+                            <button onclick="resubmitSupp('{{ job.id }}')" class="flex-1 bg-yellow-700 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg transition-colors">✓ Mark Rebuttal Sent → Restart Timer</button>
                         </div>
                     </div>
                     <script>
@@ -571,38 +550,25 @@
                     {% endif %}
 
                     {% if job.status == 'AWAITING_CARRIER_RESPONSE' %}
-                    <div class="mt-6 p-4 bg-yellow-950 border border-yellow-700
-                                rounded-lg">
-                        <h3 class="text-yellow-300 font-bold mb-1">
-                            Awaiting Carrier Response
-                        </h3>
+                    <div class="mt-6 p-4 bg-yellow-950 border border-yellow-700 rounded-lg">
+                        <h3 class="text-yellow-300 font-bold mb-1">Awaiting Carrier Response</h3>
                         {% if job.supplement_sent_at %}
-                        <p class="text-gray-300 text-sm">
-                            Supplement sent:
-                            <span class="font-bold text-yellow-400">
-                                {{ job.supplement_sent_at[:10] }}
-                            </span>
-                            —
-                            <span id="agingDays" class="font-bold text-yellow-200">
-                            </span> days aging
-                        </p>
+                        <p class="text-gray-300 text-sm">Supplement sent: <span class="font-bold text-yellow-400">{{ job.supplement_sent_at[:10] }}</span> — <span id="agingDays" class="font-bold text-yellow-200"></span> days aging</p>
                         <script>
                         const sentDate = new Date("{{ job.supplement_sent_at }}");
                         const today = new Date();
-                        const diffDays = Math.floor(
-                            (today - sentDate) / (1000 * 60 * 60 * 24)
-                        );
+                        const diffDays = Math.floor((today - sentDate) / (1000 * 60 * 60 * 24));
                         document.getElementById('agingDays').textContent = diffDays;
                         </script>
                         {% endif %}
                     </div>
                     {% endif %}
+
                     {% if role in ['admin', 'accounting', 'operations'] %}
                     <!-- Financials Section -->
                     <div class="mt-6 border-t border-gray-700 pt-6">
                         <h3 class="text-lg font-bold text-white mb-3">💰 Financial Breakdown</h3>
                         {% if job.financials %}
-                        <!-- Auto-populated from SoL (read-only display) -->
                         <div class="grid grid-cols-2 gap-3 mb-4 p-3 bg-gray-900 rounded border border-green-800">
                             <div>
                                 <p class="text-xs text-gray-400 uppercase font-semibold">Carrier RCV</p>
@@ -621,7 +587,6 @@
                                 <p class="text-lg font-bold text-blue-400">${{ "%.2f"|format(job.financials.net_claim_cents / 100) if job.financials.net_claim_cents is not none else '0.00' }}</p>
                             </div>
                         </div>
-                        <!-- Editable job financials -->
                         <form id="financialsForm" class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
                                 <div><label class="block text-sm text-gray-400">Revenue ($)</label><input type="number" id="fin_revenue" value="{{ "%.2f"|format(job.financials.revenue_cents / 100) if job.financials.revenue_cents is not none else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
