@@ -360,12 +360,23 @@ async def health_check(request: Request):
 async def serve_field_app(request: Request, role: str = Depends(verify_field)):
     """Serve the Wickham Roofing Field App."""
     reps = await asyncio.to_thread(list_field_reps, False)
+    token = request.cookies.get("auth_token", "")
+    current_rep_name = None
+    if token:
+        try:
+            from app.api.auth import decode_token
+            claims = decode_token(token)
+            current_rep_name = claims.get("rep_name")
+        except Exception:
+            pass
+
     return templates.TemplateResponse(request, "field_app.html", {
         "request": request,
         "reps": reps,
         "role": role,
+        "current_rep_name": current_rep_name,
         "active_page": "field",
-        "field_token": request.cookies.get("auth_token", "")
+        "field_token": token
     })
 
 @app.get("/help", tags=["frontend"])

@@ -68,17 +68,30 @@
         <form id="intakeForm" class="space-y-6">
             <div>
                 <label class="block text-sm font-medium text-purple-400 mb-2 font-bold">👤 Sales Rep / Lead Owner</label>
-                <select id="canvasser_name" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-purple-500 focus:outline-none focus:border-purple-400 text-lg font-bold">
-                    {% if reps %}
-                        {% for rep in reps %}
-                            <option value="{{ rep.name }}" {% if rep.name == 'Michael' %}selected{% endif %}>{{ rep.name }}</option>
-                        {% endfor %}
-                    {% else %}
-                        <option value="Michael" selected>Michael</option>
-                        <option value="Scott">Scott</option>
-                        <option value="Debi">Debi</option>
-                    {% endif %}
-                </select>
+                {% if current_rep_name %}
+                    <!-- Salesperson Identity Locked to Logged-In Rep -->
+                    <div class="w-full p-4 rounded-lg bg-gray-800 text-white border border-purple-500/80 flex items-center justify-between shadow-inner">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xl">👤</span>
+                            <span class="text-lg font-bold text-purple-300">{{ current_rep_name }}</span>
+                        </div>
+                        <span class="text-xs bg-purple-900/90 text-purple-200 border border-purple-500/50 px-3 py-1.5 rounded-full font-bold">Logged In Salesperson</span>
+                    </div>
+                    <input type="hidden" id="canvasser_name" value="{{ current_rep_name }}">
+                {% else %}
+                    <!-- Admin / Management View: Select lead owner -->
+                    <select id="canvasser_name" class="w-full p-4 rounded-lg bg-gray-800 text-white border border-purple-500 focus:outline-none focus:border-purple-400 text-lg font-bold">
+                        {% if reps %}
+                            {% for rep in reps %}
+                                <option value="{{ rep.name }}">{{ rep.name }}</option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="Michael" selected>Michael</option>
+                            <option value="Scott">Scott</option>
+                            <option value="Debi">Debi</option>
+                        {% endif %}
+                    </select>
+                {% endif %}
             </div>
 
             <div>
