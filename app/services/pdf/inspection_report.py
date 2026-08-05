@@ -312,7 +312,15 @@ class InspectionReportGenerator(PDFEngine):
             rec_story.append(Paragraph(rec_body1, style_body))
             rec_story.append(Spacer(1, 0.05 * inch))
             rec_story.append(Paragraph(rec_body2, style_body))
-            rec_story.append(Spacer(1, 0.2 * inch))
+            rec_story.append(Spacer(1, 0.1 * inch))
+
+            # 1-Year Workmanship Warranty Guarantee box
+            warranty_box_text = (
+                "Wickham Roofing LLC backs all roof replacements with an explicit <b>ONE (1) YEAR WORKMANSHIP WARRANTY</b> "
+                "covering installation and craft quality. All shingle material warranties are provided directly by the product manufacturer."
+            )
+            rec_story.append(self._box_warning("1-YEAR WORKMANSHIP WARRANTY GUARANTEE", warranty_box_text, colors.HexColor("#1e3a8a")))
+            rec_story.append(Spacer(1, 0.15 * inch))
 
             # Sign-off block
             sign_data = [

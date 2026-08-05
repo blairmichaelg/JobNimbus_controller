@@ -301,8 +301,7 @@ class InvoiceGenerator(PDFEngine):
             po_number = f"PO-{job['id'][:8].upper()}-{datetime.date.today().isoformat()}"
             story.append(Paragraph(f"<b>PO Number:</b> {po_number}", self.custom_styles["BodyText"]))
             story.append(Paragraph(f"<b>Supplier:</b> {supplier_name}", self.custom_styles["BodyText"]))
-            story.append(Paragraph("<b>Supplier Account #:</b> [TBD - Insert Account Here]", self.custom_styles["BodyText"]))
-            story.append(Paragraph("<b>Order Confirmation #:</b> ___________________", self.custom_styles["BodyText"]))
+            story.append(Paragraph("<b>Supplier Account #:</b> Wickham Roofing Commercial Account", self.custom_styles["BodyText"]))
             story.append(Paragraph(f"<b>Order Date:</b> {datetime.date.today().isoformat()}", self.custom_styles["BodyText"]))
             story.append(Paragraph(f"<b>Requested Delivery Date:</b> {delivery_date}", self.custom_styles["BodyText"]))
             story.append(Spacer(1, 12))

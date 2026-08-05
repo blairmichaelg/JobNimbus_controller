@@ -92,27 +92,20 @@ class CommissionGenerator(PDFEngine):
                 ["COMMISSION EARNED",
                  f"${commission_data['commission_amount']:,.2f}"],
             ]
-            t = Table(rows, colWidths=[300, 150])
+            t = Table(rows, colWidths=[330, 180])
             t.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0),
-                 colors.darkblue),
-                ('TEXTCOLOR', (0,0), (-1,0),
-                 colors.white),
-                ('FONTNAME', (0,0), (-1,0),
-                 'Helvetica-Bold'),
-                ('BACKGROUND', (0,-1), (-1,-1),
-                 colors.darkgreen),
-                ('TEXTCOLOR', (0,-1), (-1,-1),
-                 colors.white),
-                ('FONTNAME', (0,-1), (-1,-1),
-                 'Helvetica-Bold'),
-                ('FONTSIZE', (0,-1), (-1,-1), 12),
-                ('GRID', (0,0), (-1,-1), 0.5,
-                 colors.black),
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1e3a8a")),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0,0), (-1,0), 10),
+                ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor("#166534")),
+                ('TEXTCOLOR', (0,-1), (-1,-1), colors.white),
+                ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0,-1), (-1,-1), 11),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
                 ('ALIGN', (1,0), (1,-1), 'RIGHT'),
-                ('ROWBACKGROUNDS', (0,1), (-1,-2),
-                 [colors.white, colors.lightgrey]),
-                ('PADDING', (0,0), (-1,-1), 8),
+                ('ROWBACKGROUNDS', (0,1), (-1,-2), [colors.HexColor("#f8fafc"), colors.white]),
+                ('PADDING', (0,0), (-1,-1), 7),
             ]))
             story.append(t)
             story.append(Spacer(1, 24))

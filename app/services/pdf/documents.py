@@ -221,29 +221,33 @@ class DocumentsGenerator(PDFEngine):
             story.append(Spacer(1, 10))
             
             # --- Warranty ---
-            story.append(Paragraph("Workmanship Warranty", self.custom_styles["SectionHeading"]))
-            warranty_text = "Wickham Roofing CRM provides a 1-year workmanship warranty on all full roof replacements. Material warranties are provided directly by the manufacturer."
-            story.append(Paragraph(warranty_text, self.custom_styles["BodyText"]))
-            story.append(Spacer(1, 15))
+            story.append(Paragraph("Workmanship Warranty Guarantee", self.custom_styles["SectionHeading"]))
+            warranty_text = (
+                "Wickham Roofing LLC provides an explicit <b>ONE (1) YEAR WORKMANSHIP WARRANTY</b> on all labor, flashing, and installation craft quality. "
+                "Wickham Roofing LLC guarantees to repair any installation defect free of charge during the warranty period. "
+                "Shingle and accessory material warranties are provided directly by the product manufacturer."
+            )
+            story.append(self._box_warning("1-YEAR WORKMANSHIP WARRANTY GUARANTEE", warranty_text, colors.HexColor("#1e3a8a")))
+            story.append(Spacer(1, 12))
             
             # --- Right to Cancel ---
             cancel_notice = "NOTICE OF RIGHT TO CANCEL: You, the buyer, may cancel this transaction at any time before midnight of the THIRD BUSINESS DAY after the date of this transaction. See the attached Notice of Cancellation form for an explanation of this right."
             story.append(Paragraph(cancel_notice, self.custom_styles["StatWarning"]))
-            story.append(Spacer(1, 20))
+            story.append(Spacer(1, 16))
             
             # --- Signature ---
-            story.append(Paragraph("<b>Homeowner Authorization</b>", self.styles["Heading2"]))
-            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey, spaceAfter=12))
+            story.append(Paragraph("<b>Homeowner Authorization & Digital Execution</b>", self.styles["Heading2"]))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#cbd5e1"), spaceAfter=12))
             
             try:
-                sig_img = Image(str(signature_path), width=300, height=100, kind='proportional')
+                sig_img = Image(str(signature_path), width=280, height=80, kind='proportional')
                 story.append(sig_img)
             except Exception as e:
                 log.error("signature_render_failed", error=str(e))
                 
             story.append(Spacer(1, 10))
             time_str = f" on {timestamp_utc}" if timestamp_utc else ""
-            story.append(Paragraph(f"Digitally signed by {signer_name} from IP {ip_address}{time_str}", self.custom_styles["FinePrint"]))
+            story.append(Paragraph(f"Digitally signed & verified by <b>{signer_name}</b> from IP <b>{ip_address}</b>{time_str}", self.custom_styles["FinePrint"]))
             
             doc.build(story)
 
@@ -319,29 +323,23 @@ class DocumentsGenerator(PDFEngine):
         filepath = str(job_dir / "certificate_of_completion.pdf")
 
         def build_pdf() -> None:
-            """
-            Build Pdf functionality.
-            
-            Returns:
-                Any: The resulting output.
-            """
             doc = self._get_doc_template(filepath, job_id=job["id"], doc_type="CERTIFICATE_OF_COMPLETION")
             story = []
             
-            story.append(Paragraph("CERTIFICATE OF COMPLETION", self.custom_styles["Title"]))
+            story.append(Paragraph("CERTIFICATE OF COMPLETION & STATUTORY LIEN RELEASE", self.custom_styles["Title"]))
             story.append(Spacer(1, 12))
             
             # --- Metadata Table ---
             story.append(self._build_metadata_table(job))
             story.append(Spacer(1, 15))
             
-            story.append(Paragraph("Work Acceptance & Punch List", self.custom_styles["SectionHeading"]))
+            story.append(Paragraph("Work Acceptance & Punch List Verification", self.custom_styles["SectionHeading"]))
             text = (
                 f"This document certifies that Wickham Roofing LLC has satisfactorily completed "
                 f"all roofing services per the agreed scope of work at the property located at:<br/><br/>"
-                f"<b>{job['address_line1']}, {job['city']}, {job['state']} {job['postal_code']}</b><br/><br/>"
-                f"for the homeowner, <b>{job['homeowner_name']}</b>, on <b>{completion_date}</b>. "
-                f"The homeowner acknowledges that the roof has been inspected, all punch list items have been resolved, and "
+                f"<b>{job.get('address_line1', '')}, {job.get('city', '')}, {job.get('state', '')} {job.get('postal_code', '')}</b><br/><br/>"
+                f"for the homeowner, <b>{job.get('homeowner_name', 'Homeowner')}</b>, on <b>{completion_date}</b>. "
+                f"The homeowner acknowledges that the roof has been thoroughly inspected, all punch list items have been resolved, and "
                 f"all work has been performed in compliance with applicable local and state building codes."
             )
             story.append(Paragraph(text, self.custom_styles["BodyText"]))
@@ -350,12 +348,12 @@ class DocumentsGenerator(PDFEngine):
             story.append(Paragraph("WAIVER AND RELEASE OF LIEN AND PAYMENT BOND RIGHTS UPON FINAL PAYMENT", self.custom_styles["SectionHeading"]))
             story.append(Paragraph("STATE OF GEORGIA<br/>COUNTY OF THOMAS", self.custom_styles["BodyText"]))
             story.append(Spacer(1, 10))
-            address_str = f"{job['address_line1']}, {job['city']}, {job['state']} {job['postal_code']}"
+            address_str = f"{job.get('address_line1', '')}, {job.get('city', '')}, {job.get('state', '')} {job.get('postal_code', '')}"
             lien_text = (
                 "THE UNDERSIGNED MECHANIC AND/OR MATERIALMAN HAS BEEN EMPLOYED BY WICKHAM ROOFING LLC "
                 "TO FURNISH ROOFING MATERIALS AND LABOR FOR THE CONSTRUCTION OF IMPROVEMENTS KNOWN AS "
-                f"ROOF REPLACEMENT WHICH IS LOCATED IN THE CITY OF {job['city'].upper()}, COUNTY OF THOMAS, "
-                f"AND IS OWNED BY {job['homeowner_name'].upper()} AND MORE PARTICULARLY DESCRIBED AS FOLLOWS:<br/><br/>"
+                f"ROOF REPLACEMENT WHICH IS LOCATED IN THE CITY OF {job.get('city', '').upper()}, COUNTY OF THOMAS, "
+                f"AND IS OWNED BY {job.get('homeowner_name', '').upper()} AND MORE PARTICULARLY DESCRIBED AS FOLLOWS:<br/><br/>"
                 f"{address_str.upper()}<br/><br/>"
                 "UPON THE RECEIPT OF THE SUM OF $__________, THE MECHANIC AND/OR MATERIALMAN WAIVES AND RELEASES "
                 "ANY AND ALL LIENS OR CLAIMS OF LIENS IT HAS UPON THE FOREGOING DESCRIBED PROPERTY OR ANY RIGHTS "
@@ -367,10 +365,10 @@ class DocumentsGenerator(PDFEngine):
             story.append(Spacer(1, 15))
             
             warranty_text = (
-                "Wickham Roofing CRM provides a 1-year workmanship warranty on all full roof replacements. "
-                "Material warranties are provided directly by the manufacturer."
+                "Wickham Roofing LLC provides an explicit <b>ONE (1) YEAR WORKMANSHIP WARRANTY</b> on all full roof replacements from project completion date. "
+                "Material warranties are provided directly by the product manufacturer."
             )
-            story.append(self._box_warning("Warranty Disclaimer", warranty_text, colors.lightgrey))
+            story.append(self._box_warning("1-YEAR WORKMANSHIP WARRANTY GUARANTEE", warranty_text, colors.HexColor("#1e3a8a")))
             story.append(Spacer(1, 20))
             
             story.append(self._build_signature_block(title1="Homeowner Signature", title2="Wickham Roofing LLC Representative", include_witness=True))
