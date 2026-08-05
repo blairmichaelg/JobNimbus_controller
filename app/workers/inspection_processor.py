@@ -233,7 +233,7 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
             pdf_path = await pdf_gen.generate_evidence_grid(job, signature_to_pass)
             
             # Vault the document and update status (Threaded)
-            await asyncio.to_thread(insert_job_document, job_id, "evidence_grid.pdf", "application/pdf", pdf_path, None, "field_safe", "INSPECTION_REPORT", True)
+            await asyncio.to_thread(insert_job_document, job_id, "evidence_grid.pdf", "application/pdf", pdf_path, None, "field_safe", "EVIDENCE_GRID", True)
 
             # Generate homeowner-facing inspection report (separate from internal evidence grid)
             try:

@@ -655,10 +655,12 @@ def standardize_vault_filename(job_id: str, filename: str, category: str = "UNSP
 
     # Standardize PDF Documents
     if ext == ".pdf":
-        if "INSPECTION_REPORT" in cat_upper or "HOMEOWNER" in ft_upper or "inspection_report_homeowner" in fn_lower:
-            return f"{prefix}Inspection_Report{ext}"
-        elif "EVIDENCE" in fn_lower or "grid" in fn_lower:
+        if "EVIDENCE" in cat_upper or "EVIDENCE" in fn_lower or "grid" in fn_lower or "evidence_grid" in fn_lower:
             return f"{prefix}Inspection_Evidence_Grid{ext}"
+        elif "HOMEOWNER" in cat_upper or "HOMEOWNER" in ft_upper or "homeowner" in fn_lower or "inspection_report_homeowner" in fn_lower:
+            return f"{prefix}Homeowner_Inspection_Report{ext}"
+        elif "INSPECTION_REPORT" in cat_upper or "inspection_report" in fn_lower:
+            return f"{prefix}Homeowner_Inspection_Report{ext}"
         elif "CONTINGENCY" in cat_upper or "contingency" in fn_lower:
             return f"{prefix}Contingency_Agreement{ext}"
         elif "RETAIL" in cat_upper or "retail" in fn_lower:

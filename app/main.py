@@ -564,6 +564,9 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
             pass
     is_core = is_core_user(claims)
 
+    from app.core.database import standardize_existing_job_documents
+    await asyncio.to_thread(standardize_existing_job_documents, job_id)
+
     documents = await asyncio.to_thread(get_job_documents, job_id)
     if not is_core:
         documents = [d for d in documents if d.get("visibility") == "field_safe"]
