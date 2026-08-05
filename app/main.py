@@ -548,18 +548,22 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
     else:
         job["damage_signals"] = []
 
-    # Calculate Condition Index
-    from app.api.field_routes import get_inspection_summary
-    try:
-        inspection_job = await get_inspection_summary(job_id, claims={"rep_name": "System", "role": "admin"})
-    except Exception:
-        # Fallback to empty inspection job if not available
-        from app.core.inspection_models import InspectionJob
-        import datetime
-        inspection_job = InspectionJob(job_id=job_id, property_address="", inspection_date=datetime.datetime.now())
-        
-    from app.core.inspection_models import calculate_condition_index
-    condition_index = calculate_condition_index(inspection_job, job["damage_signals"])
+    # Fetch supplement flags for Forensic Summary card
+    def _fetch_supplement_flags(jid: str) -> list:
+        _conn = get_connection()
+        try:
+            _cur = _conn.execute(
+                """SELECT r.required_child_code FROM supplement_flags f
+                   JOIN supplement_rules r ON r.id = f.rule_id
+                   WHERE f.job_id = ? AND f.triggered = 1""",
+                (jid,)
+            )
+            return [row[0] for row in _cur.fetchall()]
+        except Exception:
+            return []
+        finally:
+            _conn.close()
+    job["supplement_flags"] = await asyncio.to_thread(_fetch_supplement_flags, job_id)
 
     # Fetch Suggested Dates of Loss
     storm_events = []
@@ -577,7 +581,6 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
     return templates.TemplateResponse(request, "job_detail.html", {
         "request": request, 
         "job": job,
-        "condition_index": condition_index,
         "storm_events": storm_events,
         "role": role,
         "auth_token": request.cookies.get("auth_token", ""),

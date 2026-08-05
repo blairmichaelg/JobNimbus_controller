@@ -243,7 +243,7 @@ async def process_inspection(ctx: dict, job_id: str) -> InspectionJob:
                 await asyncio.to_thread(
                     insert_job_document,
                     job_id, "inspection_report_homeowner.pdf", "application/pdf",
-                    hr_path, None, "field_safe", "HOMEOWNER_INSPECTION_REPORT", True
+                    hr_path, None, "field_safe", "HOMEOWNER_INSPECTION_REPORT", True  # replace_existing=True
                 )
                 log.info("homeowner_report_generated", path=hr_path)
             except Exception as hr_err:

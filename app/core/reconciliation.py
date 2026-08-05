@@ -17,6 +17,33 @@ from app.core.supplement_models import (
 )
 
 
+def _get_item_qty(item) -> float:
+    if hasattr(item, "quantity"):
+        q = item.quantity
+        if hasattr(q, "value"):
+            return float(q.value or 0.0)
+        elif isinstance(q, (int, float)):
+            return float(q)
+    return 0.0
+
+def _get_item_unit(item) -> str:
+    if hasattr(item, "unit") and item.unit:
+        u = item.unit
+        if hasattr(u, "value"):
+            return str(u.value or "").strip().upper()
+        elif isinstance(u, str):
+            return u.strip().upper()
+    if hasattr(item, "unit_of_measure") and item.unit_of_measure:
+        u = item.unit_of_measure
+        if isinstance(u, str):
+            return u.strip().upper()
+    return ""
+
+def _get_item_desc(item) -> str:
+    if hasattr(item, "description") and item.description:
+        return str(item.description)
+    return ""
+
 def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor: float = 0.15) -> DiscrepancyReport:
     """
     Deterministically reconcile EV measurements against SoL items.
@@ -32,10 +59,8 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor
     
     sol_total_rfg_squares = 0.0
     sq_items = [
-        item.quantity for item in sol.line_items 
-        if item.quantity is not None 
-        and item.unit_of_measure 
-        and item.unit_of_measure.upper().strip() in ("SQ", "SQ.")
+        _get_item_qty(item) for item in sol.line_items 
+        if _get_item_unit(item) in ("SQ", "SQ.")
     ]
     if sq_items:
         sol_total_rfg_squares = max(sq_items)
@@ -57,10 +82,10 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor
     # 2. Ice & Water Shield (Valleys)
     if ev.valley_lf > 0:
         found_ice_water = any(
-            "ice" in item.description.lower() or 
-            "water" in item.description.lower() or 
-            "barrier" in item.description.lower()
-            for item in sol.line_items if item.description
+            "ice" in _get_item_desc(item).lower() or 
+            "water" in _get_item_desc(item).lower() or 
+            "barrier" in _get_item_desc(item).lower()
+            for item in sol.line_items
         )
         if not found_ice_water:
             discrepancies.append(
@@ -78,12 +103,9 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor
     total_ridge_hip_lf = ev.ridge_lf + ev.hip_lf
     if total_ridge_hip_lf > 0:
         ridge_items = [
-            item.quantity for item in sol.line_items
-            if item.quantity is not None 
-            and item.description 
-            and ("ridge" in item.description.lower() or "hip" in item.description.lower())
-            and item.unit_of_measure
-            and item.unit_of_measure.upper() in ("LF", "LF.")
+            _get_item_qty(item) for item in sol.line_items
+            if ("ridge" in _get_item_desc(item).lower() or "hip" in _get_item_desc(item).lower())
+            and _get_item_unit(item) in ("LF", "LF.")
         ]
         
         # Max of the ridge items to avoid double-counting remove/replace
@@ -104,7 +126,8 @@ def reconcile(ev: EagleViewData, sol: StatementOfLoss, job_id: str, waste_factor
 
     # 4. Overhead & Profit Check (Automatic 20%)
     unique_trades = set(item.trade for item in sol.line_items if hasattr(item, 'trade') and item.trade)
-    if sol.overhead_and_profit_included is False and len(unique_trades) >= 1: # Flag if missing regardless of trade count for now, let adjuster argue it
+    overhead_included = getattr(sol, 'overhead_and_profit_included', False)
+    if overhead_included is False and len(unique_trades) >= 1: # Flag if missing regardless of trade count for now, let adjuster argue it
         discrepancies.append(
             Discrepancy(
                 category="Missing O&P",

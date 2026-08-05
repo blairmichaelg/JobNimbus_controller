@@ -182,7 +182,7 @@ async def test_pipeline_halts_on_gross_rcv_mismatch(tmp_path):
         conn.execute("UPDATE jobs SET flashing_lf = 10, step_flashing_lf = 10 WHERE id = ?", (job_id,))
         # Insert the synthetic_math_rule to satisfy the foreign key constraint
         conn.execute('''
-            INSERT INTO supplement_rules (id, parent_code, required_child_code, citation_text, citation_type, trigger_logic_name, climate_dependent)
+            INSERT OR IGNORE INTO supplement_rules (id, parent_code, required_child_code, citation_text, citation_type, trigger_logic_name, climate_dependent)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', ("synthetic_math_rule", "SYS", "MATH", "Synthetic Math Rule", "INTERNAL_POLICY", "eval_math", 0))
         conn.commit()

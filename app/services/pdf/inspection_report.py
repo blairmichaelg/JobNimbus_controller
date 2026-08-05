@@ -28,7 +28,7 @@ from reportlab.platypus import (
 from reportlab.platypus.flowables import HRFlowable
 from reportlab.lib.styles import ParagraphStyle
 
-from app.core.inspection_models import InspectionJob, calculate_condition_index
+from app.core.inspection_models import InspectionJob
 from app.services.pdf.engine import PDFEngine
 from app.config import FIELD_DOCS_DIR
 from app.core.database import get_connection

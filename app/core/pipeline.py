@@ -11,6 +11,7 @@ from app.core.supplement_models import StatementOfLoss
 from app.services.qbo_export import generate_qbo_invoice
 from app.core.database import update_job_status, JobStatus, get_connection, insert_job_document, get_pricing_ledger
 import asyncio
+import uuid
 import json as _json
 from app.services.ai_service import get_ai_client
 from app.core.code_router import parse_code_files, get_relevant_codes
@@ -670,7 +671,7 @@ def _writeback_sol_financials(conn, job_id: str, sol_data) -> None:
 
     # Ensure the financials row exists (may not exist yet at this pipeline stage)
     conn.execute(
-        "INSERT OR IGNORE INTO financials (job_id) VALUES (?)",
+        "INSERT OR IGNORE INTO financials (job_id, overhead_pct, canvasser_commission_pct) VALUES (?, 0.10, 0.10)",
         (job_id,)
     )
 
@@ -857,38 +858,26 @@ async def run_supplement_pipeline(job_id: str, ev_pdf_path: str, sol_pdf_path: s
                 try:
                     conn.execute("BEGIN IMMEDIATE")
                     conn.execute("DELETE FROM supplement_flags WHERE job_id = ? AND rule_id = 'synthetic_math_rule'", (job_id,))
-                    import uuid
-                    flags_to_insert = []
+                    all_notes = []
                     for item in unverified_items:
-                        flag_note = (
-                            f"Carrier math mismatch on line item: {item.activity_code} "
-                            f"'{item.description}'. "
-                            f"Expected: (qty={item.quantity.value} × "
-                            f"rate={item.unit_price.value}) + tax={item.tax.value} "
-                            f"= {item.claimed_rcv.value}. "
-                            f"Source page: {item.quantity.evidence[0].page if item.quantity.evidence else 'unknown'}. "
-                            f"MANUAL VERIFICATION REQUIRED before supplement generation."
+                        all_notes.append(
+                            f"Carrier math mismatch on line item: {item.activity_code} '{item.description}'. "
+                            f"Expected: (qty={item.quantity.value} × rate={item.unit_price.value}) + tax={item.tax.value} = {item.claimed_rcv.value}."
                         )
                         log.warning("sol_math_mismatch_flagged", code=item.activity_code)
-                        flags_to_insert.append((
-                            str(uuid.uuid4()), job_id, "synthetic_math_rule", 1, 0.0, flag_note
-                        ))
                         
                     if gross_rcv_unverified:
-                        flag_note = (
-                            f"Carrier Gross RCV ({sol_data.financials.gross_rcv.value}) does not tie out "
-                            f"to sum of line items. Estimate mathematical foundation is unverified."
+                        all_notes.append(
+                            f"Carrier Gross RCV ({sol_data.financials.gross_rcv.value}) does not tie out to sum of line items."
                         )
                         log.warning("gross_rcv_mismatch_flagged")
-                        flags_to_insert.append((
-                            str(uuid.uuid4()), job_id, "synthetic_math_rule", 1, 0.0, flag_note
-                        ))
                     
-                    if flags_to_insert:
-                        conn.executemany('''
+                    if all_notes:
+                        combined_note = "\n".join(all_notes)
+                        conn.execute('''
                             INSERT INTO supplement_flags (id, job_id, rule_id, triggered, quantity_delta, notes)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        ''', flags_to_insert)
+                            VALUES (?, ?, 'synthetic_math_rule', 1, 0.0, ?)
+                        ''', (str(uuid.uuid4()), job_id, combined_note))
                     conn.execute("COMMIT")
                 except Exception:
                     conn.execute("ROLLBACK")
