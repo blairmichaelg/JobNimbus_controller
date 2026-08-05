@@ -520,18 +520,18 @@ async def upload_job_document(job_id: str, file_type: str = Form(...), file: Upl
         logger.error("job_document_upload_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to save document")
 
-@router.patch("/jobs/{job_id}/claim-info", dependencies=[Depends(verify_admin)])
-async def update_claim_info_route(job_id: str, payload: JobClaimInfoPayload):
+@router.patch("/jobs/{job_id}/claim-info", dependencies=[Depends(verify_field)])
+async def update_claim_info_route(job_id: str, payload: JobClaimInfoPayload, bg_tasks: BackgroundTasks):
     """
     Update insurance claim metadata (insurer, claim #, loss date, policy #, adjuster info)
-    for a job at any point in time.
+    for a job at any point in time. Accessible to both core team and field reps.
     """
     try:
         job_id = str(uuid.UUID(job_id))
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid job_id format.")
 
-    from app.core.database import update_job_claim_info
+    from app.core.database import update_job_claim_info, backup_database
     try:
         res = await asyncio.to_thread(
             update_job_claim_info,
@@ -544,6 +544,7 @@ async def update_claim_info_route(job_id: str, payload: JobClaimInfoPayload):
             adjuster_phone=payload.adjuster_phone,
             adjuster_email=payload.adjuster_email,
         )
+        bg_tasks.add_task(backup_database)
         return res
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
@@ -723,25 +724,7 @@ def _sync_update_job_claim_info(job_id: str, payload: JobClaimInfoPayload):
     finally:
         conn.close()
 
-@router.patch("/jobs/{job_id}/claim-info", dependencies=[Depends(verify_accounting)])
-async def update_job_claim_info(job_id: str, payload: JobClaimInfoPayload, bg_tasks: BackgroundTasks):
-    """
-    Allows office/ops staff to add or update claim_number, insurer_name,
-    and loss_date after job creation — covers the common real-world case
-    where the homeowner files the claim after the rep has already left.
-    Only updates fields that are provided (non-None); never overwrites
-    an existing value with null.
-    """
-    try:
-        await asyncio.to_thread(_sync_update_job_claim_info, job_id, payload)
-        
-        # Trigger Hot Backup
-        bg_tasks.add_task(backup_database)
-        
-        return {"status": "success"}
-    except Exception as e:
-        logger.error("claim_info_update_failed", job_id=job_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to update claim info.")
+
 
 @router.post("/jobs/{job_id}/production", dependencies=[Depends(verify_admin)])
 async def update_job_production(job_id: str, payload: ProductionPayload, bg_tasks: BackgroundTasks):

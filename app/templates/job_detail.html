@@ -174,6 +174,48 @@
                     </div>
                 </div>
 
+                <!-- Insurance & Claim Information Card -->
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
+                    <div class="flex items-center justify-between border-b border-gray-700 pb-2 mb-4">
+                        <h2 class="text-xl font-semibold text-white flex items-center gap-2">
+                            <span>🛡️</span> Insurance & Claim Details
+                        </h2>
+                        <button onclick="openClaimModal()" class="px-3 py-1.5 bg-purple-900/80 hover:bg-purple-800 border border-purple-600 text-purple-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1">
+                            <span>✏️</span> Edit Claim Info
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Insurance Carrier</p>
+                            <p class="text-base font-bold text-white">{{ job.insurer_name or 'Not Specified' }}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Date of Loss</p>
+                            <p class="text-base font-bold text-purple-300">{{ job.loss_date or 'Not Specified' }}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Claim Number</p>
+                            <p class="text-base font-bold text-amber-300 font-mono">{{ job.claim_number or 'Not Specified' }}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Policy Number</p>
+                            <p class="text-base font-bold text-white font-mono">{{ job.policy_type or 'Not Specified' }}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700 sm:col-span-2">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Adjuster Info</p>
+                            {% if job.adjuster_name or job.adjuster_phone or job.adjuster_email %}
+                            <p class="text-sm font-bold text-white">{{ job.adjuster_name or 'Assigned Adjuster' }}</p>
+                            <p class="text-xs text-gray-300">
+                                {% if job.adjuster_phone %}📞 {{ job.adjuster_phone }}{% endif %}
+                                {% if job.adjuster_email %} ✉️ {{ job.adjuster_email }}{% endif %}
+                            </p>
+                            {% else %}
+                            <p class="text-sm text-gray-500 font-normal">No adjuster information entered</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Roof Measurements & Geometry Card -->
                 <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
                     <h2 class="text-xl font-semibold mb-4 text-white border-b border-gray-700 pb-2 flex items-center justify-between">
@@ -992,6 +1034,101 @@
                 }
             });
         }
+    </script>
+
+    <!-- Edit Claim Info Modal -->
+    <div id="claimModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <span>🛡️</span> Update Insurance & Claim Information
+                </h3>
+                <button onclick="closeClaimModal()" class="text-gray-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <form id="claimInfoForm" onsubmit="submitClaimInfo(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Insurance Carrier / Insurer Name</label>
+                    <input type="text" id="modalInsurerName" value="{{ job.insurer_name or '' }}" placeholder="e.g. State Farm, Allstate" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Date of Loss</label>
+                        <input type="date" id="modalLossDate" value="{{ job.loss_date or '' }}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Claim #</label>
+                        <input type="text" id="modalClaimNumber" value="{{ job.claim_number or '' }}" placeholder="e.g. CL-987654" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Policy #</label>
+                    <input type="text" id="modalPolicyNumber" value="{{ job.policy_type or '' }}" placeholder="e.g. POL-123456" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                </div>
+                <div class="border-t border-slate-800 pt-3">
+                    <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Adjuster Name</label>
+                    <input type="text" id="modalAdjusterName" value="{{ job.adjuster_name or '' }}" placeholder="e.g. John Doe" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Adjuster Phone</label>
+                        <input type="text" id="modalAdjusterPhone" value="{{ job.adjuster_phone or '' }}" placeholder="e.g. 555-123-4567" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Adjuster Email</label>
+                        <input type="email" id="modalAdjusterEmail" value="{{ job.adjuster_email or '' }}" placeholder="adjuster@carrier.com" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-3">
+                    <button type="button" onclick="closeClaimModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-lg">Cancel</button>
+                    <button type="submit" id="saveClaimBtn" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold rounded-lg shadow-lg">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function openClaimModal() {
+        document.getElementById('claimModal').classList.remove('hidden');
+    }
+    function closeClaimModal() {
+        document.getElementById('claimModal').classList.add('hidden');
+    }
+    async function submitClaimInfo(e) {
+        e.preventDefault();
+        const btn = document.getElementById('saveClaimBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        
+        const payload = {
+            insurer_name: document.getElementById('modalInsurerName').value || null,
+            loss_date: document.getElementById('modalLossDate').value || null,
+            claim_number: document.getElementById('modalClaimNumber').value || null,
+            policy_number: document.getElementById('modalPolicyNumber').value || null,
+            adjuster_name: document.getElementById('modalAdjusterName').value || null,
+            adjuster_phone: document.getElementById('modalAdjusterPhone').value || null,
+            adjuster_email: document.getElementById('modalAdjusterEmail').value || null
+        };
+
+        try {
+            const res = await fetch('/api/office/jobs/{{ job.id }}/claim-info', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                alert('Error updating claim info: ' + (err.detail || 'Failed'));
+                btn.disabled = false;
+                btn.textContent = 'Save Changes';
+            }
+        } catch (err) {
+            alert('Network error updating claim info');
+            btn.disabled = false;
+            btn.textContent = 'Save Changes';
+        }
+    }
     </script>
 </body>
 </html>

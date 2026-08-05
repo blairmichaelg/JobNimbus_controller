@@ -120,7 +120,13 @@ def _fetch_job_sync(job_id: str) -> dict | None:
     try:
         cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        job_dict = dict(row)
+        sv = conn.execute("SELECT loss_date FROM storm_verifications WHERE job_id = ?", (job_id,)).fetchone()
+        if sv and sv["loss_date"]:
+            job_dict["loss_date"] = sv["loss_date"]
+        return job_dict
     finally:
         conn.close()
 
