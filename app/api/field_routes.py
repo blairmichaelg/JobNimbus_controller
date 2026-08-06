@@ -10,28 +10,34 @@ These endpoints allow the field inspectors to:
 import asyncio
 import base64
 import io
-import structlog
-import uuid
 import json
-from pathlib import Path
+import uuid
 from datetime import datetime
-from PIL import Image
+from pathlib import Path
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Request, BackgroundTasks
+import structlog
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
+from PIL import Image
 from pydantic import BaseModel, Field
 
+from app.api.auth import get_current_claims, get_current_role, verify_field
 from app.config import FIELD_DOCS_DIR
-from app.api.auth import get_current_role, verify_field, get_current_claims
+from app.core.cache import get_cached_analyses_for_job
+from app.core.climate_lookup import is_ice_barrier_required
+from app.core.database import get_connection, update_job_status
+from app.core.inspection_models import InspectionJob, get_stable_photos
+from app.core.notifications import notifier
+from app.core.upload_utils import stream_upload_safely
 from app.services.field_access import assert_field_rep_owns_job
 from app.services.rate_limit import check_rate_limit
-from app.core.climate_lookup import is_ice_barrier_required
-
-from app.core.inspection_models import get_stable_photos, InspectionJob
-from app.core.cache import get_cached_analyses_for_job
-from app.core.database import get_connection, update_job_status
-from app.core.upload_utils import stream_upload_safely
-from app.core.notifications import notifier
 
 logger = structlog.get_logger("app.api.field_routes")
 router = APIRouter(prefix="/api/field", tags=["field_ux"], dependencies=[Depends(verify_field)])
@@ -355,6 +361,7 @@ async def download_field_document(job_id: str, doc_id: str, claims: dict = Depen
             raise HTTPException(status_code=404, detail="File is missing from disk.")
             
         from fastapi.responses import FileResponse
+
         from app.services.security import sanitize_download_filename
         return FileResponse(path, media_type=row["file_type"], filename=sanitize_download_filename(row["filename"]))
     finally:
@@ -735,8 +742,9 @@ async def contingency_sign(job_id: str, payload: ContingencySignaturePayload, re
         )
         
         agreement_id = str(uuid.uuid4())
-        from app.core.database import insert_job_document
         import hashlib
+
+        from app.core.database import insert_job_document
         
         def _insert_doc_and_agreement():
             _sync_insert_agreement(agreement_id, job_id, pdf_path, str(sig_file_path), timestamp_utc, payload.signer_name, secure_ip, secure_ua)
@@ -825,8 +833,9 @@ async def sign_retail_contract(job_id: str, payload: RetailContractSignaturePayl
         noc_pdf_path = await pdf_gen.generate_retail_notice_of_cancellation(job=job_dict)
         
         agreement_id = str(uuid.uuid4())
-        from app.core.database import insert_job_document
         import hashlib
+
+        from app.core.database import insert_job_document
         
         def _insert_docs_and_agreement():
             _sync_insert_agreement(agreement_id, job_id, pdf_path, str(sig_file_path), timestamp_utc, payload.signer_name, secure_ip, secure_ua)
@@ -867,7 +876,7 @@ async def get_zip_storms(zipcode: str, role: str = Depends(verify_field)):
     conn = get_connection()
     try:
         cursor = conn.execute(
-            "SELECT event_date, event_type, hail_size_inches, wind_speed_mph FROM storm_events WHERE zipcode = ? ORDER BY event_date DESC LIMIT 5",
+            "SELECT event_date, event_type, MAX(hail_size_inches) as hail_size_inches, MAX(wind_speed_mph) as wind_speed_mph FROM storm_events WHERE zipcode = ? GROUP BY event_date, event_type ORDER BY event_date DESC LIMIT 5",
             (zipcode.strip(),)
         )
         raw_events = [dict(r) for r in cursor.fetchall()]

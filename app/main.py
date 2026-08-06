@@ -8,33 +8,52 @@ Sets up the application with:
 - Webhook router mount
 """
 
+import asyncio
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
+from datetime import UTC
 
 import structlog
 from arq import create_pool
-from fastapi import FastAPI, Request, Response, Form, WebSocket, WebSocketDisconnect, Depends
+from fastapi import (
+    Depends,
+    FastAPI,
+    Form,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api.webhooks import router as webhook_router
+from app.api.admin_jobs_routes import router as admin_jobs_router
+from app.api.admin_reps_routes import router as admin_reps_router
+from app.api.auth import (
+    get_current_role,
+    verify_field,
+    verify_office_role,
+)
+from app.api.auth_routes import router as auth_router
 from app.api.field_routes import router as field_router
 from app.api.office_routes import router as office_router
 from app.api.operations_routes import router as operations_router
-from app.api.auth_routes import router as auth_router
-from app.api.admin_reps_routes import router as admin_reps_router
-from app.api.admin_jobs_routes import router as admin_jobs_router
-from app.api.auth import verify_admin, verify_accounting, verify_field, verify_office_role, get_current_role
+from app.api.webhooks import router as webhook_router
 from app.config import get_settings
-from app.core.notifications import notifier
 from app.core.cache import init_db as init_cache_db
-from app.core.database import run_migrations as init_crm_db, get_connection, list_field_reps, _fetch_job_sync, get_job_documents
-import os
-import asyncio
+from app.core.database import (
+    _fetch_job_sync,
+    get_connection,
+    get_job_documents,
+    list_field_reps,
+)
+from app.core.database import run_migrations as init_crm_db
+from app.core.notifications import notifier
 
 
 def configure_logging(log_level: str) -> None:
@@ -214,11 +233,10 @@ templates.env.filters["status_label"] = lambda s: STATUS_LABELS.get(s, s)
 def days_since(date_str: str) -> int:
     if not date_str:
         return 0
-    from datetime import datetime, timezone
+    from datetime import datetime
     try:
         # Handle ISO8601 strings that might contain the 'Z' suffix or '+00:00'
-        if date_str.endswith('Z'):
-            date_str = date_str[:-1]
+        date_str = date_str.removesuffix('Z')
         if '+' in date_str:
             date_str = date_str.split('+')[0]
             
@@ -228,7 +246,7 @@ def days_since(date_str: str) -> int:
         except ValueError:
             dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
             
-        return (datetime.now(timezone.utc).replace(tzinfo=None) - dt.replace(tzinfo=None)).days
+        return (datetime.now(UTC).replace(tzinfo=None) - dt.replace(tzinfo=None)).days
     except Exception:
         return 0
 
@@ -645,8 +663,8 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
     # Fetch Suggested Dates of Loss
     storm_events = []
     if job.get("postal_code"):
-        from pathlib import Path
         import json
+        from pathlib import Path
         zip_path = Path(__file__).resolve().parent.parent / "data" / "zipcodes.json"
         zipcodes = {}
         if zip_path.exists():
@@ -660,7 +678,7 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
         conn = get_connection()
         try:
             cursor = conn.execute(
-                "SELECT * FROM storm_events WHERE zipcode = ? ORDER BY event_date DESC LIMIT 5",
+                "SELECT id, zipcode, event_type, event_date, MAX(hail_size_inches) as hail_size_inches, MAX(wind_speed_mph) as wind_speed_mph, source, latitude, longitude FROM storm_events WHERE zipcode = ? GROUP BY event_date, event_type ORDER BY event_date DESC LIMIT 5",
                 (job["postal_code"],)
             )
             raw_events = [dict(r) for r in cursor.fetchall()]
