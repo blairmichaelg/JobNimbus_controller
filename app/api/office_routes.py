@@ -980,7 +980,7 @@ def get_accounting_brief():
                 'SUPPLEMENT_GENERATED', 'SUPPLEMENT_SUBMITTED', 'AWAITING_CARRIER_RESPONSE',
                 'SUPPLEMENT_APPROVED', 'SUPPLEMENT_DENIED', 'MATERIAL_ORDERED', 'MATERIALS_ON_SITE',
                 'INSTALL_SCHEDULED', 'INSTALL_COMPLETED', 'FINAL_INSPECTION', 'INSPECTION_COMPLETED',
-                'INVOICED', 'PAYMENT_RECEIVED'
+                'FINAL_INSPECTION_COMPLETED', 'INVOICED', 'PAYMENT_RECEIVED'
             )
         """)
         rcv_row = cursor.fetchone()
@@ -1009,7 +1009,7 @@ def get_accounting_brief():
                 'SUPPLEMENT_GENERATED', 'SUPPLEMENT_SUBMITTED', 'AWAITING_CARRIER_RESPONSE',
                 'SUPPLEMENT_APPROVED', 'SUPPLEMENT_DENIED', 'MATERIAL_ORDERED', 'MATERIALS_ON_SITE',
                 'INSTALL_SCHEDULED', 'INSTALL_COMPLETED', 'FINAL_INSPECTION', 'INSPECTION_COMPLETED',
-                'INVOICED', 'PAYMENT_RECEIVED'
+                'FINAL_INSPECTION_COMPLETED', 'INVOICED', 'PAYMENT_RECEIVED'
             )
             ORDER BY j.created_at ASC
         """)
@@ -1648,7 +1648,8 @@ async def create_invoice_route(job_id: str, bg_tasks: BackgroundTasks):
         valid_for_invoice = [
             "SUPPLEMENT_APPROVED", "SCOPE_APPROVED", "MATERIAL_ORDERED",
             "MATERIALS_ON_SITE", "INSTALL_SCHEDULED", "INSTALL_COMPLETED",
-            "FINAL_INSPECTION", "INSPECTION_COMPLETED", "SUPPLEMENT_GENERATED"
+            "FINAL_INSPECTION", "INSPECTION_COMPLETED", "FINAL_INSPECTION_COMPLETED",
+            "SUPPLEMENT_GENERATED"
         ]
         if current_status not in valid_for_invoice:
             raise HTTPException(

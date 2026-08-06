@@ -147,7 +147,7 @@ async def operations_board(request: Request):
             ORDER BY j.created_at ASC
         """).fetchall()]
 
-        # List 4: Inspections & Closeout (INSTALL_COMPLETED, FINAL_INSPECTION, INSPECTION_COMPLETED)
+        # List 4: Inspections & Closeout (INSTALL_COMPLETED, FINAL_INSPECTION, FINAL_INSPECTION_COMPLETED)
         inspections_closeout = [dict(r) for r in conn.execute("""
             SELECT j.id, j.invoice_id, j.homeowner_name,
                    j.address_line1, j.city, j.state, j.status,
@@ -155,7 +155,7 @@ async def operations_board(request: Request):
                    s.crew_name, s.install_date
             FROM jobs j
             LEFT JOIN schedule s ON j.id = s.job_id
-            WHERE j.status IN ('INSTALL_COMPLETED', 'FINAL_INSPECTION', 'INSPECTION_COMPLETED')
+            WHERE j.status IN ('INSTALL_COMPLETED', 'FINAL_INSPECTION', 'FINAL_INSPECTION_COMPLETED')
             ORDER BY j.created_at ASC
         """).fetchall()]
 
@@ -263,7 +263,7 @@ async def patch_job_status(job_id: str, payload: dict = Body(...)):
     allowed_statuses = {
         JobStatus.INSTALL_COMPLETED,
         JobStatus.FINAL_INSPECTION,
-        JobStatus.INSPECTION_COMPLETED
+        JobStatus.FINAL_INSPECTION_COMPLETED
     }
     if new_status not in allowed_statuses:
         raise HTTPException(400, f"Status transition to {new_status_str} not allowed via this endpoint.")

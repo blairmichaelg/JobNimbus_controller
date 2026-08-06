@@ -154,6 +154,7 @@
                             'SCOPE_APPROVED': 'text-green-400',
                             'MATERIAL_ORDERED': 'text-yellow-400',
                             'INSTALL_COMPLETED': 'text-orange-400',
+                            'FINAL_INSPECTION_COMPLETED': 'text-green-400',
                             'INVOICED': 'text-purple-400',
                             'PAYMENT_RECEIVED': 'text-green-300',
                         };
@@ -167,7 +168,7 @@
                             : `<button onclick="openCheckModal('${row.job_id}', 'supplement_received', ${row.supp_expected !== null ? row.supp_expected : 'null'})"
                                 class="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold transition-colors">+ Record Supp</button>`;
 
-                        const canInvoice = ['SUPPLEMENT_GENERATED','SUPPLEMENT_APPROVED','SCOPE_APPROVED','MATERIAL_ORDERED','MATERIALS_ON_SITE','INSTALL_SCHEDULED','INSTALL_COMPLETED','FINAL_INSPECTION','INSPECTION_COMPLETED'].includes(row.status);
+                        const canInvoice = ['SUPPLEMENT_GENERATED','SUPPLEMENT_APPROVED','SCOPE_APPROVED','MATERIAL_ORDERED','MATERIALS_ON_SITE','INSTALL_SCHEDULED','INSTALL_COMPLETED','FINAL_INSPECTION','INSPECTION_COMPLETED','FINAL_INSPECTION_COMPLETED'].includes(row.status);
                         const invoiceBtn = row.status === 'INVOICED' || row.status === 'PAYMENT_RECEIVED'
                             ? `<span class="px-2 py-1 rounded bg-purple-900 text-purple-300 text-xs font-bold">✓ Invoiced</span>`
                             : canInvoice

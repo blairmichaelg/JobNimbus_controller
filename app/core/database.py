@@ -56,6 +56,7 @@ class JobStatus(str, Enum):
     INSTALL_COMPLETED = "INSTALL_COMPLETED"
     INSPECTION_COMPLETED = "INSPECTION_COMPLETED"
     FINAL_INSPECTION = "FINAL_INSPECTION"
+    FINAL_INSPECTION_COMPLETED = "FINAL_INSPECTION_COMPLETED"
     INVOICED = "INVOICED"
     PAYMENT_RECEIVED = "PAYMENT_RECEIVED"
     CLOSED = "CLOSED"
@@ -69,7 +70,7 @@ class JobStatus(str, Enum):
     AWAITING_CARRIER_RESPONSE = "AWAITING_CARRIER_RESPONSE"
     APPRAISAL_INVOKED = "APPRAISAL_INVOKED"
     CLAIM_DENIED = "CLAIM_DENIED"  # Primary claim denied outright — no SoL issued
-
+    
     @classmethod
     def is_operator_gate(cls, status: "JobStatus") -> bool:
         """
@@ -88,8 +89,8 @@ class JobStatus(str, Enum):
             cls.SCOPE_APPROVED, cls.MATERIAL_ORDERED,
             cls.MATERIALS_ON_SITE, cls.INSTALL_SCHEDULED,
             cls.INSTALL_COMPLETED, cls.INSPECTION_COMPLETED,
-            cls.FINAL_INSPECTION, cls.INVOICED,
-            cls.PAYMENT_RECEIVED, cls.CLOSED,
+            cls.FINAL_INSPECTION, cls.FINAL_INSPECTION_COMPLETED,
+            cls.INVOICED, cls.PAYMENT_RECEIVED, cls.CLOSED,
             cls.RETAIL_QUOTE_GENERATED, cls.RETAIL_QUOTE_ACCEPTED,
             cls.RETAIL_QUOTE_DECLINED, cls.APPRAISAL_INVOKED
         }
@@ -426,10 +427,10 @@ def _update_job_status_internal(conn: sqlite3.Connection, job_id: str, new_statu
             raise RuntimeError(
                 f"ILLEGAL TRANSITION: Cannot require final inspection from status {current_status}. Must be INSTALL_COMPLETED."
             )
-    elif new_status == JobStatus.INSPECTION_COMPLETED:
+    elif new_status == JobStatus.FINAL_INSPECTION_COMPLETED:
         if current_status != JobStatus.FINAL_INSPECTION:
             raise RuntimeError(
-                f"ILLEGAL TRANSITION: Cannot mark inspection completed from status {current_status}. Must be FINAL_INSPECTION."
+                f"ILLEGAL TRANSITION: Cannot mark final inspection completed from status {current_status}. Must be FINAL_INSPECTION."
             )
 
     elif new_status == JobStatus.INVOICED:
@@ -440,6 +441,7 @@ def _update_job_status_internal(conn: sqlite3.Connection, job_id: str, new_statu
             JobStatus.INSTALL_COMPLETED,
             JobStatus.FINAL_INSPECTION,
             JobStatus.INSPECTION_COMPLETED,
+            JobStatus.FINAL_INSPECTION_COMPLETED,
             JobStatus.INVOICED
         ]
         if current_status not in valid_priors:

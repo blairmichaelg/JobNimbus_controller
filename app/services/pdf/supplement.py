@@ -102,21 +102,7 @@ class SupplementGenerator(PDFEngine):
         for idx, pf in enumerate(photo_files):
             fn = pf.name
             analysis = cached_map.get(fn)
-            if not analysis:
-                class _DefaultAnalysis:
-                    def __init__(self, filename, filepath, index):
-                        self.filename = filename
-                        self.filepath = filepath
-                        self.damage_detected = True
-                        self.damage_type = "Storm Impact / Granule Dislodgement"
-                        self.severity = "Elevated"
-                        self.hail_hits_visible = True
-                        self.crease_marks = True
-                        self.granule_loss = True
-                        self.exposed_fiberglass = False
-                        self.confidence = 0.95
-                analysis = _DefaultAnalysis(fn, pf, idx)
-            else:
+            if analysis:
                 setattr(analysis, "filepath", pf)
             photo_analysis_pairs.append((pf, analysis))
 

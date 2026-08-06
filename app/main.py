@@ -196,6 +196,7 @@ STATUS_LABELS = {
     "INSTALL_COMPLETED": "Install Completed",
     "INSPECTION_COMPLETED": "Inspection Completed",
     "FINAL_INSPECTION": "Final Inspection",
+    "FINAL_INSPECTION_COMPLETED": "Final Inspection Completed",
     "INVOICED": "Invoiced",
     "PAYMENT_RECEIVED": "Payment Received",
     "CLOSED": "Job Closed",

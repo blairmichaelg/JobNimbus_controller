@@ -243,3 +243,75 @@ def test_accounting_brief_and_invoice():
     job_row = next((r for r in brief_data["rows"] if r["job_id"] == job_id), None)
     assert job_row is not None
     assert job_row["status"] == "CLOSED"
+
+
+def test_final_inspection_completed_transitions():
+    job_id = str(uuid.uuid4())
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO jobs (id, homeowner_name, address_line1, city, state, postal_code, phone, status) "
+            "VALUES (?, 'Final Inspection Test', '101 Maple Ave', 'Atlanta', 'GA', '30303', '555-9999', 'INSTALL_COMPLETED')",
+            (job_id,)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    ops_token = create_access_token("operations")
+    accounting_token = create_access_token("accounting")
+
+    # 1. Transition to FINAL_INSPECTION
+    response = client.patch(
+        f"/api/operations/jobs/{job_id}/status",
+        json={"status": "FINAL_INSPECTION"},
+        headers={"X-Internal-Token": ops_token}
+    )
+    assert response.status_code == 200
+
+    # 2. Transition to FINAL_INSPECTION_COMPLETED
+    response = client.patch(
+        f"/api/operations/jobs/{job_id}/status",
+        json={"status": "FINAL_INSPECTION_COMPLETED"},
+        headers={"X-Internal-Token": ops_token}
+    )
+    assert response.status_code == 200
+
+    # Verify status in database
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        assert row["status"] == "FINAL_INSPECTION_COMPLETED"
+    finally:
+        conn.close()
+
+    # 3. Create invoice from FINAL_INSPECTION_COMPLETED
+    # Seed financials first so it can render accounting brief/invoicing
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO financials (job_id, revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, overhead_pct, canvasser_commission_pct, qbo_exported) "
+            "VALUES (?, 100000, 80000, 30000, 40000, 0.25, 0.10, 0)",
+            (job_id,)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    with patch("app.api.office_routes.backup_database") as mock_backup:
+        response = client.post(
+            f"/api/office/accounting/jobs/{job_id}/invoice",
+            cookies={"auth_token": accounting_token}
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        mock_backup.assert_called_once()
+
+    # Verify status changed to INVOICED
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        assert row["status"] == "INVOICED"
+    finally:
+        conn.close()
+
