@@ -215,7 +215,7 @@
 
                 <div class="flex items-start mb-4">
                     <div class="flex items-center h-5">
-                        <input id="agreement_ack" type="checkbox" class="w-5 h-5 bg-gray-800 border-gray-600 rounded focus:ring-blue-500" required>
+                        <input id="agreement_ack" type="checkbox" class="w-5 h-5 bg-gray-800 border-gray-600 rounded focus:ring-blue-500">
                     </div>
                     <label for="agreement_ack" class="ml-2 text-sm font-medium text-gray-300">
                         I have presented this agreement to the homeowner and they accept the terms.
@@ -282,6 +282,20 @@
         let uploadedPhotoIndices = new Set();
         let signatureUploaded = false;
 
+        function updateSubmitButtonState() {
+            const submitBtn = document.getElementById('submitBtn');
+            const ackCheckbox = document.getElementById('agreement_ack');
+            const isResuming = (inProgressJobId !== null);
+            
+            if (isSignatureLocked) {
+                ackCheckbox.required = true;
+                submitBtn.innerText = isResuming ? '✓ Update Lead & Submit Agreement' : 'Submit Lead & Agreement';
+            } else {
+                ackCheckbox.required = false;
+                submitBtn.innerText = isResuming ? '✓ Update Naked Lead' : 'Save Naked Lead';
+            }
+        }
+
         function resetFormState() {
             inProgressJobId = null;
             inProgressStep = null;
@@ -296,6 +310,7 @@
             renderPhotoGrid();
             document.getElementById('successModal').classList.add('hidden');
             loadMyJobs();
+            updateSubmitButtonState();
         }
 
         async function loadMyJobs() {
@@ -397,7 +412,7 @@
                 `;
                 banner.classList.remove('hidden');
 
-                document.getElementById('submitBtn').innerText = '✓ Update Lead & Submit Agreement';
+                updateSubmitButtonState();
                 showToast(`Loaded saved lead for ${job.homeowner_name}`, 'success');
                 document.getElementById('intakeForm').scrollIntoView({ behavior: 'smooth' });
             } catch (e) {
@@ -410,7 +425,7 @@
             document.getElementById('intakeForm').reset();
             const banner = document.getElementById('resumeNoticeBanner');
             if (banner) banner.classList.add('hidden');
-            document.getElementById('submitBtn').innerText = 'Save Lead';
+            updateSubmitButtonState();
             showToast('Cleared lead form for new intake', 'info');
         }
 
@@ -868,6 +883,7 @@
                 // NEW: auto-clear canvas when re-entering edit mode
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             }
+            updateSubmitButtonState();
         });
 
         window.addEventListener('resize', initCanvasScale);
@@ -1095,6 +1111,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             loadMyJobs();
+            updateSubmitButtonState();
             const params = new URLSearchParams(window.location.search);
             const resumeId = params.get('resume_job_id');
             if (resumeId) {
