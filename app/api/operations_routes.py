@@ -95,8 +95,9 @@ async def operations_board(request: Request):
         # (SUPPLEMENT_APPROVED, materials_ordered = 0)
         needs_materials = [dict(r) for r in conn.execute("""
             SELECT j.id, j.invoice_id, j.homeowner_name,
-                   j.address_line1, j.city, j.state,
+                   j.address_line1, j.city, j.state, j.status,
                    j.materials_ordered, j.materials_on_site,
+                   j.ev_total_area_sf,
                    m.supplier_name, m.delivery_date,
                    m.bom_json
             FROM jobs j
@@ -110,8 +111,9 @@ async def operations_board(request: Request):
         # (materials_ordered = 1, materials_on_site = 0)
         awaiting_delivery_jobs = [dict(r) for r in conn.execute("""
             SELECT j.id, j.invoice_id, j.homeowner_name,
-                   j.address_line1, j.city, j.state,
+                   j.address_line1, j.city, j.state, j.status,
                    j.materials_ordered, j.materials_on_site,
+                   j.ev_total_area_sf,
                    m.supplier_name, m.delivery_date,
                    m.bom_json
             FROM jobs j
@@ -124,13 +126,39 @@ async def operations_board(request: Request):
         # (MATERIALS_ON_SITE, no crew date yet)
         ready_to_build = [dict(r) for r in conn.execute("""
             SELECT j.id, j.invoice_id, j.homeowner_name,
-                   j.address_line1, j.city, j.state,
+                   j.address_line1, j.city, j.state, j.status,
+                   j.ev_total_area_sf,
                    s.crew_name, s.install_date
             FROM jobs j
             LEFT JOIN schedule s ON j.id = s.job_id
             WHERE j.status = 'MATERIALS_ON_SITE'
             ORDER BY j.created_at ASC
         """).fetchall()]
+
+        # List 3: Active Builds (INSTALL_SCHEDULED)
+        active_builds = [dict(r) for r in conn.execute("""
+            SELECT j.id, j.invoice_id, j.homeowner_name,
+                   j.address_line1, j.city, j.state, j.status,
+                   j.ev_total_area_sf,
+                   s.crew_name, s.install_date
+            FROM jobs j
+            LEFT JOIN schedule s ON j.id = s.job_id
+            WHERE j.status = 'INSTALL_SCHEDULED'
+            ORDER BY j.created_at ASC
+        """).fetchall()]
+
+        # List 4: Inspections & Closeout (INSTALL_COMPLETED, FINAL_INSPECTION, INSPECTION_COMPLETED)
+        inspections_closeout = [dict(r) for r in conn.execute("""
+            SELECT j.id, j.invoice_id, j.homeowner_name,
+                   j.address_line1, j.city, j.state, j.status,
+                   j.ev_total_area_sf,
+                   s.crew_name, s.install_date
+            FROM jobs j
+            LEFT JOIN schedule s ON j.id = s.job_id
+            WHERE j.status IN ('INSTALL_COMPLETED', 'FINAL_INSPECTION', 'INSPECTION_COMPLETED')
+            ORDER BY j.created_at ASC
+        """).fetchall()]
+
     finally:
         conn.close()
 
@@ -141,6 +169,8 @@ async def operations_board(request: Request):
             "needs_materials": needs_materials,
             "awaiting_delivery_jobs": awaiting_delivery_jobs,
             "ready_to_build": ready_to_build,
+            "active_builds": active_builds,
+            "inspections_closeout": inspections_closeout,
             "active_page": "operations",
             "auth_token": request.cookies.get("auth_token", "")
         }
@@ -184,3 +214,66 @@ async def assign_crew(
         f"Crew '{crew_name}' scheduled for {install_date}."
     )
     return {"status": "scheduled", "job_id": job_id}
+
+from fastapi.responses import FileResponse
+from app.services.pdf.documents import DocumentsGenerator
+
+@router.get(
+    "/jobs/{job_id}/bom/download",
+    dependencies=[Depends(verify_office_role)]
+)
+async def download_bom(job_id: str):
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(404, "Job not found.")
+        job = dict(row)
+    finally:
+        conn.close()
+
+    generator = DocumentsGenerator()
+    try:
+        filepath = await generator.generate_bom_pdf(job)
+        filename = f"BOM_{job.get('invoice_id') or job_id[:8]}.pdf"
+        return FileResponse(
+            filepath,
+            media_type="application/pdf",
+            filename=filename
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate BoM PDF: {str(e)}")
+
+
+@router.patch(
+    "/jobs/{job_id}/status",
+    dependencies=[Depends(verify_operations)]
+)
+async def patch_job_status(job_id: str, payload: dict = Body(...)):
+    new_status_str = payload.get("status")
+    if not new_status_str:
+        raise HTTPException(400, "status is required.")
+    
+    try:
+        new_status = JobStatus(new_status_str)
+    except ValueError:
+        raise HTTPException(400, f"Invalid status: {new_status_str}")
+        
+    allowed_statuses = {
+        JobStatus.INSTALL_COMPLETED,
+        JobStatus.FINAL_INSPECTION,
+        JobStatus.INSPECTION_COMPLETED
+    }
+    if new_status not in allowed_statuses:
+        raise HTTPException(400, f"Status transition to {new_status_str} not allowed via this endpoint.")
+        
+    try:
+        update_job_status(
+            job_id,
+            new_status,
+            f"Status updated manually to {new_status_str} via Operations Board toggle."
+        )
+        return {"status": "success", "new_status": new_status_str}
+    except Exception as e:
+        raise HTTPException(400, str(e))

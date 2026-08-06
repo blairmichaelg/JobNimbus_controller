@@ -1,11 +1,13 @@
 import os
 import sys
 import shutil
+import uuid
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.core.database import get_connection, create_field_rep
+from app.core.database import get_connection, create_field_rep, pwd_context
+from app.core.database import JobStatus
 
 def clear_directory_contents(dir_path):
     if not os.path.exists(dir_path):
@@ -24,7 +26,7 @@ def clear_directory_contents(dir_path):
 
 def reset_demo_db():
     conn = get_connection()
-    
+
     # Tables are deleted in reverse dependency order.
     # Jobs and field_reps are deleted last.
     tables_to_clear = [
@@ -42,15 +44,15 @@ def reset_demo_db():
         "jobs",
         "field_reps"
     ]
-    
+
     try:
         # Clear transactional tables
         for table in tables_to_clear:
             conn.execute(f"DELETE FROM {table}")
-            
+
         conn.commit()
         print(f"Successfully cleared tables: {', '.join(tables_to_clear)}")
-        
+
     except Exception as e:
         print(f"Error resetting demo database: {e}")
         conn.rollback()
@@ -66,6 +68,9 @@ def reset_demo_db():
     except Exception as e:
         print(f"Demo field rep 'Jerry Grubb' creation note: {e}")
 
+    # No demo job seeded for a clean slate.
+    pass
+
     # Wipe contents of document/upload directories
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     dirs_to_clear = [
@@ -74,7 +79,7 @@ def reset_demo_db():
         os.path.join(base_dir, 'generated_exports'),
         os.path.join(base_dir, 'signed_agreements')
     ]
-    
+
     for d in dirs_to_clear:
         clear_directory_contents(d)
         print(f"Cleared contents of {os.path.relpath(d, base_dir)}")

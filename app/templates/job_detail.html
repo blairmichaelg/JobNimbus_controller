@@ -197,6 +197,29 @@
                             <span class="mt-1 px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-blue-900 text-blue-200">
                                 {{ job.status | status_label }}
                             </span>
+
+                            <!-- Operations Toggles -->
+                            {% if is_core or role == 'admin' or role == 'operations' %}
+                            <div class="mt-3 space-y-2 border-t border-gray-700/50 pt-3">
+                                {% if job.status == 'INSTALL_SCHEDULED' %}
+                                <button onclick="updateJobStatus('INSTALL_COMPLETED')" class="w-full bg-blue-700 hover:bg-blue-600 text-white font-bold py-2 rounded text-xs transition-colors uppercase tracking-wider">
+                                    ✓ Mark Install Complete
+                                </button>
+                                {% elif job.status == 'INSTALL_COMPLETED' %}
+                                <button onclick="updateJobStatus('FINAL_INSPECTION')" class="w-full bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-2 rounded text-xs transition-colors uppercase tracking-wider">
+                                    Require Final Inspection
+                                </button>
+                                {% elif job.status == 'FINAL_INSPECTION' %}
+                                <button onclick="updateJobStatus('INSPECTION_COMPLETED')" class="w-full bg-purple-700 hover:bg-purple-600 text-white font-bold py-2 rounded text-xs transition-colors uppercase tracking-wider">
+                                    Mark Inspection Done
+                                </button>
+                                {% elif job.status == 'INSPECTION_COMPLETED' %}
+                                <div class="text-center text-xs text-green-400 font-bold uppercase tracking-wider bg-gray-900/60 py-2 rounded border border-gray-700/50 select-none">
+                                    ✓ Inspection Complete
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -242,6 +265,54 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Shingle Material Details Card -->
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
+                    <div class="flex items-center justify-between border-b border-gray-700 pb-2 mb-4">
+                        <h2 class="text-xl font-semibold text-white flex items-center gap-2">
+                            <span>🏠</span> Shingle Material
+                        </h2>
+                        <button onclick="openShingleModal()" class="px-3 py-1.5 bg-indigo-900/80 hover:bg-indigo-800 border border-indigo-600 text-indigo-200 text-xs font-bold rounded-lg transition-all flex items-center gap-1">
+                            <span>✏️</span> Edit Shingles
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Shingle Type</p>
+                            <p class="text-lg font-bold text-white">{{ job.shingle_type or 'Not Specified' }}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Shingle Color</p>
+                            <p class="text-lg font-bold text-amber-300">{{ job.shingle_color or 'Not Specified' }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Production Schedule Card -->
+                {% if job.schedule %}
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
+                    <div class="flex items-center justify-between border-b border-gray-700 pb-2 mb-4">
+                        <h2 class="text-xl font-semibold text-white flex items-center gap-2">
+                            <span>📅</span> Production Schedule
+                        </h2>
+                        <span class="bg-blue-900/30 text-blue-300 text-xs font-bold px-2.5 py-1 rounded-full">{{ job.schedule.status or 'Scheduled' }}</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Crew</p>
+                            <p class="text-lg font-bold text-white">{{ job.schedule.crew_name or 'Not Assigned' }}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Install Date</p>
+                            <p class="text-lg font-bold text-emerald-300">{{ job.schedule.install_date or 'Not Set' }}</p>
+                        </div>
+                        <div class="bg-gray-900 p-3 rounded border border-gray-700 sm:col-span-2">
+                            <p class="text-xs text-gray-400 uppercase font-semibold">Material Delivery Date</p>
+                            <p class="text-lg font-bold text-white">{{ job.schedule.delivery_date or 'Not Set' }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
                 <!-- Roof Measurements & Geometry Card -->
                 <div class="bg-gray-800 p-6 rounded-lg shadow-md border border-gray-700">
@@ -312,7 +383,15 @@
                                         {{ event.display_metric }}
                                     </span>
                                 </div>
-                                <p class="text-xs text-gray-400 font-mono">📅 {{ event.formatted_date }} | Certified NWS Local Storm Report</p>
+                                <p class="text-xs text-gray-400 font-mono">
+                                    📅 {{ event.formatted_date }} | Certified NWS Local Storm Report
+                                    {% if event.proximity %}
+                                    <br/><span class="text-purple-400">📍 Proximity: {{ event.proximity }}</span>
+                                    {% endif %}
+                                    {% if event.latitude and event.longitude %}
+                                    <span class="text-gray-500">({{ "%.4f"|format(event.latitude) }}, {{ "%.4f"|format(event.longitude) }})</span>
+                                    {% endif %}
+                                </p>
                             </div>
                             <button onclick="applyLossDate('{{ event.formatted_date }}')" 
                                     class="px-3 py-1.5 bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-600 text-xs font-bold rounded-lg transition-all flex items-center gap-1 shrink-0">
@@ -456,6 +535,21 @@
                         {% else %}
                         <p class="text-gray-400 text-sm bg-gray-800/50 p-3 rounded border border-gray-700/50 mb-4">No documents stored in vault yet.</p>
                         {% endif %}
+
+                        <!-- Generated Documents -->
+                        <div class="mt-4 mb-4 p-3 bg-gray-900 rounded border border-gray-700 flex justify-between items-center">
+                            <div>
+                                <h4 class="text-sm font-bold text-white">📋 Material Order Sheet (BoM)</h4>
+                                <p class="text-xs text-gray-400">Generated dynamically from Hover/EagleView data.</p>
+                            </div>
+                            {% if job.ev_total_area_sf and job.ev_total_area_sf > 0 %}
+                            <a href="/api/operations/jobs/{{ job.id }}/bom/download" target="_blank" class="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-bold rounded transition flex items-center space-x-1 shrink-0">
+                                <span>⬇ Download BoM</span>
+                            </a>
+                            {% else %}
+                            <span class="text-xs text-gray-500 bg-gray-800 border border-gray-700 px-2 py-1 rounded select-none">No Measurements</span>
+                            {% endif %}
+                        </div>
 
                         {% if is_core %}
                         <!-- Document Upload Control -->
@@ -678,6 +772,8 @@
                         </div>
                         <form id="financialsForm" class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-sm text-gray-400">Carrier RCV ($)</label><input type="number" id="fin_carrier_rcv" value="{{ "%.2f"|format(job.financials.carrier_rcv_cents / 100) if job.financials and job.financials.carrier_rcv_cents is not none else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
+                                <div><label class="block text-sm text-gray-400">Deductible ($)</label><input type="number" id="fin_deductible" value="{{ "%.2f"|format(job.financials.deductible_cents / 100) if job.financials and job.financials.deductible_cents is not none else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
                                 <div><label class="block text-sm text-gray-400">Revenue ($)</label><input type="number" id="fin_revenue" value="{{ "%.2f"|format(job.financials.revenue_cents / 100) if job.financials.revenue_cents is not none else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
                                 <div><label class="block text-sm text-gray-400">Materials ($)</label><input type="number" id="fin_materials" value="{{ "%.2f"|format(job.financials.material_cost_cents / 100) if job.financials.material_cost_cents is not none else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
                                 <div><label class="block text-sm text-gray-400">Labor ($)</label><input type="number" id="fin_labor" value="{{ "%.2f"|format(job.financials.labor_cost_cents / 100) if job.financials.labor_cost_cents is not none else '' }}" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 font-mono" step="0.01" {% if role == 'operations' %}readonly{% endif %}></div>
@@ -1145,7 +1241,7 @@
         try {
             const res = await fetch('/api/office/jobs/{{ job.id }}/claim-info', {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'x-internal-token': OFFICE_TOKEN },
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
@@ -1171,7 +1267,7 @@
         try {
             const res = await fetch('/api/office/jobs/{{ job.id }}/claim-info', {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'x-internal-token': OFFICE_TOKEN },
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
@@ -1185,6 +1281,96 @@
         }
     }
 
+    async function updateJobStatus(newStatus) {
+        if (!confirm(`Are you sure you want to transition this job to ${newStatus.replace('_', ' ')}?`))
+            return;
+        try {
+            const res = await fetch('/api/operations/jobs/{{ job.id }}/status', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Internal-Token': '{{ auth_token }}'
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const errText = await res.text();
+                alert('Error updating status: ' + errText);
+            }
+        } catch (err) {
+            alert('Network error updating status');
+        }
+    }
+
+    // --- Shingle Material Modal ---
+    function openShingleModal() {
+        document.getElementById('shingleModal').classList.remove('hidden');
+        document.getElementById('modalShingleType').value = '{{ job.shingle_type or "" }}';
+        document.getElementById('modalShingleColor').value = '{{ job.shingle_color or "" }}';
+    }
+    function closeShingleModal() {
+        document.getElementById('shingleModal').classList.add('hidden');
+    }
+    async function submitShingleInfo(e) {
+        e.preventDefault();
+        const btn = document.getElementById('saveShingleBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        
+        const payload = {
+            shingle_type: document.getElementById('modalShingleType').value || null,
+            shingle_color: document.getElementById('modalShingleColor').value || null
+        };
+
+        try {
+            const res = await fetch('/api/office/jobs/{{ job.id }}/shingle-info', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'x-internal-token': OFFICE_TOKEN },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                alert('Error updating shingle info: ' + (err.detail || 'Failed'));
+                btn.disabled = false;
+                btn.textContent = 'Save Changes';
+            }
+        } catch (err) {
+            alert('Network error updating shingle info');
+            btn.disabled = false;
+            btn.textContent = 'Save Changes';
+        }
+    }
     </script>
+
+    <!-- Edit Shingle Info Modal -->
+    <div id="shingleModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <span>🏠</span> Update Shingle Material
+                </h3>
+                <button onclick="closeShingleModal()" class="text-gray-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <form id="shingleForm" onsubmit="submitShingleInfo(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Shingle Type</label>
+                    <input type="text" id="modalShingleType" placeholder="e.g. Architectural, 3-Tab, Wood, Metal, Slate" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Shingle Color</label>
+                    <input type="text" id="modalShingleColor" placeholder="e.g. Charcoal, Weathered Wood, Slate, Terra Cotta" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <p class="text-xs text-gray-400">This info may also be auto-extracted from the Statement of Loss by the AI pipeline. Manual entry overrides AI extraction.</p>
+                <div class="flex justify-end gap-3 pt-3">
+                    <button type="button" onclick="closeShingleModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-lg">Cancel</button>
+                    <button type="submit" id="saveShingleBtn" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-lg shadow-lg">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Completed Jobs — Wickham Roofing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
+    <nav class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex justify-between items-center z-30">
+        <div class="flex items-center space-x-3">
+            <img src="/static/logo.png" alt="Wickham Roofing Logo" class="w-9 h-9 rounded shadow">
+            <span class="text-white font-bold tracking-wide text-lg hidden sm:inline">Wickham Roofing</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <a href="/admin" class="text-purple-400 hover:text-white px-3 py-1.5 border border-purple-800 hover:border-purple-600 rounded text-xs font-bold transition-all">← Admin Board</a>
+            <a href="/help" class="text-blue-400 hover:text-white px-3 py-1.5 border border-blue-800 hover:border-blue-600 rounded text-xs font-bold transition-all">❓ Help</a>
+            <a href="/auth/logout" class="text-gray-400 hover:text-white px-3 py-1.5 border border-gray-800 hover:border-gray-600 rounded text-xs transition-all">Logout</a>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        <div class="mb-6 flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-white">✅ Completed Jobs Archive</h1>
+            <span class="text-sm text-gray-500">{{ jobs | length }} job(s)</span>
+        </div>
+
+        {% if not jobs %}
+        <div class="bg-gray-800 border border-gray-700 rounded-lg p-8 text-center">
+            <p class="text-gray-400 text-lg">No completed jobs found yet.</p>
+        </div>
+        {% else %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-gray-800 border-b border-gray-700">
+                    <tr>
+                        <th class="px-4 py-3 text-xs font-bold uppercase text-gray-400">Job #</th>
+                        <th class="px-4 py-3 text-xs font-bold uppercase text-gray-400">Homeowner</th>
+                        <th class="px-4 py-3 text-xs font-bold uppercase text-gray-400">Address</th>
+                        <th class="px-4 py-3 text-xs font-bold uppercase text-gray-400">Status</th>
+                        <th class="px-4 py-3 text-xs font-bold uppercase text-gray-400">Closed Date</th>
+                        <th class="px-4 py-3 text-xs font-bold uppercase text-gray-400">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-800">
+                    {% for job in jobs %}
+                    <tr class="hover:bg-gray-800/50 transition-colors">
+                        <td class="px-4 py-3 font-mono text-sm text-gray-400">{{ job.invoice_id or job.id[:8] }}</td>
+                        <td class="px-4 py-3 font-semibold text-white">{{ job.homeowner_name }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-400">{{ job.address_line1 }}</td>
+                        <td class="px-4 py-3">
+                            <span class="bg-emerald-900/30 text-emerald-300 px-2 py-1 rounded text-xs font-bold">CLOSED</span>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-400">{{ job.updated_at or job.created_at }}</td>
+                        <td class="px-4 py-3">
+                            <a href="/office/jobs/{{ job.id }}" class="text-blue-400 hover:text-white text-xs font-semibold">View Details →</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

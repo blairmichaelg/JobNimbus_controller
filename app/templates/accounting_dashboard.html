@@ -3,333 +3,317 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Accounting Ledger</title>
+    <title>Accounting — Wickham Roofing</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-black text-gray-100 h-screen flex flex-col overflow-hidden font-sans">
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans">
     <nav class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex flex-wrap justify-between items-center z-30">
         <div class="flex items-center space-x-3">
-            <img src="/static/logo.png" alt="Wickham Roofing Logo" class="w-9 h-9 rounded shadow">
+            <img src="/static/logo.png" alt="Wickham Roofing" class="w-9 h-9 rounded shadow">
             <span class="text-white font-bold tracking-wide text-lg hidden sm:inline">Wickham Roofing</span>
         </div>
-
-        <!-- Dashboard Switcher -->
-        <div class="flex items-center space-x-2 bg-gray-950 p-1.5 rounded-lg border border-gray-800 my-1 sm:my-0 font-sans">
-            <a href="/admin" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider transition-all flex items-center gap-1.5 text-gray-400 hover:text-white hover:bg-gray-800">
-                <span>👑</span>
-                <span>Admin Board</span>
-            </a>
-            <a href="/accounting" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider transition-all flex items-center gap-1.5 bg-green-600 text-white shadow-lg">
-                <span>📊</span>
-                <span>Accounting</span>
-            </a>
-            <a href="/api/operations/board" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider transition-all flex items-center gap-1.5 text-gray-400 hover:text-white hover:bg-gray-800">
-                <span>🏗️</span>
-                <span>Production</span>
-            </a>
-            <a href="/field" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider transition-all flex items-center gap-1.5 text-gray-400 hover:text-white hover:bg-gray-800">
-                <span>📱</span>
-                <span>Field Intake</span>
-            </a>
+        <div class="flex items-center space-x-2 bg-gray-950 p-1.5 rounded-lg border border-gray-800 my-1 sm:my-0">
+            <a href="/admin" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider text-gray-400 hover:text-white hover:bg-gray-800 transition-all flex items-center gap-1.5">👑 Admin Board</a>
+            <a href="/accounting" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider bg-green-600 text-white shadow-lg flex items-center gap-1.5">📊 Accounting</a>
+            <a href="/api/operations/board" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider text-gray-400 hover:text-white hover:bg-gray-800 transition-all flex items-center gap-1.5">🏗️ Production</a>
+            <a href="/field" class="px-3.5 py-1.5 rounded-md font-bold text-xs tracking-wider text-gray-400 hover:text-white hover:bg-gray-800 transition-all flex items-center gap-1.5">📱 Field</a>
         </div>
-
-        <!-- Utility Links -->
-        <div class="flex items-center space-x-2 font-sans">
-            <a href="/admin/reps" class="text-purple-400 hover:text-white px-3 py-1.5 border border-purple-800 hover:border-purple-600 rounded text-xs font-bold transition-all">👥 Reps</a>
+        <div class="flex items-center space-x-2">
             <a href="/api/office/admin/triage" class="text-yellow-400 hover:text-white px-3 py-1.5 border border-yellow-800 hover:border-yellow-600 rounded text-xs font-bold transition-all">⚠️ Triage</a>
             <a href="/help" class="text-blue-400 hover:text-white px-3 py-1.5 border border-blue-800 hover:border-blue-600 rounded text-xs font-bold transition-all">❓ Help</a>
             <a href="/auth/logout" class="text-gray-400 hover:text-white px-3 py-1.5 border border-gray-800 hover:border-gray-600 rounded text-xs transition-all">Logout</a>
         </div>
     </nav>
-    <div class="p-6 h-full flex flex-col flex-1 overflow-hidden">
-        
-        <div class="flex-1 bg-gray-900 border border-gray-700 rounded p-6 shadow-2xl flex flex-col">
-            <div class="flex justify-between items-start mb-8">
-                <div>
-                    <div class="text-gray-400 text-sm uppercase tracking-wider">Supplemented RCV Added</div>
-                    <div id="acct-rcv" class="text-5xl text-green-500 font-bold mt-2">$0.00</div>
-                </div>
-                <div class="text-right">
-                    <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">QBO Export Queue</div>
-                    <div id="acct-ready" class="text-3xl text-white font-bold mb-4">0</div>
-                    <button
-                        id="qbo-export-btn"
-                        onclick="runQboExport()"
-                        class="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-6 rounded uppercase tracking-wider transition-colors">
-                        Export QBO CSV
-                    </button>
-                </div>
+
+    <div class="p-6 space-y-6">
+
+        <!-- KPI Strip -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-gray-900 border border-gray-700 rounded-xl p-4">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">RCV Pipeline</p>
+                <p id="acct-rcv" class="text-3xl font-bold text-green-400">$0.00</p>
             </div>
-            
-            <div class="flex-1 overflow-auto mb-8">
-                <table class="w-full text-left uppercase text-sm">
-                    <thead class="sticky top-0 bg-gray-900 shadow">
-                        <tr class="text-gray-500 border-b border-gray-800">
-                            <th class="py-3 px-4">Job ID</th>
-                            <th class="py-3 px-4">Homeowner</th>
-                            <th class="py-3 px-4 text-right">Status</th>
-                            <th class="px-4 py-3 text-left">ACV Check</th>
-                            <th class="px-4 py-3 text-left">Supplement Check</th>
+            <div class="bg-gray-900 border border-gray-700 rounded-xl p-4">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">Jobs In Pipeline</p>
+                <p id="acct-count" class="text-3xl font-bold text-white">0</p>
+            </div>
+            <div class="bg-gray-900 border border-gray-700 rounded-xl p-4">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">Awaiting QBO Export</p>
+                <p id="acct-ready" class="text-3xl font-bold text-yellow-400">0</p>
+            </div>
+            <div class="bg-gray-900 border border-gray-700 rounded-xl p-4 flex flex-col justify-between">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-2">QuickBooks Export</p>
+                <button id="qbo-export-btn" onclick="runQboExport()"
+                    class="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg uppercase tracking-wider transition-colors text-sm">
+                    Export QBO CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- Jobs Pipeline Table -->
+        <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-gray-800">
+                <h2 class="text-lg font-bold text-white uppercase tracking-widest">💼 Active Jobs Pipeline</h2>
+                <span class="text-gray-500 text-xs">All jobs from Supplement Generated through Payment Received</span>
+            </div>
+            <div class="overflow-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-950 sticky top-0">
+                        <tr class="text-gray-500 text-xs uppercase border-b border-gray-800">
+                            <th class="py-3 px-4">Job / Homeowner</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4 text-right">Carrier RCV</th>
+                            <th class="py-3 px-4 text-center">ACV Check</th>
+                            <th class="py-3 px-4 text-center">Supplement Check</th>
+                            <th class="py-3 px-4 text-center">Invoice</th>
+                            <th class="py-3 px-4 text-center">QBO</th>
                         </tr>
                     </thead>
                     <tbody id="acct-table" class="divide-y divide-gray-800">
-                        <!-- Populated via JS -->
+                        <tr><td colspan="7" class="text-center text-gray-500 py-8">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
+        </div>
 
-            <div class="border-b border-gray-800 pb-2 mb-4">
-                <h2 class="text-xl font-bold text-green-400 uppercase tracking-widest">Commissions Ready to Pay</h2>
+        <!-- Commissions Section -->
+        <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-gray-800">
+                <h2 class="text-lg font-bold text-green-400 uppercase tracking-widest">💰 Commissions Ready to Pay</h2>
+                <span class="text-gray-500 text-xs">Triggered automatically on Payment Received</span>
             </div>
-            <div class="flex-1 overflow-auto">
-                <table class="w-full text-left uppercase text-sm">
-                    <thead class="sticky top-0 bg-gray-900 shadow">
-                        <tr class="text-gray-500 border-b border-gray-800">
-                            <th class="py-3 px-4">Job ID</th>
+            <div class="overflow-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-950 sticky top-0">
+                        <tr class="text-gray-500 text-xs uppercase border-b border-gray-800">
+                            <th class="py-3 px-4">Job</th>
                             <th class="py-3 px-4">Homeowner</th>
                             <th class="py-3 px-4">Canvasser</th>
                             <th class="py-3 px-4">Commission</th>
-                            <th class="py-3 px-4">Generated At</th>
+                            <th class="py-3 px-4">Generated</th>
                             <th class="py-3 px-4 text-right">Statement</th>
                             <th class="py-3 px-4 text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody id="commissions-table" class="divide-y divide-gray-800">
-                        <!-- Populated via JS -->
+                        <tr><td colspan="7" class="text-center text-gray-500 py-4">Loading...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Check-in form modal -->
+    <div id="checkModal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <h3 class="text-white font-bold text-lg" id="checkModalTitle">Record Payment</h3>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1 uppercase">Amount Received ($)</label>
+                <input type="number" step="0.01" id="checkModalAmount" class="w-full bg-gray-800 text-white rounded-lg p-2 border border-gray-700 focus:border-green-500 focus:outline-none font-mono">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1 uppercase">Date Received</label>
+                <input type="date" id="checkModalDate" class="w-full bg-gray-800 text-white rounded-lg p-2 border border-gray-700 focus:border-green-500 focus:outline-none">
+            </div>
+            <p id="checkModalExpected" class="text-xs text-gray-500"></p>
+            <div class="flex gap-3 pt-2">
+                <button onclick="closeCheckModal()" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold py-2 rounded-lg text-sm">Cancel</button>
+                <button onclick="submitCheckModal()" class="flex-1 bg-green-700 hover:bg-green-600 text-white font-bold py-2 rounded-lg text-sm">Confirm Payment</button>
             </div>
         </div>
     </div>
 
     <script>
         const AUTH_TOKEN = "{{ auth_token }}";
+        let _checkJobId = null, _checkFlag = null, _checkExpected = null;
 
         async function fetchAccounting() {
             try {
                 const res = await fetch('/api/office/accounting/brief', { headers: { 'X-Internal-Token': AUTH_TOKEN } });
+                if (!res.ok) { console.error('Accounting brief failed', res.status); return; }
                 const data = await res.json();
+
                 document.getElementById('acct-rcv').innerText = data.supplemented_rcv_added;
-                document.getElementById('acct-ready').innerText = data.qbo_ready_count;
-                
+                document.getElementById('acct-count').innerText = data.rows.length;
+
+                // Count non-exported
+                const notExported = data.rows.filter(r => !r.qbo_exported).length;
+                document.getElementById('acct-ready').innerText = notExported;
+
                 const tbody = document.getElementById('acct-table');
                 tbody.innerHTML = '';
+
                 if (data.rows.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">No pending checks to record.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-8">No active jobs in the accounting pipeline yet.</td></tr>`;
                 } else {
                     data.rows.forEach(row => {
-                        const statusColor = row.status.includes('INVOICED') ? 'text-green-400' : 'text-yellow-400';
-                        const acvColor = row.acv_received ? 'bg-green-700 text-green-200' : 'bg-gray-700 text-gray-400';
-                        const acvText = row.acv_received ? '✓ Received' : 'Pending';
-                        const suppColor = row.supplement_received ? 'bg-green-700 text-green-200' : 'bg-gray-700 text-gray-400';
-                        const suppText = row.supplement_received ? '✓ Received' : 'Pending';
+                        const statusColors = {
+                            'SUPPLEMENT_GENERATED': 'text-blue-400',
+                            'SUPPLEMENT_APPROVED': 'text-green-400',
+                            'SCOPE_APPROVED': 'text-green-400',
+                            'MATERIAL_ORDERED': 'text-yellow-400',
+                            'INSTALL_COMPLETED': 'text-orange-400',
+                            'INVOICED': 'text-purple-400',
+                            'PAYMENT_RECEIVED': 'text-green-300',
+                        };
+                        const statusColor = statusColors[row.status] || 'text-gray-400';
+                        const acvBadge = row.acv_received
+                            ? `<span class="px-2 py-1 rounded bg-green-900 text-green-300 text-xs font-bold">✓ Received</span>`
+                            : `<button onclick="openCheckModal('${row.job_id}', 'acv_received', ${row.acv_expected !== null ? row.acv_expected : 'null'})"
+                                class="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold transition-colors">+ Record ACV</button>`;
+                        const suppBadge = row.supplement_received
+                            ? `<span class="px-2 py-1 rounded bg-green-900 text-green-300 text-xs font-bold">✓ Received</span>`
+                            : `<button onclick="openCheckModal('${row.job_id}', 'supplement_received', ${row.supp_expected !== null ? row.supp_expected : 'null'})"
+                                class="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold transition-colors">+ Record Supp</button>`;
+
+                        const canInvoice = ['SUPPLEMENT_GENERATED','SUPPLEMENT_APPROVED','SCOPE_APPROVED','MATERIAL_ORDERED','MATERIALS_ON_SITE','INSTALL_SCHEDULED','INSTALL_COMPLETED','FINAL_INSPECTION','INSPECTION_COMPLETED'].includes(row.status);
+                        const invoiceBtn = row.status === 'INVOICED' || row.status === 'PAYMENT_RECEIVED'
+                            ? `<span class="px-2 py-1 rounded bg-purple-900 text-purple-300 text-xs font-bold">✓ Invoiced</span>`
+                            : canInvoice
+                                ? `<button onclick="createInvoice('${row.job_id}')"
+                                    class="px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold transition-colors">Create Invoice</button>`
+                                : `<span class="text-gray-600 text-xs">N/A</span>`;
+
+                        const qboBadge = row.qbo_exported
+                            ? `<span class="px-2 py-1 rounded bg-gray-700 text-gray-400 text-xs">Exported</span>`
+                            : `<span class="px-2 py-1 rounded bg-yellow-900 text-yellow-300 text-xs font-bold">Pending</span>`;
+
+                        const rcv = row.carrier_rcv ? `$${Number(row.carrier_rcv).toLocaleString('en-US', {minimumFractionDigits:2})}` : '—';
+
                         tbody.innerHTML += `
-                            <tr class="hover:bg-gray-800 transition-colors">
-                                <td class="py-4 px-4 text-gray-300 font-mono">
-                                    <a href="/office/jobs/${row.job_id}" target="_blank" class="hover:underline"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></a>
-                                    <a href="/office/jobs/${row.job_id}" target="_blank" class="mt-1 block text-green-400 hover:text-green-300 text-xs font-bold uppercase tracking-wider">View Details &rarr;</a>
+                            <tr class="hover:bg-gray-800/50 transition-colors">
+                                <td class="py-4 px-4">
+                                    <a href="/office/jobs/${row.job_id}" target="_blank" class="font-mono font-bold text-yellow-400 hover:underline text-sm">${row.invoice_id || row.job_id.substring(0,8).toUpperCase()}</a>
+                                    <div class="text-white font-semibold text-sm mt-0.5">${row.name}</div>
+                                    <a href="/office/jobs/${row.job_id}" target="_blank" class="text-xs text-green-400 hover:text-green-300">View Details →</a>
                                 </td>
-                                <td class="py-4 px-4 text-white font-bold">${row.name}</td>
-                                <td class="py-4 px-4 text-right font-bold ${statusColor}">${row.status}</td>
-                                <td class="px-4 py-3">
-                                    <button
-                                      onclick="${row.acv_received ? '' : `showCheckForm('${row.job_id}', 'acv_received')`}"
-                                      class="px-4 py-2 rounded font-bold text-sm transition-colors ${acvColor}">
-                                      ${acvText}
-                                    </button>
-                                    ${!row.acv_received ? `
-                                    <div id="checkForm-acv_received-${row.job_id}" class="hidden mt-2 space-y-2">
-                                        <input type="number" step="0.01" id="checkAmount-acv_received-${row.job_id}"
-                                            placeholder="Amount" class="bg-gray-800 text-white rounded p-1 text-sm w-24">
-                                        <label class="text-xs text-gray-400 block">Date received</label>
-                                        <input type="date" id="checkDate-acv_received-${row.job_id}"
-                                            class="bg-gray-800 text-white rounded p-1 text-sm w-32">
-                                        <button onclick="submitCheck('${row.job_id}', 'acv_received', ${row.acv_expected !== null ? row.acv_expected : 'null'})"
-                                            class="bg-green-700 text-white text-xs px-2 py-1 rounded block">
-                                            Confirm
-                                        </button>
-                                    </div>` : ''}
-                                </td>
-                                <td class="px-4 py-3">
-                                    <button
-                                      onclick="${row.supplement_received ? '' : `showCheckForm('${row.job_id}', 'supplement_received')`}"
-                                      class="px-4 py-2 rounded font-bold text-sm transition-colors ${suppColor}">
-                                      ${suppText}
-                                    </button>
-                                    ${!row.supplement_received ? `
-                                    <div id="checkForm-supplement_received-${row.job_id}" class="hidden mt-2 space-y-2">
-                                        <input type="number" step="0.01" id="checkAmount-supplement_received-${row.job_id}"
-                                            placeholder="Amount" class="bg-gray-800 text-white rounded p-1 text-sm w-24">
-                                        <label class="text-xs text-gray-400 block">Date received</label>
-                                        <input type="date" id="checkDate-supplement_received-${row.job_id}"
-                                            class="bg-gray-800 text-white rounded p-1 text-sm w-32">
-                                        <button onclick="submitCheck('${row.job_id}', 'supplement_received', ${row.supp_expected !== null ? row.supp_expected : 'null'})"
-                                            class="bg-green-700 text-white text-xs px-2 py-1 rounded block">
-                                            Confirm
-                                        </button>
-                                    </div>` : ''}
-                                </td>
-                            </tr>
-                        `;
+                                <td class="py-4 px-4"><span class="font-bold text-sm ${statusColor}">${row.status.replace(/_/g,' ')}</span></td>
+                                <td class="py-4 px-4 text-right font-mono font-bold text-green-400">${rcv}</td>
+                                <td class="py-4 px-4 text-center">${acvBadge}</td>
+                                <td class="py-4 px-4 text-center">${suppBadge}</td>
+                                <td class="py-4 px-4 text-center">${invoiceBtn}</td>
+                                <td class="py-4 px-4 text-center">${qboBadge}</td>
+                            </tr>`;
                     });
                 }
 
+                // Commissions
                 const cres = await fetch('/api/office/accounting/commissions-ready', { headers: { 'X-Internal-Token': AUTH_TOKEN } });
+                const ctbody = document.getElementById('commissions-table');
                 if (cres.ok) {
                     const cdata = await cres.json();
-                    const ctbody = document.getElementById('commissions-table');
                     ctbody.innerHTML = '';
                     if (cdata.length === 0) {
-                        ctbody.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">No commissions currently ready to pay.</td></tr>`;
+                        ctbody.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-6">No commissions currently ready.<br><span class="text-xs">Commissions are triggered when a job reaches Payment Received status.</span></td></tr>`;
                     } else {
                         cdata.forEach(row => {
-                            const commAmount = (Number(row.canvasser_commission) || 0).toFixed(2);
+                            const commAmt = `$${Number(row.canvasser_commission || 0).toFixed(2)}`;
                             let displayDate = 'N/A';
                             if (row.commission_generated_at) {
-                                const ts = row.commission_generated_at.endsWith('Z') || row.commission_generated_at.includes('+')
-                                    ? row.commission_generated_at
-                                    : row.commission_generated_at + 'Z';
-                                const parsed = new Date(ts);
-                                if (!isNaN(parsed.getTime())) displayDate = parsed.toLocaleString();
+                                const ts = row.commission_generated_at.endsWith('Z') ? row.commission_generated_at : row.commission_generated_at + 'Z';
+                                const p = new Date(ts);
+                                if (!isNaN(p)) displayDate = p.toLocaleString();
                             }
                             ctbody.innerHTML += `
-                                <tr class="hover:bg-gray-800 transition-colors">
-                                    <td class="py-4 px-4 text-gray-300 font-mono"><a href="/office/jobs/${row.job_id}" target="_blank" class="hover:underline"><span class="font-mono font-bold text-yellow-400">${row.invoice_id || row.job_id.substring(0,8)}</span></a></td>
-                                    <td class="py-4 px-4 text-white font-bold">${row.homeowner_name}</td>
-                                    <td class="py-4 px-4 text-white">${row.canvasser_name || 'N/A'}</td>
-                                    <td class="py-4 px-4 text-white">
+                                <tr class="hover:bg-gray-800/50 transition-colors">
+                                    <td class="py-4 px-4 font-mono text-yellow-400 font-bold">${row.invoice_id || row.job_id.substring(0,8).toUpperCase()}</td>
+                                    <td class="py-4 px-4 text-white font-semibold">${row.homeowner_name}</td>
+                                    <td class="py-4 px-4 text-gray-300">${row.canvasser_name || 'N/A'}</td>
+                                    <td class="py-4 px-4">
                                         <div class="flex items-center gap-2">
-                                            <span id="commissionAmount-${row.job_id}">$${commAmount}</span>
-                                            <button onclick="showCommissionOverride('${row.job_id}')" class="text-xs text-blue-400 underline">
-                                                Adjust %
-                                            </button>
+                                            <span class="font-mono font-bold text-green-400 text-lg">${commAmt}</span>
+                                            <button onclick="showCommissionOverride('${row.job_id}')" class="text-xs text-blue-400 underline">Adjust %</button>
                                         </div>
-                                        <div id="commissionOverrideForm-${row.job_id}" class="hidden mt-1 flex items-center gap-2">
+                                        <div id="commissionOverrideForm-${row.job_id}" class="hidden mt-2 flex items-center gap-2">
                                             <input type="number" step="0.1" min="0" max="100"
                                                 id="commissionPctInput-${row.job_id}"
                                                 value="${row.commission_pct_override !== null ? (row.commission_pct_override * 100) : 10}"
-                                                class="bg-gray-800 text-white rounded p-1 text-sm w-20">
+                                                class="bg-gray-800 text-white rounded p-1 text-sm w-20 border border-gray-600">
                                             <span class="text-xs text-gray-400">%</span>
-                                            <button onclick="saveCommissionOverride('${row.job_id}')"
-                                                class="bg-blue-700 text-white text-xs px-2 py-1 rounded">
-                                                Save
-                                            </button>
-                                            <button onclick="resetCommissionOverride('${row.job_id}')"
-                                                class="bg-gray-600 text-white text-xs px-2 py-1 rounded">
-                                                Reset
-                                            </button>
+                                            <button onclick="saveCommissionOverride('${row.job_id}')" class="bg-blue-700 text-white text-xs px-2 py-1 rounded">Save</button>
+                                            <button onclick="resetCommissionOverride('${row.job_id}')" class="bg-gray-600 text-white text-xs px-2 py-1 rounded">Reset</button>
                                         </div>
                                     </td>
-                                    <td class="py-4 px-4 text-gray-400">${displayDate}</td>
+                                    <td class="py-4 px-4 text-gray-400 text-sm">${displayDate}</td>
                                     <td class="py-4 px-4 text-right">
                                         <a href="/api/office/jobs/${row.job_id}/docs/commission" target="_blank"
-                                           class="bg-blue-600 hover:bg-blue-500 text-white py-2 px-4 rounded text-xs font-bold transition-colors">
-                                           Download PDF
-                                        </a>
+                                           class="bg-blue-700 hover:bg-blue-600 text-white py-2 px-3 rounded-lg text-xs font-bold transition-colors">Download PDF</a>
                                     </td>
                                     <td class="py-4 px-4 text-center">
                                         <button onclick="markCommissionPaid('${row.job_id}')"
-                                            class="bg-blue-700 hover:bg-blue-600 text-white text-xs px-3 py-1.5 rounded font-bold">
-                                            Mark Paid
-                                        </button>
+                                            class="bg-green-700 hover:bg-green-600 text-white text-xs px-3 py-2 rounded-lg font-bold">Mark Paid</button>
                                     </td>
-                                </tr>
-                            `;
+                                </tr>`;
                         });
                     }
                 }
-            } catch(e) { console.error(e); }
+            } catch(e) { console.error('fetchAccounting error:', e); }
         }
 
-        async function markCommissionPaid(jobId) {
-            if (!confirm("Confirm this commission has been paid out? This will remove it from the Commissions Ready to Pay list.")) return;
+        function openCheckModal(jobId, flag, expected) {
+            _checkJobId = jobId; _checkFlag = flag; _checkExpected = expected;
+            document.getElementById('checkModalTitle').textContent = flag === 'acv_received' ? 'Record ACV Check' : 'Record Supplement Check';
+            document.getElementById('checkModalAmount').value = '';
+            document.getElementById('checkModalDate').value = new Date().toISOString().split('T')[0];
+            const expEl = document.getElementById('checkModalExpected');
+            expEl.textContent = expected ? `Expected: $${Number(expected).toFixed(2)}` : '';
+            document.getElementById('checkModal').classList.remove('hidden');
+        }
+        function closeCheckModal() { document.getElementById('checkModal').classList.add('hidden'); }
+
+        async function submitCheckModal() {
+            const amount = parseFloat(document.getElementById('checkModalAmount').value);
+            const date = document.getElementById('checkModalDate').value;
+            if (!amount || !date) { alert('Enter both amount and date.'); return; }
+            if (_checkExpected && amount < _checkExpected * 0.98) {
+                if (!confirm(`Amount $${amount} is less than expected $${_checkExpected.toFixed(2)}. Short-pay? Continue?`)) return;
+            }
             try {
-                const res = await fetch(`/api/office/accounting/jobs/${jobId}/commission/paid`, {
-                    method: 'PATCH',
+                const r = await fetch(`/api/office/accounting/jobs/${_checkJobId}/toggle-payment`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
+                    body: JSON.stringify({ flag: _checkFlag, amount, date_received: date })
+                });
+                if (r.ok) { closeCheckModal(); fetchAccounting(); }
+                else alert('Error recording payment: ' + await r.text());
+            } catch(e) { alert('Network error.'); }
+        }
+
+        async function createInvoice(jobId) {
+            if (!confirm('Create invoice and transition this job to INVOICED status?')) return;
+            try {
+                const r = await fetch(`/api/office/accounting/jobs/${jobId}/invoice`, {
+                    method: 'POST',
                     headers: { 'X-Internal-Token': AUTH_TOKEN }
                 });
-                if (res.ok) {
-                    fetchAccounting();
-                } else {
-                    alert("Failed to mark commission as paid. Try again.");
-                }
-            } catch (e) {
-                alert("Network error marking commission paid.");
-            }
+                if (r.ok) { fetchAccounting(); }
+                else { const e = await r.json().catch(() => ({})); alert('Error: ' + (e.detail || 'Failed')); }
+            } catch(e) { alert('Network error creating invoice.'); }
         }
 
         async function runQboExport() {
             const btn = document.getElementById('qbo-export-btn');
-            btn.disabled = true;
-            btn.innerText = 'Exporting...';
+            btn.disabled = true; btn.innerText = 'Exporting...';
             try {
-                const res = await fetch('/api/office/accounting/qbo-export', {
-                    method: 'GET',
-                    headers: { 'X-Internal-Token': AUTH_TOKEN }
-                });
-
-                if (res.status === 204) {
-                    alert('No jobs pending QBO export.');
-                    btn.innerText = 'Export QBO CSV';
-                    btn.disabled = false;
-                    return;
-                }
-
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert('Export failed: ' + (err.detail || 'Unknown error'));
-                    return;
-                }
-                // Trigger file download from blob
+                const res = await fetch('/api/office/accounting/qbo-export', { headers: { 'X-Internal-Token': AUTH_TOKEN } });
+                if (res.status === 204) { alert('No jobs pending QBO export.'); return; }
+                if (!res.ok) { alert('Export failed: ' + (await res.json().catch(() => ({}))).detail || 'Unknown error'); return; }
                 const blob = await res.blob();
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `wickham_qbo_export_${new Date().toISOString().slice(0,10)}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                const a = document.createElement('a'); a.href = url;
+                a.download = `wickham_qbo_${new Date().toISOString().slice(0,10)}.csv`;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                // Refresh accounting view to clear exported jobs from queue
                 fetchAccounting();
-            } catch(e) {
-                alert('Network error during export.');
-            } finally {
-                btn.disabled = false;
-                btn.innerText = 'Export QBO CSV';
-            }
+            } catch(e) { alert('Network error during export.'); }
+            finally { btn.disabled = false; btn.innerText = 'Export QBO CSV'; }
         }
 
-        function showCheckForm(jobId, flag) {
-            document.getElementById(`checkForm-${flag}-${jobId}`).classList.remove('hidden');
-        }
-
-        async function submitCheck(jobId, flag, expectedAmount) {
-            const amount = document.getElementById(`checkAmount-${flag}-${jobId}`).value;
-            const date = document.getElementById(`checkDate-${flag}-${jobId}`).value;
-
-            if (!amount || !date) {
-                alert('Please enter both the check amount and date received.');
-                return;
-            }
-
-            if (expectedAmount !== null && expectedAmount > 0 && parseFloat(amount) < expectedAmount * 0.98) {
-                if (!confirm(`This amount ($${amount}) is less than the expected $${expectedAmount.toFixed(2)}. This may indicate a carrier short-pay. Continue anyway?`))
-                    return;
-            }
-
-            try {
-                const r = await fetch(`/api/office/accounting/jobs/${jobId}/toggle-payment`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
-                    body: JSON.stringify({ flag: flag, amount: parseFloat(amount), date_received: date })
-                });
-
-                if (r.ok) window.location.reload();
-                else alert('Error recording check.');
-            } catch (err) {
-                alert('Network error while recording check.');
-            }
+        async function markCommissionPaid(jobId) {
+            if (!confirm('Mark this commission as paid? It will be removed from the list.')) return;
+            const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission/paid`, { method: 'PATCH', headers: { 'X-Internal-Token': AUTH_TOKEN } });
+            if (r.ok) fetchAccounting(); else alert('Error marking commission paid.');
         }
 
         function showCommissionOverride(jobId) {
@@ -337,64 +321,32 @@
         }
 
         async function saveCommissionOverride(jobId) {
-            const pctInput = document.getElementById(`commissionPctInput-${jobId}`).value;
-            const pct = parseFloat(pctInput);
-
-            if (isNaN(pct) || pct < 0 || pct > 100) {
-                alert('Please enter a valid percentage between 0 and 100.');
-                return;
-            }
-
-            if (!confirm(`Set commission for this job to ${pct}% of revenue (overriding the default 10%)?`))
-                return;
-
-            try {
-                const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission-override`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
-                    body: JSON.stringify({ commission_pct: pct / 100 })
-                });
-
-                if (r.ok) window.location.reload();
-                else alert('Error saving commission override.');
-            } catch (err) {
-                alert('Network error while saving override.');
-            }
+            const pct = parseFloat(document.getElementById(`commissionPctInput-${jobId}`).value);
+            if (isNaN(pct) || pct < 0 || pct > 100) { alert('Enter a valid % between 0-100.'); return; }
+            const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission-override`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
+                body: JSON.stringify({ commission_pct: pct / 100 })
+            });
+            if (r.ok) fetchAccounting(); else alert('Error saving override.');
         }
 
         async function resetCommissionOverride(jobId) {
-            if (!confirm("Reset this job's commission back to the default 10%?"))
-                return;
-
-            try {
-                const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission-override`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
-                    body: JSON.stringify({ commission_pct: null })
-                });
-
-                if (r.ok) window.location.reload();
-                else alert('Error resetting commission override.');
-            } catch (err) {
-                alert('Network error while resetting override.');
-            }
+            if (!confirm('Reset to default 10%?')) return;
+            const r = await fetch(`/api/office/accounting/jobs/${jobId}/commission-override`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Internal-Token': AUTH_TOKEN },
+                body: JSON.stringify({ commission_pct: null })
+            });
+            if (r.ok) fetchAccounting(); else alert('Error resetting.');
         }
 
         fetchAccounting();
+
         function connectWebSocket() {
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const ws = new WebSocket(`${wsProtocol}//${window.location.host}/api/office/ws/office`);
-            ws.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'stale' || data.type === 'new_lead') fetchAccounting();
-                } catch(err) { console.error('Error parsing WebSocket message:', err); }
-            };
-            ws.onerror = function(err) { console.warn('WebSocket error:', err); };
-            ws.onclose = function() {
-                console.info('WebSocket disconnected. Reconnecting in 5 seconds...');
-                setTimeout(connectWebSocket, 5000);
-            };
+            const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/office/ws/office`);
+            ws.onmessage = e => { try { const d = JSON.parse(e.data); if (d.type === 'stale' || d.type === 'new_lead') fetchAccounting(); } catch {} };
+            ws.onclose = () => setTimeout(connectWebSocket, 5000);
         }
         connectWebSocket();
     </script>

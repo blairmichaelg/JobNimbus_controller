@@ -20,7 +20,7 @@ while ($true) {
     Invoke-LogRotation
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content -Path $logFile -Value "[$timestamp] Starting ARQ Worker (Restart Count: $restartCount)..."
-    & "$repo\venv\Scripts\arq.exe" app.workers.settings.WorkerSettings >> $logFile 2>&1
+    & "$repo\venv\Scripts\python.exe" -m arq app.workers.settings.WorkerSettings >> $logFile 2>&1
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content -Path $logFile -Value "[$timestamp] ARQ Worker terminated. Self-healing in 3 seconds..."
     $restartCount++

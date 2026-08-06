@@ -647,6 +647,12 @@ def _writeback_sol_claim_info(conn, job_id: str, sol_data) -> None:
     if getattr(sol_data, "insurer_name", None) and getattr(sol_data.insurer_name, "value", None):
         updates["insurer_name"] = sol_data.insurer_name.value
 
+    # Shingle material info (only populate if currently NULL — never overwrite manual entry)
+    if getattr(sol_data, "shingle_type", None):
+        updates["shingle_type"] = sol_data.shingle_type
+    if getattr(sol_data, "shingle_color", None):
+        updates["shingle_color"] = sol_data.shingle_color
+
     if not updates:
         return
 

@@ -123,6 +123,8 @@ async def parse_statement_of_loss(
         financials=financials,
         claim_number=_sourced(str(parsed.claim_number), 1, str(parsed.claim_number)) if parsed.claim_number else None,
         insurer_name=_sourced(str(parsed.carrier_name), 1, str(parsed.carrier_name)) if parsed.carrier_name else None,
+        shingle_type=parsed.shingle_type if parsed.shingle_type else None,
+        shingle_color=parsed.shingle_color if parsed.shingle_color else None,
         source_doc_sha256=source_doc_sha256,
         source_doc_id=source_doc_id,
         ast_version=1,

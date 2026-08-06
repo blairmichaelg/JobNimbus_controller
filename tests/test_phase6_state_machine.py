@@ -184,3 +184,66 @@ def test_field_routes_retail_job_enqueue(tokens):
     response = client.post("/api/field/jobs", json=payload, cookies={"auth_token": tokens["field"]})
     assert response.status_code == 200
     assert mock_pool.enqueued == "process_retail_quote"
+
+def test_operations_status_update_success(tokens):
+    """Test manual PATCH status transitions succeed under operations role."""
+    job_id = str(uuid4())
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, status, status_history, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (job_id, "Test Status Update", JobStatus.INSTALL_SCHEDULED, "[]", "123", "City", "ST", "00000", "555")
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.patch(
+        f"/api/operations/jobs/{job_id}/status",
+        json={"status": "INSTALL_COMPLETED"},
+        headers={"X-Internal-Token": tokens["ops"]}
+    )
+    assert response.status_code == 200
+    assert response.json()["new_status"] == "INSTALL_COMPLETED"
+
+    conn = get_connection()
+    status = conn.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()["status"]
+    conn.close()
+    assert status == JobStatus.INSTALL_COMPLETED
+
+def test_operations_status_update_invalid_transition(tokens):
+    """Test illegal manual PATCH status transitions return 400."""
+    job_id = str(uuid4())
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, status, status_history, address_line1, city, state, postal_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (job_id, "Test Status Invalid", JobStatus.MATERIALS_ON_SITE, "[]", "123", "City", "ST", "00000", "555")
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.patch(
+        f"/api/operations/jobs/{job_id}/status",
+        json={"status": "INSTALL_COMPLETED"},
+        headers={"X-Internal-Token": tokens["ops"]}
+    )
+    assert response.status_code == 400
+    assert "ILLEGAL TRANSITION" in response.json()["detail"]
+
+def test_operations_bom_download_success(tokens):
+    """Test downloading the generated BoM PDF for a job with measurements."""
+    job_id = str(uuid4())
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO jobs (id, homeowner_name, status, status_history, address_line1, city, state, postal_code, phone, ev_total_area_sf, ev_eaves_lf, ev_valley_lf, ev_rakes_lf, ev_ridge_lf) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (job_id, "Test BoM Download", JobStatus.MATERIALS_ON_SITE, "[]", "123", "City", "ST", "00000", "555", 2500.0, 120.0, 45.0, 80.0, 40.0)
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.get(
+        f"/api/operations/jobs/{job_id}/bom/download",
+        headers={"X-Internal-Token": tokens["ops"]}
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert "attachment" in response.headers["content-disposition"]
+    assert len(response.content) > 0

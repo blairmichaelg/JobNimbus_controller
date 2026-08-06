@@ -80,6 +80,11 @@ class ProductionPayload(BaseModel):
     crew_name: str
     install_date: str
 
+class ShingleInfoPayload(BaseModel):
+    """Payload for PATCH /jobs/{job_id}/shingle-info."""
+    shingle_color: str | None = None
+    shingle_type: str | None = None
+
 class JobClaimInfoPayload(BaseModel):
     claim_number: str | None = None
     insurer_name: str | None = None
@@ -548,7 +553,7 @@ async def update_claim_info_route(job_id: str, payload: JobClaimInfoPayload, bg_
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid job_id format.")
 
-    from app.core.database import update_job_claim_info, backup_database
+    from app.core.database import update_job_claim_info
     try:
         res = await asyncio.to_thread(
             update_job_claim_info,
@@ -568,6 +573,34 @@ async def update_claim_info_route(job_id: str, payload: JobClaimInfoPayload, bg_
     except Exception as e:
         logger.error("claim_info_update_failed", job_id=job_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to update claim metadata")
+
+
+@router.patch("/jobs/{job_id}/shingle-info", dependencies=[Depends(verify_field)])
+async def update_shingle_info_route(job_id: str, payload: ShingleInfoPayload, bg_tasks: BackgroundTasks):
+    """
+    Update shingle color and type on a job record.
+    Accessible to both core team (Admin, Operations, Accounting) and field reps.
+    """
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
+    from app.core.database import update_shingle_info
+    try:
+        res = await asyncio.to_thread(
+            update_shingle_info,
+            job_id=job_id,
+            shingle_color=payload.shingle_color,
+            shingle_type=payload.shingle_type,
+        )
+        bg_tasks.add_task(backup_database)
+        return res
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        logger.error("shingle_info_update_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to update shingle info")
 
 
 @router.get("/jobs/{job_id}/docs/inspection_letter", dependencies=[Depends(verify_admin)])
@@ -938,31 +971,67 @@ def get_accounting_brief():
     """Zero-click read projection for accounting dashboard."""
     conn = get_connection()
     try:
+        # Sum RCV for all active pipeline jobs (non-CLOSED)
         cursor = conn.execute("""
             SELECT COALESCE(SUM(f.carrier_rcv_cents), 0) as total_rcv_cents
             FROM financials f
             JOIN jobs j ON j.id = f.job_id
-            WHERE j.status IN ('SUPPLEMENT_GENERATED', 'SUPPLEMENT_APPROVED')
-              AND f.qbo_exported = 0
+            WHERE j.status IN (
+                'SUPPLEMENT_GENERATED', 'SUPPLEMENT_SUBMITTED', 'AWAITING_CARRIER_RESPONSE',
+                'SUPPLEMENT_APPROVED', 'SUPPLEMENT_DENIED', 'MATERIAL_ORDERED', 'MATERIALS_ON_SITE',
+                'INSTALL_SCHEDULED', 'INSTALL_COMPLETED', 'FINAL_INSPECTION', 'INSPECTION_COMPLETED',
+                'INVOICED', 'PAYMENT_RECEIVED'
+            )
         """)
         rcv_row = cursor.fetchone()
         supplemented_rcv = f"${(rcv_row['total_rcv_cents'] / 100.0):,.2f}"
         
+        # Get count of jobs awaiting QBO export
+        cursor = conn.execute("""
+            SELECT COUNT(*) as cnt
+            FROM jobs j
+            JOIN financials f ON j.id = f.job_id
+            WHERE j.status IN ('SUPPLEMENT_APPROVED', 'INVOICED')
+              AND f.qbo_exported = 0
+        """)
+        qbo_ready = cursor.fetchone()["cnt"]
+
+        # Fetch active pipeline jobs
         cursor = conn.execute("""
             SELECT j.id, j.invoice_id, j.homeowner_name, j.status,
                    j.acv_received, j.acv_received_at,
                    j.supplement_received, j.supplement_received_at,
-                   f.carrier_rcv_cents, f.recoverable_depreciation_cents
+                   f.carrier_rcv_cents, f.recoverable_depreciation_cents,
+                   f.qbo_exported
             FROM jobs j
-            JOIN financials f ON j.id = f.job_id
-            WHERE j.status IN ('SUPPLEMENT_GENERATED', 'SUPPLEMENT_APPROVED',
-                               'INVOICED')
-              AND f.qbo_exported = 0
+            LEFT JOIN financials f ON j.id = f.job_id
+            WHERE j.status IN (
+                'SUPPLEMENT_GENERATED', 'SUPPLEMENT_SUBMITTED', 'AWAITING_CARRIER_RESPONSE',
+                'SUPPLEMENT_APPROVED', 'SUPPLEMENT_DENIED', 'MATERIAL_ORDERED', 'MATERIALS_ON_SITE',
+                'INSTALL_SCHEDULED', 'INSTALL_COMPLETED', 'FINAL_INSPECTION', 'INSPECTION_COMPLETED',
+                'INVOICED', 'PAYMENT_RECEIVED'
+            )
             ORDER BY j.created_at ASC
         """)
-        rows = cursor.fetchall()
+        active_rows = cursor.fetchall()
         
-        qbo_ready = len(rows)
+        # Fetch last 5 completed jobs
+        cursor = conn.execute("""
+            SELECT j.id, j.invoice_id, j.homeowner_name, j.status,
+                   j.acv_received, j.acv_received_at,
+                   j.supplement_received, j.supplement_received_at,
+                   f.carrier_rcv_cents, f.recoverable_depreciation_cents,
+                   f.qbo_exported
+            FROM jobs j
+            LEFT JOIN financials f ON j.id = f.job_id
+            WHERE j.status = 'CLOSED'
+            ORDER BY j.created_at DESC
+            LIMIT 5
+        """)
+        closed_rows = cursor.fetchall()
+        
+        rows = list(active_rows) + list(closed_rows)
+        
         acct_rows = []
         for r in rows:
             recoverable_dep = (r["recoverable_depreciation_cents"] or 0) / 100.0
@@ -975,13 +1044,18 @@ def get_accounting_brief():
                 supp_expected = None
             
             acct_rows.append({
-                "job_id": r["id"], "invoice_id": r["invoice_id"], "name": r["homeowner_name"], "status": r["status"],
+                "job_id": r["id"],
+                "invoice_id": r["invoice_id"],
+                "name": r["homeowner_name"],
+                "status": r["status"],
                 "acv_received": r["acv_received"],
                 "acv_received_at": r["acv_received_at"],
                 "supplement_received": r["supplement_received"],
                 "supplement_received_at": r["supplement_received_at"],
                 "acv_expected": acv_expected,
-                "supp_expected": supp_expected
+                "supp_expected": supp_expected,
+                "carrier_rcv": carrier_rcv,
+                "qbo_exported": bool(r["qbo_exported"]) if r["qbo_exported"] is not None else False
             })
         
         return AccountingBrief(
@@ -1156,15 +1230,33 @@ async def trigger_supplement_route(request: Request, job_id: str, claims: dict =
         cursor = conn.execute(
             """SELECT filename, storage_path, sha256_hash, id, category 
                FROM job_documents 
-               WHERE job_id = ? AND category IN ('MEASUREMENT_REPORT', 'EAGLEVIEW', 'STATEMENT_OF_LOSS')""",
+               WHERE job_id = ? AND category IN (
+                   'MEASUREMENT_REPORT', 'EAGLEVIEW', 'EAGLEVIEW_REPORT',
+                   'HOVER_REPORT', 'HOVER_PDF', 'EAGLEVIEW_PDF',
+                   'STATEMENT_OF_LOSS'
+               )""",
             (job_id,)
         )
         docs = [dict(r) for r in cursor.fetchall()]
     finally:
         conn.close()
 
-    ev_doc = next((d for d in docs if d["category"] in ("MEASUREMENT_REPORT", "EAGLEVIEW")), None)
+    ev_doc = next((d for d in docs if d["category"] in (
+        "MEASUREMENT_REPORT", "EAGLEVIEW", "EAGLEVIEW_REPORT",
+        "HOVER_REPORT", "HOVER_PDF", "EAGLEVIEW_PDF"
+    )), None)
     sol_doc = next((d for d in docs if d["category"] == "STATEMENT_OF_LOSS"), None)
+
+    if not ev_doc or not ev_doc.get("storage_path"):
+        raise HTTPException(
+            status_code=400,
+            detail="No measurement report (EagleView or Hover) found. Upload one first."
+        )
+    if not sol_doc or not sol_doc.get("storage_path"):
+        raise HTTPException(
+            status_code=400,
+            detail="No Statement of Loss found. Upload one first."
+        )
 
     ev_pdf_path = ev_doc["storage_path"] if ev_doc else ""
     sol_pdf_path = sol_doc["storage_path"] if sol_doc else ""
@@ -1253,7 +1345,7 @@ async def approve_supplement(
 ):
     """
     Operator gate: transitions AWAITING_CARRIER_RESPONSE
-    → SUPPLEMENT_APPROVED.
+    -> SUPPLEMENT_APPROVED.
     Triggers a WebSocket broadcast to alert Scott and Debi.
     """
     note = payload.get("note", "Approved by operator.")
@@ -1282,7 +1374,7 @@ async def deny_supplement(request: Request, job_id: str,
                            payload: dict = Body(...)):
     """
     Operator gate: transitions AWAITING_CARRIER_RESPONSE
-    → SUPPLEMENT_DENIED.
+    -> SUPPLEMENT_DENIED.
     Stores denial text and enqueues the rebuttal ARQ worker.
     """
     denial_text = payload.get("denial_text")
@@ -1496,11 +1588,13 @@ class TogglePaymentPayload(BaseModel):
 
 @router.post("/accounting/jobs/{job_id}/toggle-payment", dependencies=[Depends(verify_accounting)])
 async def toggle_payment_route(job_id: str, payload: TogglePaymentPayload, request: Request):
-    from app.core.database import toggle_payment_flag
+    from app.core.database import toggle_payment_flag, update_job_status
     try:
         amount_cents = int(round(payload.amount * 100))
         result = toggle_payment_flag(job_id, payload.flag, amount_cents, payload.date_received)
         if result.get("commission_triggered"):
+            # Update status to PAYMENT_RECEIVED
+            await asyncio.to_thread(update_job_status, job_id, "PAYMENT_RECEIVED", "Both ACV and Supplement checks received.")
             await request.app.state.redis_pool.enqueue_job(
                 "process_commission",
                 job_id=job_id
@@ -1533,8 +1627,47 @@ def commission_override_route(job_id: str, payload: CommissionOverridePayload):
     finally:
         conn.close()
 
+@router.post("/accounting/jobs/{job_id}/invoice", dependencies=[Depends(verify_accounting)])
+async def create_invoice_route(job_id: str, bg_tasks: BackgroundTasks):
+    """
+    Transition a job to INVOICED status, generating an invoice number and
+    making it visible in the QBO export queue.
+    """
+    try:
+        job_id = str(uuid.UUID(job_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job_id format.")
+
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT status, invoice_id FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Job not found.")
+        
+        current_status = row["status"]
+        valid_for_invoice = [
+            "SUPPLEMENT_APPROVED", "SCOPE_APPROVED", "MATERIAL_ORDERED",
+            "MATERIALS_ON_SITE", "INSTALL_SCHEDULED", "INSTALL_COMPLETED",
+            "FINAL_INSPECTION", "INSPECTION_COMPLETED", "SUPPLEMENT_GENERATED"
+        ]
+        if current_status not in valid_for_invoice:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot invoice from status '{current_status}'. Job must be at least SUPPLEMENT_APPROVED or INSTALL_COMPLETED."
+            )
+    finally:
+        conn.close()
+
+    try:
+        await asyncio.to_thread(update_job_status, job_id, "INVOICED", "Invoice created from Accounting Dashboard")
+        bg_tasks.add_task(backup_database)
+        return {"status": "success", "message": "Job transitioned to INVOICED status."}
+    except Exception as e:
+        logger.error("invoice_creation_failed", job_id=job_id, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to create invoice: {str(e)}")
+
 @router.patch("/accounting/jobs/{job_id}/commission/paid", dependencies=[Depends(verify_accounting)])
-def mark_commission_paid(job_id: str):
+async def mark_commission_paid(job_id: str, bg_tasks: BackgroundTasks):
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -1542,7 +1675,6 @@ def mark_commission_paid(job_id: str):
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Job not found")
         conn.execute("COMMIT")
-        return {"status": "success"}
     except HTTPException:
         conn.execute("ROLLBACK")
         raise
@@ -1552,4 +1684,16 @@ def mark_commission_paid(job_id: str):
         raise HTTPException(status_code=500, detail="Failed to mark commission paid")
     finally:
         conn.close()
+
+    try:
+        conn = get_connection()
+        row = conn.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        conn.close()
+        if row and row["status"] == "PAYMENT_RECEIVED":
+            await asyncio.to_thread(update_job_status, job_id, "CLOSED", "Commission paid. Job closed/archived.")
+        bg_tasks.add_task(backup_database)
+        return {"status": "success"}
+    except Exception as e:
+        logger.error("mark_commission_paid_status_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to transition job status: {str(e)}")
 

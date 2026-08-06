@@ -139,4 +139,4 @@ Yes! Click the **"View Details →"** link on any job row. You will see the full
 
 ---
 
-*This guide reflects the production features for version 1.7.0 of the Wickham Roofing CRM.*
+*This guide reflects the production features for version 2.1.0 of the Wickham Roofing CRM.*

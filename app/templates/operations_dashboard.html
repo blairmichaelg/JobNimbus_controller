@@ -5,6 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scott's Operations Board</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar styling for premium feel */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
+    </style>
 </head>
 <body class="bg-black text-gray-100 h-screen flex flex-col font-sans overflow-hidden">
     <nav class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex flex-wrap justify-between items-center z-30">
@@ -42,113 +59,240 @@
         </div>
     </nav>
 
-    <div class="flex-1 flex overflow-hidden p-6 gap-6">
-        <!-- Panel 1: Material Orders Needed -->
-        <div class="flex-1 bg-gray-900 border border-gray-800 rounded-lg flex flex-col shadow-2xl">
-            <div class="p-4 border-b border-gray-800 bg-red-950 rounded-t-lg">
-                <h2 class="text-xl font-bold text-red-400 uppercase tracking-wider">
+    <!-- Kanban Columns Wrapper -->
+    <div class="flex-1 flex overflow-x-auto p-6 gap-6 items-stretch">
+        
+        <!-- Column 1: Alert: Materials Needed -->
+        <div class="w-80 min-w-[340px] bg-gray-900 border border-gray-800 rounded-lg flex flex-col shadow-2xl">
+            <div class="p-4 border-b border-gray-800 bg-red-950/40 rounded-t-lg">
+                <h2 class="text-md font-bold text-red-400 uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
                     Alert: Materials Needed
                 </h2>
-                <p class="text-gray-400 text-sm mt-1">Supplement approved. Awaiting material order placement.</p>
+                <p class="text-gray-400 text-xs mt-1">Supplement approved. Awaiting material order sheet placement.</p>
             </div>
-            <div class="flex-1 overflow-auto p-4 space-y-4">
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
                 {% for job in needs_materials %}
-                <div class="bg-gray-800 border border-red-900 p-4 rounded-lg">
+                <div class="bg-gray-950 border border-gray-800 hover:border-red-900/60 p-4 rounded-lg transition-all shadow-md">
                     <div class="flex justify-between items-start mb-2">
                         <div>
-                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-bold">{{ job.invoice_id or job.id[:8] }}</a>
-                            <h3 class="text-white font-bold text-lg">{{ job.homeowner_name }}</h3>
-                            <p class="text-gray-400 text-sm">{{ job.address_line1 }}, {{ job.city }}</p>
-                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="mt-2 inline-block text-blue-400 hover:text-blue-300 text-sm font-bold">View Details &rarr;</a>
+                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-mono text-xs font-bold">{{ job.invoice_id or job.id[:8] }}</a>
+                            <h3 class="text-white font-bold text-base mt-1">{{ job.homeowner_name }}</h3>
+                            <p class="text-gray-400 text-xs">{{ job.address_line1 }}, {{ job.city }}</p>
                         </div>
                     </div>
+                    
+                    {% if job.ev_total_area_sf and job.ev_total_area_sf > 0 %}
+                    <a href="/api/operations/jobs/{{ job.id }}/bom/download" class="inline-flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 font-semibold border border-yellow-700/80 bg-yellow-950/30 px-2.5 py-1 rounded transition-colors mt-2" title="Download Material Order Sheet">
+                        📋 Download BoM
+                    </a>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1.5 text-xs text-gray-500 border border-gray-800 bg-gray-950/30 px-2.5 py-1 rounded select-none mt-2" title="No Hover measurement data found">
+                        ⚠️ No Measurements
+                    </span>
+                    {% endif %}
+
                     <div class="mt-4 flex gap-2">
                         <button onclick="confirmOrdered('{{ job.id }}')"
-                                class="flex-1 bg-blue-700 hover:bg-blue-600 text-white font-bold py-2 rounded uppercase text-sm transition-colors">
+                                class="flex-1 bg-blue-700 hover:bg-blue-600 text-white font-bold py-2 rounded uppercase text-xs transition-colors">
                             Mark Ordered
                         </button>
                     </div>
                 </div>
                 {% else %}
-                <div class="text-gray-500 text-center py-8">No pending material orders.</div>
+                <div class="text-gray-600 text-center py-8 text-sm">No pending material orders.</div>
                 {% endfor %}
             </div>
         </div>
 
-        <!-- Panel 1.5: Awaiting Delivery -->
-        <div class="flex-1 bg-gray-900 border border-gray-800 rounded-lg flex flex-col shadow-2xl">
-            <div class="p-4 border-b border-gray-800 bg-yellow-950 rounded-t-lg">
-                <h2 class="text-xl font-bold text-yellow-400 uppercase tracking-wider">
+        <!-- Column 1.5: Awaiting Delivery -->
+        <div class="w-80 min-w-[340px] bg-gray-900 border border-gray-800 rounded-lg flex flex-col shadow-2xl">
+            <div class="p-4 border-b border-gray-800 bg-yellow-950/40 rounded-t-lg">
+                <h2 class="text-md font-bold text-yellow-400 uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
                     Awaiting Delivery
                 </h2>
-                <p class="text-gray-400 text-sm mt-1">Materials ordered. Waiting for arrival on site.</p>
+                <p class="text-gray-400 text-xs mt-1">Materials ordered. Waiting for arrival on site.</p>
             </div>
-            <div class="flex-1 overflow-auto p-4 space-y-4">
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
                 {% for job in awaiting_delivery_jobs %}
-                <div class="bg-gray-800 border border-yellow-900 p-4 rounded-lg">
+                <div class="bg-gray-950 border border-gray-800 hover:border-yellow-900/60 p-4 rounded-lg transition-all shadow-md">
                     <div class="flex justify-between items-start mb-2">
                         <div>
-                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-bold">{{ job.invoice_id or job.id[:8] }}</a>
-                            <h3 class="text-white font-bold text-lg">{{ job.homeowner_name }}</h3>
-                            <p class="text-gray-400 text-sm">{{ job.address_line1 }}, {{ job.city }}</p>
-                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="mt-2 inline-block text-blue-400 hover:text-blue-300 text-sm font-bold">View Details &rarr;</a>
+                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-mono text-xs font-bold">{{ job.invoice_id or job.id[:8] }}</a>
+                            <h3 class="text-white font-bold text-base mt-1">{{ job.homeowner_name }}</h3>
+                            <p class="text-gray-400 text-xs">{{ job.address_line1 }}, {{ job.city }}</p>
                         </div>
                     </div>
+                    
+                    {% if job.ev_total_area_sf and job.ev_total_area_sf > 0 %}
+                    <a href="/api/operations/jobs/{{ job.id }}/bom/download" class="inline-flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 font-semibold border border-yellow-700/80 bg-yellow-950/30 px-2.5 py-1 rounded transition-colors mt-2">
+                        📋 Download BoM
+                    </a>
+                    {% endif %}
+
                     <div class="mt-4 flex gap-2">
                         <button onclick="confirmOnSite('{{ job.id }}')"
-                                class="flex-1 bg-yellow-700 hover:bg-yellow-600 text-white font-bold py-2 rounded uppercase text-sm transition-colors">
+                                class="flex-1 bg-yellow-700 hover:bg-yellow-600 text-white font-bold py-2 rounded uppercase text-xs transition-colors">
                             Mark On Site
                         </button>
                     </div>
                 </div>
                 {% else %}
-                <div class="text-gray-500 text-center py-8">No materials awaiting delivery.</div>
+                <div class="text-gray-600 text-center py-8 text-sm">No materials awaiting delivery.</div>
                 {% endfor %}
             </div>
         </div>
 
-        <!-- Panel 2: Ready to Build (Needs Crew) -->
-        <div class="flex-1 bg-gray-900 border border-gray-800 rounded-lg flex flex-col shadow-2xl">
-            <div class="p-4 border-b border-gray-800 bg-green-950 rounded-t-lg">
-                <h2 class="text-xl font-bold text-green-400 uppercase tracking-wider">
+        <!-- Column 2: Ready to Build -->
+        <div class="w-80 min-w-[340px] bg-gray-900 border border-gray-800 rounded-lg flex flex-col shadow-2xl">
+            <div class="p-4 border-b border-gray-800 bg-green-950/40 rounded-t-lg">
+                <h2 class="text-md font-bold text-green-400 uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
                     Ready to Build
                 </h2>
-                <p class="text-gray-400 text-sm mt-1">Materials on site. Awaiting crew assignment.</p>
+                <p class="text-gray-400 text-xs mt-1">Materials on site. Awaiting crew assignment.</p>
             </div>
-            <div class="flex-1 overflow-auto p-4 space-y-4">
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
                 {% for job in ready_to_build %}
-                <div class="bg-gray-800 border border-green-900 p-4 rounded-lg">
+                <div class="bg-gray-950 border border-gray-800 hover:border-green-900/60 p-4 rounded-lg transition-all shadow-md">
                     <div class="flex justify-between items-start mb-4">
                         <div>
-                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-bold">{{ job.invoice_id or job.id[:8] }}</a>
-                            <h3 class="text-white font-bold text-lg">{{ job.homeowner_name }}</h3>
-                            <p class="text-gray-400 text-sm">{{ job.address_line1 }}, {{ job.city }}</p>
-                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="mt-2 inline-block text-blue-400 hover:text-blue-300 text-sm font-bold">View Details &rarr;</a>
+                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-mono text-xs font-bold">{{ job.invoice_id or job.id[:8] }}</a>
+                            <h3 class="text-white font-bold text-base mt-1">{{ job.homeowner_name }}</h3>
+                            <p class="text-gray-400 text-xs mb-2">{{ job.address_line1 }}, {{ job.city }}</p>
+                            
+                            {% if job.ev_total_area_sf and job.ev_total_area_sf > 0 %}
+                            <a href="/api/operations/jobs/{{ job.id }}/bom/download" class="inline-flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 font-semibold border border-yellow-700/80 bg-yellow-950/30 px-2.5 py-1 rounded transition-colors">
+                                📋 Download BoM
+                            </a>
+                            {% endif %}
                         </div>
                     </div>
-                    <form onsubmit="scheduleCrew(event, '{{ job.id }}')" class="space-y-3">
+                    <form onsubmit="scheduleCrew(event, '{{ job.id }}')" class="space-y-3 border-t border-gray-800 pt-3">
                         <div>
-                            <label class="block text-xs text-gray-400 uppercase tracking-wider mb-1">Assign Crew</label>
+                            <label class="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Assign Crew</label>
                             <input type="text" id="crew_{{ job.id }}" required
-                                   class="w-full bg-black border border-gray-700 rounded p-2 text-white focus:border-blue-500 focus:outline-none"
+                                   class="w-full bg-black border border-gray-800 rounded p-1.5 text-xs text-white focus:border-blue-500 focus:outline-none"
                                    placeholder="e.g. Alpha Team">
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-400 uppercase tracking-wider mb-1">Install Date</label>
+                            <label class="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Install Date</label>
                             <input type="date" id="date_{{ job.id }}" required
-                                   class="w-full bg-black border border-gray-700 rounded p-2 text-white focus:border-blue-500 focus:outline-none">
+                                   class="w-full bg-black border border-gray-800 rounded p-1.5 text-xs text-white focus:border-blue-500 focus:outline-none">
                         </div>
                         <button type="submit"
-                                class="w-full bg-green-700 hover:bg-green-600 text-white font-bold py-2 rounded uppercase text-sm transition-colors mt-2">
+                                class="w-full bg-green-700 hover:bg-green-600 text-white font-bold py-2 rounded uppercase text-xs transition-colors mt-2">
                             Schedule Installation
                         </button>
                     </form>
                 </div>
                 {% else %}
-                <div class="text-gray-500 text-center py-8">No jobs ready to build.</div>
+                <div class="text-gray-600 text-center py-8 text-sm">No jobs ready to build.</div>
                 {% endfor %}
             </div>
         </div>
+
+        <!-- Column 3: Active Builds -->
+        <div class="w-80 min-w-[340px] bg-gray-900 border border-gray-800 rounded-lg flex flex-col shadow-2xl">
+            <div class="p-4 border-b border-gray-800 bg-sky-950/40 rounded-t-lg">
+                <h2 class="text-md font-bold text-sky-400 uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-sky-500 animate-pulse"></span>
+                    Active Builds
+                </h2>
+                <p class="text-gray-400 text-xs mt-1">Crew scheduled. Build in progress.</p>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                {% for job in active_builds %}
+                <div class="bg-gray-950 border border-gray-800 hover:border-sky-900/60 p-4 rounded-lg transition-all shadow-md">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-mono text-xs font-bold">{{ job.invoice_id or job.id[:8] }}</a>
+                            <h3 class="text-white font-bold text-base mt-1">{{ job.homeowner_name }}</h3>
+                            <p class="text-gray-400 text-xs">{{ job.address_line1 }}, {{ job.city }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-900/80 border border-gray-800 p-2.5 rounded text-xs space-y-1 mt-2">
+                        <div class="text-gray-400"><span class="font-semibold text-gray-300">Crew:</span> {{ job.crew_name or 'N/A' }}</div>
+                        <div class="text-gray-400"><span class="font-semibold text-gray-300">Install Date:</span> {{ job.install_date or 'N/A' }}</div>
+                    </div>
+
+                    <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-900">
+                        {% if job.ev_total_area_sf and job.ev_total_area_sf > 0 %}
+                        <a href="/api/operations/jobs/{{ job.id }}/bom/download" class="inline-flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 font-semibold border border-yellow-700/80 bg-yellow-950/30 px-2.5 py-1 rounded transition-colors">
+                            📋 BoM
+                        </a>
+                        {% else %}
+                        <span></span>
+                        {% endif %}
+                        <button onclick="updateJobStatus('{{ job.id }}', 'INSTALL_COMPLETED')"
+                                class="bg-sky-700 hover:bg-sky-600 text-white font-bold px-3 py-1.5 rounded uppercase text-xs transition-colors">
+                            ✓ Install Complete
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-gray-600 text-center py-8 text-sm">No builds currently scheduled or active.</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Column 4: Inspections & Closeout -->
+        <div class="w-80 min-w-[340px] bg-gray-900 border border-gray-800 rounded-lg flex flex-col shadow-2xl">
+            <div class="p-4 border-b border-gray-800 bg-purple-950/40 rounded-t-lg">
+                <h2 class="text-md font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                    Inspections & Closeout
+                </h2>
+                <p class="text-gray-400 text-xs mt-1">Build completed. Post-install inspections.</p>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                {% for job in inspections_closeout %}
+                <div class="bg-gray-950 border border-gray-800 hover:border-purple-900/60 p-4 rounded-lg transition-all shadow-md">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <a href="/office/jobs/{{ job.id }}" target="_blank" class="hover:underline text-yellow-400 font-mono text-xs font-bold">{{ job.invoice_id or job.id[:8] }}</a>
+                            <h3 class="text-white font-bold text-base mt-1">{{ job.homeowner_name }}</h3>
+                            <p class="text-gray-400 text-xs">{{ job.address_line1 }}, {{ job.city }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic badge depending on status -->
+                    <div class="mt-2.5">
+                        {% if job.status == 'INSTALL_COMPLETED' %}
+                        <span class="px-2 py-1 inline-flex text-[10px] leading-4 font-bold rounded-full bg-blue-900/80 text-blue-200 border border-blue-600 uppercase tracking-wider">Install Complete</span>
+                        {% elif job.status == 'FINAL_INSPECTION' %}
+                        <span class="px-2 py-1 inline-flex text-[10px] leading-4 font-bold rounded-full bg-amber-900/80 text-amber-200 border border-amber-600 uppercase tracking-wider animate-pulse">Final Inspection Required</span>
+                        {% elif job.status == 'INSPECTION_COMPLETED' %}
+                        <span class="px-2 py-1 inline-flex text-[10px] leading-4 font-bold rounded-full bg-green-900/80 text-green-200 border border-green-600 uppercase tracking-wider">Inspection Completed</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-gray-900 flex flex-col gap-2">
+                        {% if job.status == 'INSTALL_COMPLETED' %}
+                        <button onclick="updateJobStatus('{{ job.id }}', 'FINAL_INSPECTION')"
+                                class="w-full bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-2 rounded uppercase text-xs transition-colors">
+                            Require Final Inspection
+                        </button>
+                        {% elif job.status == 'FINAL_INSPECTION' %}
+                        <button onclick="updateJobStatus('{{ job.id }}', 'INSPECTION_COMPLETED')"
+                                class="w-full bg-purple-700 hover:bg-purple-600 text-white font-bold py-2 rounded uppercase text-xs transition-colors">
+                            Mark Inspection Done
+                        </button>
+                        {% elif job.status == 'INSPECTION_COMPLETED' %}
+                        <div class="text-center text-xs text-gray-500 font-bold uppercase tracking-wider bg-gray-900 py-2 rounded border border-gray-800 select-none">
+                            Ready for Invoicing
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-gray-600 text-center py-8 text-sm">No completed builds in inspection queue.</div>
+                {% endfor %}
+            </div>
+        </div>
+
     </div>
 
     <script>
@@ -197,6 +341,24 @@
             });
             if(r.ok) window.location.reload();
             else alert('Error scheduling crew');
+        }
+
+        async function updateJobStatus(jobId, newStatus) {
+            if (!confirm(`Are you sure you want to transition this job to ${newStatus.replace('_', ' ')}?`))
+                return;
+            const r = await fetch(`/api/operations/jobs/${jobId}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Internal-Token': AUTH_TOKEN
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (r.ok) window.location.reload();
+            else {
+                const errText = await r.text();
+                alert('Error updating status: ' + errText);
+            }
         }
     </script>
 </body>

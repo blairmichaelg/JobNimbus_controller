@@ -328,6 +328,7 @@ Rules:
                 - claim_number and carrier_name.
                 - For each line item: trade, code, description, quantity, unit_of_measure, unit_price, tax, claimed_rcv, depreciation, acv, page.
                 - Roof geometry: pitch, total_squares, eaves_lf, valleys_lf, rakes_lf.
+                - Shingle details: shingle_type (e.g. "3-tab", "architectural", "laminated", "wood", etc.) and shingle_color (e.g. "Charcoal", "Weathered Wood", "Slate", etc.) if mentioned in the line items, material specifications, or document notes.
                 - Claim financials: gross_rcv, total_depreciation, deductible, net_claim.
                 """
             elif source_system == "symbility":
@@ -343,6 +344,7 @@ Rules:
                 - claim_number and carrier_name.
                 - For each line item: trade, code, description, quantity, unit_of_measure, unit_price, tax, claimed_rcv, depreciation, acv, page.
                 - Roof geometry: pitch, total_squares, eaves_lf, valleys_lf, rakes_lf.
+                - Shingle details: shingle_type (e.g. "3-tab", "architectural", "laminated", "wood", etc.) and shingle_color (e.g. "Charcoal", "Weathered Wood", "Slate", etc.) if mentioned in the line items, material specifications, or document notes.
                 - Claim financials: gross_rcv, total_depreciation, deductible, net_claim.
                 """
             else:
@@ -357,6 +359,7 @@ Rules:
                 - claim_number and carrier_name.
                 - For each line item: trade, code, description, quantity, unit_of_measure, unit_price, tax, claimed_rcv, depreciation, acv, page.
                 - Roof geometry: pitch, total_squares, eaves_lf, valleys_lf, rakes_lf.
+                - Shingle details: shingle_type (e.g. "3-tab", "architectural", "laminated", "wood", etc.) and shingle_color (e.g. "Charcoal", "Weathered Wood", "Slate", etc.) if mentioned in the line items, material specifications, or document notes.
                 - Claim financials: gross_rcv, total_depreciation, deductible, net_claim.
                 """
 

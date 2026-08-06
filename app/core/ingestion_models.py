@@ -78,6 +78,8 @@ class UniversalClaimAST(BaseModel):
     financials: ClaimFinancials
     claim_number: Optional[SourcedValue[str]] = None
     insurer_name: Optional[SourcedValue[str]] = None
+    shingle_type: Optional[str] = None
+    shingle_color: Optional[str] = None
     source_doc_sha256: str = Field(
         description="SHA256 hash of the source PDF that produced this AST. "
                     "Written at API boundary, passed through ARQ worker payload, "

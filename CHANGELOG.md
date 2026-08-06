@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.1.0] - 2026-08-06
+### Added & Remediated
+- **Pipeline Integrity Fixes**: Resolved FastAPI 500 error on suggested date updates by fixing shadowed `backup_database` imports in `office_routes.py`.
+- **Database Synchronization**: Added `loss_date` to the `jobs` table via migration `0014_add_loss_date_to_jobs.py` to synchronize tracking with `storm_verifications`.
+- **Accounting & Financial Calculations**: Overhauled `upsert_financials` to calculate and store `depreciation_cents` and `net_claim_cents`, preventing $0.00 accounting dashboard artifacts.
+- **Double-Rollback Safeguards**: Removed redundant `ROLLBACK` commands before raising `ValueError` in database update functions, preventing secondary connection crashes.
+- **Verification Coverage**: Created `tests/test_shingle_endpoints.py` to assert claim and shingle update integrity under simulated client activity.
+- **Demo State Re-initialization**: Executed a full transactional wipe and seeded Jack's demo job to ensure a clean state for live demonstration.
+
 ## [2.0.0] - 2026-08-05
 ### Added & Upgraded (AI Inspection Pipeline Overhaul)
 - **Gemini File API Migration**: Completely migrated Statement of Loss (SoL) extraction from fragile legacy PDF parsing (`pdfplumber` and regexes) to the Gemini File API. Standardized extraction directly against structured `StatementOfLoss` Pydantic schemas.

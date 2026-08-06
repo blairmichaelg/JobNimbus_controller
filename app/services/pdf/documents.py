@@ -448,4 +448,116 @@ class DocumentsGenerator(PDFEngine):
         await asyncio.to_thread(build_pdf)
         return filepath
 
+    async def generate_bom_pdf(self, job: dict) -> str:
+        """
+        Generate a professional Bill of Materials (BoM) PDF for Scott to order materials.
+        """
+        import math
+        job_id = job.get("id", "UNKNOWN")
+        log = logger.bind(job_id=job_id)
+        log.info("bom_pdf_generation_started")
+
+        job_dir = FIELD_DOCS_DIR / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        filepath = str(job_dir / "materials_list.pdf")
+
+        def build_pdf() -> None:
+            doc = self._get_doc_template(filepath, top_margin=120, job_id=job_id, doc_type="BILL_OF_MATERIALS")
+            story = []
+
+            story.append(Paragraph("BILL OF MATERIALS (BoM) — MATERIAL ORDER SHEET", self.custom_styles["Title"]))
+            story.append(Spacer(1, 14))
+
+            # --- Metadata Table ---
+            story.append(self._build_metadata_table(job))
+            story.append(Spacer(1, 14))
+
+            # --- Section 1: Measurements Summary ---
+            story.append(Paragraph("1. Roof Measurement Data (Hover/EagleView)", self.custom_styles["SectionHeading"]))
+            
+            total_area_sf = job.get("ev_total_area_sf") or 0.0
+            total_squares = total_area_sf / 100.0
+            eaves_lf = job.get("ev_eaves_lf") or 0.0
+            valleys_lf = job.get("ev_valley_lf") or 0.0
+            rakes_lf = job.get("ev_rakes_lf") or 0.0
+            ridge_lf = job.get("ev_ridge_lf") or 0.0
+            hip_lf = job.get("ev_hip_lf") or 0.0
+
+            meas_data = [
+                ["Total Roof Area:", f"{total_area_sf:,.1f} sq ft ({total_squares:.2f} Squares)"],
+                ["Eaves / Valleys:", f"Eaves: {eaves_lf:.1f} LF | Valleys: {valleys_lf:.1f} LF"],
+                ["Rakes / Ridges / Hips:", f"Rakes: {rakes_lf:.1f} LF | Ridges: {ridge_lf:.1f} LF | Hips: {hip_lf or 0.0:.1f} LF"]
+            ]
+            meastable = Table(meas_data, colWidths=[150, 360])
+            meastable.setStyle(TableStyle([
+                ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#f8fafc")),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+                ('PADDING', (0,0), (-1,-1), 6),
+            ]))
+            story.append(meastable)
+            story.append(Spacer(1, 14))
+
+            # --- Section 2: Calculated Material Requirements ---
+            story.append(Paragraph("2. Required Material Order List", self.custom_styles["SectionHeading"]))
+            
+            shingle_squares_required = math.ceil(total_squares * 1.15)
+            ice_and_water_rolls = math.ceil((eaves_lf + valleys_lf) / 66.0)
+            drip_edge_pieces_10ft = math.ceil((eaves_lf + rakes_lf) / 10.0)
+            starter_bundles = math.ceil((eaves_lf + rakes_lf) / 100.0)
+
+            # Extra accessories standard to Wickham Roofing installs
+            synthetic_underlayment_rolls = math.ceil(total_squares / 10.0)
+            ridge_cap_bundles = math.ceil((ridge_lf + (hip_lf or 0.0)) / 30.0)
+
+            materials_data = [
+                ["Material Item", "Required Qty", "Unit", "Calculation Rule / Waste Factor"],
+                ["Laminated Shingles (Lifetime)", f"{shingle_squares_required}", "Squares", "Area + 15% Waste Factor"],
+                ["Synthetic Underlayment (10 SQ Roll)", f"{synthetic_underlayment_rolls}", "Rolls", "1 Roll per 10 Squares Area"],
+                ["Ice & Water Shield (3' x 66' Roll)", f"{ice_and_water_rolls}", "Rolls", "Full Eaves + Valleys coverage"],
+                ["Starter Shingles", f"{starter_bundles}", "Bundles", "Eaves + Rakes coverage"],
+                ["Ridge Cap Shingles", f"{ridge_cap_bundles}", "Bundles", "Ridges + Hips (30 LF per bundle)"],
+                ["Drip Edge (T-Style, 10' Metal)", f"{drip_edge_pieces_10ft}", "Pieces", "Eaves + Rakes perimeter"],
+            ]
+
+            mattable = Table(materials_data, colWidths=[180, 80, 60, 190])
+            mattable.setStyle(TableStyle([
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1e3a8a")),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+                ('ALIGN', (1,0), (1,-1), 'CENTER'),
+                ('ALIGN', (2,0), (2,-1), 'CENTER'),
+                ('PADDING', (0,0), (-1,-1), 6),
+                ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#f8fafc")]),
+            ]))
+            story.append(mattable)
+            story.append(Spacer(1, 14))
+
+            # --- Section 3: Fulfillment & Notes ---
+            story.append(Paragraph("3. Ordering Instructions", self.custom_styles["SectionHeading"]))
+            instr_text = (
+                "Verify shingle color preferences with the homeowner and check the retail contract or supplement "
+                "details for any upgrade options prior to placing order. Confirm delivery address and coordinate "
+                "loading schedule with Alpha/Beta teams to ensure materials are on-site exactly when needed. "
+                "File delivery confirmation photo to JobNimbus upon arrival."
+            )
+            story.append(Paragraph(instr_text, self.custom_styles["BodyText"]))
+            story.append(Spacer(1, 20))
+
+            # Signatures/Sign-off area
+            story.append(Paragraph("<b>Order Authorization</b>", self.styles["Heading2"]))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#cbd5e1"), spaceAfter=12))
+            story.append(self._build_signature_block(title1="Operations Manager (Scott)", title2="Purchasing / Office (Debi)"))
+
+            doc.build(story)
+
+        try:
+            await asyncio.to_thread(build_pdf)
+            log.info("bom_pdf_generation_complete", filepath=filepath)
+            return filepath
+        except Exception as exc:
+            log.error("bom_pdf_generation_failed", error=str(exc))
+            raise
+
 

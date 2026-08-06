@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import json
 import math
 import uuid
@@ -103,13 +103,14 @@ def fetch_storm_data():
                 cur = conn.execute("SELECT 1 FROM storm_events WHERE source = ?", (source_id,))
                 if not cur.fetchone():
                     conn.execute('''
-                        INSERT INTO storm_events (id, zipcode, event_type, event_date, hail_size_inches, wind_speed_mph, source)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO storm_events (id, zipcode, event_type, event_date, hail_size_inches, wind_speed_mph, source, latitude, longitude)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         str(uuid.uuid4()), zc, event_type, event_time[:10],
                         mag if event_type == 'HAIL' else 0.0,
                         mag if 'WND' in event_type else 0.0,
-                        source_id
+                        source_id,
+                        lat, lon
                     ))
                     inserted += 1
         conn.commit()

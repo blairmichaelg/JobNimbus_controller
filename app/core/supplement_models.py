@@ -93,11 +93,16 @@ class StatementOfLoss(BaseModel):
     valleys_lf: float | None = None
     rakes_lf: float | None = None
 
+    # Shingle material fields (from SoL line items / materials section)
+    shingle_type: str | None = None
+    shingle_color: str | None = None
+
     # Financial fields
     gross_rcv: float | None = None
     total_depreciation: float | None = None
     deductible: float | None = None
     net_claim: float | None = None
+
 
 
 class Discrepancy(BaseModel):

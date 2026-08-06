@@ -546,6 +546,20 @@ async def serve_canvassing(request: Request, role: str = Depends(verify_office_r
         "auth_token": request.cookies.get("auth_token", "")
     })
 
+@app.get("/office/completed-jobs", tags=["frontend"])
+async def serve_completed_jobs(request: Request, role: str = Depends(verify_office_role)):
+    """Serve the Completed Jobs Archive for core team members (Admin, Operations, Accounting)."""
+    from app.core.database import get_completed_jobs
+    completed = await asyncio.to_thread(get_completed_jobs)
+    return templates.TemplateResponse(request, "completed_jobs.html", {
+        "request": request,
+        "jobs": completed,
+        "role": role,
+        "active_page": "admin",
+        "auth_token": request.cookies.get("auth_token", ""),
+    })
+
+
 @app.get("/office/jobs/{job_id}", tags=["frontend"])
 async def serve_job_detail(request: Request, job_id: str, role: str = Depends(verify_field)):
     """Serve the unified Job Overview dashboard (for Admin, Operations, Accounting)."""
@@ -622,9 +636,26 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
             _conn.close()
     job["supplement_flags"] = await asyncio.to_thread(_fetch_supplement_flags, job_id)
 
+    # Fetch schedule (crew, install_date) for display
+    from app.core.database import get_job_schedule
+    schedule = await asyncio.to_thread(get_job_schedule, job_id)
+    job["schedule"] = schedule
+
     # Fetch Suggested Dates of Loss
     storm_events = []
     if job.get("postal_code"):
+        from pathlib import Path
+        import json
+        zip_path = Path(__file__).resolve().parent.parent / "data" / "zipcodes.json"
+        zipcodes = {}
+        if zip_path.exists():
+            try:
+                with open(zip_path, 'r', encoding='utf-8') as zf:
+                    zipcodes = json.load(zf)
+            except Exception:
+                pass
+        job_coords = zipcodes.get(job["postal_code"])
+
         conn = get_connection()
         try:
             cursor = conn.execute(
@@ -653,11 +684,29 @@ async def serve_job_detail(request: Request, job_id: str, role: str = Depends(ve
                     badge_class = "bg-red-900/80 text-red-300 border-red-600"
                     category = "WIND_DAMAGE"
 
+                # Calculate distance proximity
+                proximity = "Within service area"
+                if job_coords and e.get("latitude") is not None and e.get("longitude") is not None:
+                    import math
+                    try:
+                        lat1, lon1 = float(job_coords["lat"]), float(job_coords["lon"])
+                        lat2, lon2 = float(e["latitude"]), float(e["longitude"])
+                        
+                        dlat = math.radians(lat2 - lat1)
+                        dlon = math.radians(lon2 - lon1)
+                        a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+                        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+                        dist = 3958.8 * c
+                        proximity = f"{dist:.1f} miles away"
+                    except Exception:
+                        pass
+
                 e["display_label"] = label
                 e["display_metric"] = metric
                 e["badge_class"] = badge_class
                 e["category"] = category
                 e["formatted_date"] = str(e.get("event_date", ""))[:10]
+                e["proximity"] = proximity
                 storm_events.append(e)
         finally:
             conn.close()

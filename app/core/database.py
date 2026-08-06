@@ -225,8 +225,29 @@ def run_migrations() -> None:
             
             conn.execute("UPDATE schema_version SET version = 11, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
 
+        if current_version < 12:
+            import importlib
+            m12 = importlib.import_module("app.core.migrations.0012_add_latitude_longitude_to_storm_events")
+            m12.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 12, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+
+        if current_version < 13:
+            import importlib
+            m13 = importlib.import_module("app.core.migrations.0013_add_shingle_and_schedule_columns")
+            m13.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 13, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+
+        if current_version < 14:
+            import importlib
+            m14 = importlib.import_module("app.core.migrations.0014_add_loss_date_to_jobs")
+            m14.up(conn)
+            
+            conn.execute("UPDATE schema_version SET version = 14, applied_at = CURRENT_TIMESTAMP WHERE id = 1")
+
         conn.execute("COMMIT")
-        logger.info("migrations_applied", current_version=current_version, target_version=11)
+        logger.info("migrations_applied", current_version=current_version, target_version=14)
         
         # Since seed logic was removed from up(), do it here outside the transaction
         if current_version < 1:
@@ -395,10 +416,32 @@ def _update_job_status_internal(conn: sqlite3.Connection, job_id: str, new_statu
                 "ILLEGAL TRANSITION: Cannot schedule install until "
                 "MATERIALS_ON_SITE is confirmed."
             )
+    elif new_status == JobStatus.INSTALL_COMPLETED:
+        if current_status != JobStatus.INSTALL_SCHEDULED:
+            raise RuntimeError(
+                f"ILLEGAL TRANSITION: Cannot mark install complete from status {current_status}. Must be INSTALL_SCHEDULED."
+            )
+    elif new_status == JobStatus.FINAL_INSPECTION:
+        if current_status != JobStatus.INSTALL_COMPLETED:
+            raise RuntimeError(
+                f"ILLEGAL TRANSITION: Cannot require final inspection from status {current_status}. Must be INSTALL_COMPLETED."
+            )
+    elif new_status == JobStatus.INSPECTION_COMPLETED:
+        if current_status != JobStatus.FINAL_INSPECTION:
+            raise RuntimeError(
+                f"ILLEGAL TRANSITION: Cannot mark inspection completed from status {current_status}. Must be FINAL_INSPECTION."
+            )
 
     elif new_status == JobStatus.INVOICED:
         # Ensure the pipeline doesn't invoice a lead that wasn't built
-        valid_priors = [JobStatus.MATERIAL_ORDERED, JobStatus.INSTALL_SCHEDULED, JobStatus.INSTALL_COMPLETED, JobStatus.FINAL_INSPECTION, JobStatus.INVOICED]
+        valid_priors = [
+            JobStatus.MATERIAL_ORDERED,
+            JobStatus.INSTALL_SCHEDULED,
+            JobStatus.INSTALL_COMPLETED,
+            JobStatus.FINAL_INSPECTION,
+            JobStatus.INSPECTION_COMPLETED,
+            JobStatus.INVOICED
+        ]
         if current_status not in valid_priors:
             raise RuntimeError(f"ILLEGAL TRANSITION: Cannot invoice from state {current_status}.")
 
@@ -509,7 +552,9 @@ def upsert_financials(
     permits_fee_cents: int = 0,
     deductible_cents: int = 0,
     acv_payment_cents: int = 0,
-    recoverable_depreciation_cents: int = 0
+    recoverable_depreciation_cents: int = 0,
+    depreciation_cents: int | None = None,
+    net_claim_cents: int | None = None
 ) -> None:
     """Upsert financial pre-build parameters into the financials table.
 
@@ -526,6 +571,11 @@ def upsert_financials(
     Raises:
         Exception: If the upsert operation fails.
     """
+    if depreciation_cents is None:
+        depreciation_cents = recoverable_depreciation_cents
+    if net_claim_cents is None:
+        net_claim_cents = max(0, carrier_rcv_cents - depreciation_cents - deductible_cents)
+
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -534,8 +584,9 @@ def upsert_financials(
             INSERT INTO financials 
             (job_id, 
              revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, permits_fee_cents,
-             overhead_pct, canvasser_commission_pct, deductible_cents, acv_payment_cents, recoverable_depreciation_cents)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             overhead_pct, canvasser_commission_pct, deductible_cents, acv_payment_cents, recoverable_depreciation_cents,
+             depreciation_cents, net_claim_cents)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
                 revenue_cents = excluded.revenue_cents,
                 carrier_rcv_cents = excluded.carrier_rcv_cents,
@@ -546,11 +597,14 @@ def upsert_financials(
                 canvasser_commission_pct = excluded.canvasser_commission_pct,
                 deductible_cents = excluded.deductible_cents,
                 acv_payment_cents = excluded.acv_payment_cents,
-                recoverable_depreciation_cents = excluded.recoverable_depreciation_cents
+                recoverable_depreciation_cents = excluded.recoverable_depreciation_cents,
+                depreciation_cents = excluded.depreciation_cents,
+                net_claim_cents = excluded.net_claim_cents
         ''', (
             job_id, 
             revenue_cents, carrier_rcv_cents, material_cost_cents, labor_cost_cents, permits_fee_cents,
-            overhead_pct, canvasser_commission_pct, deductible_cents, acv_payment_cents, recoverable_depreciation_cents
+            overhead_pct, canvasser_commission_pct, deductible_cents, acv_payment_cents, recoverable_depreciation_cents,
+            depreciation_cents, net_claim_cents
         ))
         conn.execute("COMMIT")
         logger.info("financials_upserted", job_id=job_id)
@@ -1425,13 +1479,14 @@ def update_job_claim_info(
             updates["adjuster_phone"] = adjuster_phone.strip()
         if adjuster_email is not None:
             updates["adjuster_email"] = adjuster_email.strip()
+        if loss_date is not None:
+            updates["loss_date"] = loss_date.strip() if loss_date else None
 
         if updates:
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             values = list(updates.values()) + [job_id]
             cursor = conn.execute(f"UPDATE jobs SET {set_clause} WHERE id = ?", values)
             if cursor.rowcount == 0:
-                conn.execute("ROLLBACK")
                 raise ValueError("Job not found")
 
         if loss_date and loss_date.strip():
@@ -1451,6 +1506,57 @@ def update_job_claim_info(
     except Exception:
         conn.execute("ROLLBACK")
         raise
+    finally:
+        conn.close()
+
+
+def update_shingle_info(
+    job_id: str,
+    shingle_color: str | None = None,
+    shingle_type: str | None = None,
+) -> dict:
+    """Update shingle color and type on a job record."""
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        updates = {}
+        if shingle_color is not None:
+            updates["shingle_color"] = shingle_color.strip() if shingle_color else None
+        if shingle_type is not None:
+            updates["shingle_type"] = shingle_type.strip() if shingle_type else None
+
+        if updates:
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            values = list(updates.values()) + [job_id]
+            cursor = conn.execute(f"UPDATE jobs SET {set_clause} WHERE id = ?", values)
+            if cursor.rowcount == 0:
+                raise ValueError("Job not found")
+        conn.execute("COMMIT")
+        return {"status": "success", "job_id": job_id}
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.close()
+
+
+def get_job_schedule(job_id: str) -> dict | None:
+    """Fetch the production schedule for a given job."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM schedule WHERE job_id = ?", (job_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_completed_jobs() -> list[dict]:
+    """Fetch all jobs that are in the CLOSED status."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute("SELECT * FROM jobs WHERE status = 'CLOSED' ORDER BY created_at DESC")
+        return [dict(r) for r in cursor.fetchall()]
     finally:
         conn.close()
 

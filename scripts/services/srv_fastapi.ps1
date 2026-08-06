@@ -20,7 +20,7 @@ while ($true) {
     Invoke-LogRotation
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content -Path $logFile -Value "[$timestamp] Starting FastAPI server (Restart Count: $restartCount)..."
-    & "$repo\venv\Scripts\uvicorn.exe" app.main:app --host 127.0.0.1 --port 8000 --env-file .env >> $logFile 2>&1
+    & "$repo\venv\Scripts\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --env-file .env >> $logFile 2>&1
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content -Path $logFile -Value "[$timestamp] FastAPI server terminated. Self-healing in 3 seconds..."
     $restartCount++
